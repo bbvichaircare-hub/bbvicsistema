@@ -1,0 +1,40 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Usuarios autenticados tem acesso completo
+    match /{document=**} {
+      allow read, write: if request.auth != null;
+    }
+
+    // === ACESSO PUBLICO (paginas de orcamento e fatura) ===
+
+    // Configuracoes de pagamento - leitura publica
+    match /configuracoes/{docId} {
+      allow read: if true;
+    }
+
+    // Orcamentos - leitura e atualizacao publica via token
+    match /estimates/{estimateId} {
+      allow read: if true;
+      allow update: if true;
+    }
+
+    // Faturas - leitura e atualizacao publica via token
+    match /invoices/{invoiceId} {
+      allow read: if true;
+      allow create: if true;
+      allow update: if true;
+    }
+
+    // Notificacoes - criacao publica (cliente aprovando/visualizando)
+    match /notificacoes/{notifId} {
+      allow create: if true;
+    }
+
+    // Contas a receber - criacao publica (gerada ao aprovar orcamento)
+    match /contas_receber/{docId} {
+      allow create: if true;
+    }
+  }
+}

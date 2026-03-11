@@ -1,0 +1,320 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ================================= */
+/* ROOT COLORS */
+/* ================================= */
+
+:root {
+
+  --bbvic-gold: #C9A227;
+  --bbvic-gold-light: #E5C158;
+  --bbvic-gold-dark: #9A7B1A;
+
+  --bbvic-blue: #1E3A5F;
+
+  --bbvic-gray: #6B7280;
+  --bbvic-gray-light: #F3F4F6;
+
+  --bbvic-success: #10B981;
+  --bbvic-warning: #F59E0B;
+  --bbvic-error: #EF4444;
+
+}
+
+/* ================================= */
+/* BASE */
+/* ================================= */
+
+@layer base {
+
+  *{
+    border-color:#e5e7eb;
+  }
+
+  html{
+    scroll-behavior:smooth;
+  }
+
+  body{
+    font-family:'Inter',system-ui,-apple-system,sans-serif;
+    background:#f3f4f6;
+    color:#111827;
+    -webkit-font-smoothing:antialiased;
+  }
+
+}
+
+/* ================================= */
+/* LAYOUT GLOBAL */
+/* ================================= */
+
+main{
+  max-width:1200px;
+  margin:auto;
+}
+
+h1{
+  font-size:24px;
+  font-weight:600;
+  color:#111827;
+  margin-bottom:20px;
+}
+
+h2{
+  font-size:18px;
+  font-weight:600;
+  color:#1f2937;
+}
+
+p{
+  color:#4b5563;
+}
+
+/* ================================= */
+/* CARDS */
+/* ================================= */
+
+.bbvic-card{
+
+  background:white;
+  padding:20px;
+  border-radius:14px;
+  border:1px solid #e5e7eb;
+  box-shadow:0 1px 3px rgba(0,0,0,0.05);
+
+}
+
+.bbvic-card:hover{
+
+  border-color:var(--bbvic-gold);
+  box-shadow:0 6px 20px rgba(0,0,0,0.08);
+
+}
+
+/* ================================= */
+/* LIST GRID */
+/* ================================= */
+
+ul{
+
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(250px,1fr));
+  gap:16px;
+
+}
+
+li{
+
+  background:white;
+  border:1px solid #e5e7eb;
+  border-radius:12px;
+  padding:16px;
+  transition:0.2s;
+
+}
+
+li:hover{
+
+  border-color:var(--bbvic-gold);
+  box-shadow:0 4px 12px rgba(0,0,0,0.06);
+
+}
+
+/* ================================= */
+/* BUTTONS */
+/* ================================= */
+
+.bbvic-btn-primary{
+
+  height:42px;
+  padding:0 18px;
+  border-radius:10px;
+  font-weight:600;
+  color:white;
+  background:linear-gradient(135deg,var(--bbvic-gold),var(--bbvic-gold-dark));
+  transition:0.2s;
+
+}
+
+.bbvic-btn-primary:hover{
+
+  transform:translateY(-1px);
+  box-shadow:0 4px 10px rgba(0,0,0,0.15);
+
+}
+
+.bbvic-btn-outline{
+
+  height:42px;
+  padding:0 18px;
+  border-radius:10px;
+  border:1.5px solid var(--bbvic-gold);
+  color:var(--bbvic-gold);
+  background:white;
+
+}
+
+.bbvic-btn-outline:hover{
+
+  background:rgba(201,162,39,0.1);
+
+}
+
+/* ================================= */
+/* INPUT */
+/* ================================= */
+
+.bbvic-input{
+
+  height:42px;
+  padding:0 12px;
+  border-radius:10px;
+  border:1px solid #d1d5db;
+  background:white;
+  color:#111827;
+
+}
+
+.bbvic-input::placeholder{
+
+  color:#9ca3af;
+
+}
+
+.bbvic-input:focus{
+
+  outline:none;
+  border-color:var(--bbvic-gold);
+  box-shadow:0 0 0 2px rgba(201,162,39,0.2);
+
+}
+
+/* ================================= */
+/* TABLE */
+/* ================================= */
+
+.bbvic-table{
+
+  width:100%;
+  border-collapse:collapse;
+
+}
+
+.bbvic-table th{
+
+  text-align:left;
+  font-size:12px;
+  font-weight:600;
+  text-transform:uppercase;
+  color:#6b7280;
+  background:#f9fafb;
+  padding:12px;
+  border-bottom:1px solid #e5e7eb;
+
+}
+
+.bbvic-table td{
+
+  padding:12px;
+  font-size:14px;
+  border-bottom:1px solid #f3f4f6;
+
+}
+
+.bbvic-table tr:hover td{
+
+  background:#f9fafb;
+
+}
+
+/* ================================= */
+/* BADGES */
+/* ================================= */
+
+.bbvic-badge-success{
+
+  background:#d1fae5;
+  color:#065f46;
+  font-size:12px;
+  padding:4px 8px;
+  border-radius:20px;
+
+}
+
+.bbvic-badge-warning{
+
+  background:#fef3c7;
+  color:#92400e;
+  font-size:12px;
+  padding:4px 8px;
+  border-radius:20px;
+
+}
+
+.bbvic-badge-default{
+
+  background:#f3f4f6;
+  color:#4b5563;
+  font-size:12px;
+  padding:4px 8px;
+  border-radius:20px;
+
+}
+
+/* ================================= */
+/* SCROLLBAR */
+/* ================================= */
+
+::-webkit-scrollbar{
+  width:8px;
+}
+
+::-webkit-scrollbar-thumb{
+  background:rgba(0,0,0,0.2);
+  border-radius:4px;
+}
+
+::-webkit-scrollbar-thumb:hover{
+  background:rgba(0,0,0,0.3);
+}
+
+/* ============================================
+   FIX GLOBAL PARA PÁGINAS ANTIGAS (tema claro)
+   ============================================ */
+
+
+/* Corrige fundos transparentes usados no dark */
+.bg-white\/10 {
+  background-color: #ffffff !important;
+}
+
+.bg-white\/5 {
+  background-color: #ffffff !important;
+}
+
+/* Corrige bordas claras do dark */
+.border-white\/20 {
+  border-color: #e5e7eb !important; /* gray-200 */
+}
+
+.border-white\/10 {
+  border-color: #e5e7eb !important;
+}
+
+/* Inputs antigos que ficaram com fundo escuro */
+input.bg-white\/10,
+textarea.bg-white\/10,
+select.bg-white\/10 {
+  background-color: #ffffff !important;
+  color: #111827 !important;
+  border: 1px solid #e5e7eb !important;
+}
+
+/* Placeholders */
+::placeholder {
+  color: #9ca3af !important;
+}
