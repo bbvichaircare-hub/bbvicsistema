@@ -1,11 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { collection, query, where, getDocs, addDoc, updateDoc, doc, Timestamp, orderBy, limit } from 'firebase/firestore';
+import { collection, query, where, getDocs, addDoc, updateDoc, doc, Timestamp, orderBy, limit, deleteDoc, writeBatch } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { updateStock } from '@/lib/inventory';
 import { toast } from 'sonner';
-import { Package, Search, AlertTriangle, Plus, Minus, RotateCcw, TrendingUp, DollarSign, ShoppingBag, Download, Upload, Edit2, X, History, ArrowUpCircle, ArrowDownCircle, SlidersHorizontal, ShoppingCart, Filter } from 'lucide-react';
+import { Package, Search, AlertTriangle, Plus, Minus, RotateCcw, TrendingUp, DollarSign, ShoppingBag, Download, Upload, Edit2, X, History, ArrowUpCircle, ArrowDownCircle, SlidersHorizontal, ShoppingCart, Filter, Trash2 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import type { Produto } from '@/types';
 
@@ -67,6 +67,11 @@ export function EstoqueAvancado() {
   const [activeTab, setActiveTab] = useState<'produtos' | 'historico'>('produtos');
   const [filtroMovTipo, setFiltroMovTipo] = useState<'todos' | 'entrada' | 'saida' | 'ajuste' | 'venda'>('todos');
   const [filtroMovProduto, setFiltroMovProduto] = useState('');
+
+  const [deleteConfirm, setDeleteConfirm] = useState<{id: string; nome: string} | null>(null)
+  const [deletingProd, setDeletingProd] = useState(false)
+  const [deleteAllConfirm, setDeleteAllConfirm] = useState(false)
+  const [deletingAll, setDeletingAll] = useState(false)
 
   useEffect(() => {
     if (!isAdmin) { navigate('/'); return; }
@@ -287,6 +292,41 @@ export function EstoqueAvancado() {
 
   if (loading) return <div className="flex items-center justify-center h-96"><div className="w-8 h-8 border-2 border-[#C9A227] border-t-transparent rounded-full animate-spin"/></div>;
 
+  const handleDeleteProd = async () => {
+    if (!deleteConfirm) return
+    setDeletingProd(true)
+    try {
+      await deleteDoc(doc(db, 'produtos', deleteConfirm.id))
+      setProdutos(prev => prev.filter(p => p.id !== deleteConfirm.id))
+      toast.success(`Produto "${deleteConfirm.nome}" excluído!`)
+      setDeleteConfirm(null)
+    } catch (e) {
+      console.error(e)
+      toast.error('Erro ao excluir produto')
+    } finally {
+      setDeletingProd(false)
+    }
+  }
+
+  const handleDeleteAll = async () => {
+    setDeletingAll(true)
+    try {
+      const batch = writeBatch(db)
+      produtos.forEach(p => {
+        batch.delete(doc(db, 'produtos', p.id!))
+      })
+      await batch.commit()
+      setProdutos([])
+      toast.success(`${produtos.length} produto(s) excluído(s)!`)
+      setDeleteAllConfirm(false)
+    } catch (e) {
+      console.error(e)
+      toast.error('Erro ao excluir todos os produtos')
+    } finally {
+      setDeletingAll(false)
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
@@ -304,9 +344,19 @@ export function EstoqueAvancado() {
                 <Upload className="w-4 h-4"/> Importar Excel
               </button>
               <input ref={importRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleImport}/>
-              <button onClick={openNew} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#C9A227] text-white text-sm font-medium hover:bg-[#9A7B1A]">
-                <Plus className="w-4 h-4"/> Novo Produto
-              </button>
+              <div className="flex gap-2">
+                {produtos.length > 0 && (
+                  <button
+                    onClick={() => setDeleteAllConfirm(true)}
+                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-red-200 text-red-500 text-sm font-semibold hover:bg-red-50"
+                  >
+                    <Trash2 className="w-4 h-4" /> Excluir Todos
+                  </button>
+                )}
+                <button onClick={openNew} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#C9A227] text-white text-sm font-medium hover:bg-[#9A7B1A]">
+                  <Plus className="w-4 h-4"/> Novo Produto
+                </button>
+              </div>
             </>
           ) : (
             <button onClick={handleExportHistorico} className="flex items-center gap-2 px-3 py-2 rounded-xl border border-gray-200 text-gray-600 text-sm hover:bg-gray-50">
@@ -464,6 +514,13 @@ export function EstoqueAvancado() {
                         <td className="px-5 py-4 text-right">
                           <div className="flex items-center gap-1 justify-end">
                             <button onClick={()=>openEdit(produto)} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600" title="Editar produto"><Edit2 className="w-4 h-4"/></button>
+                            <button
+                              onClick={() => setDeleteConfirm({ id: produto.id!, nome: produto.nome })}
+                              className="p-1.5 rounded-lg bg-red-50 text-red-400 hover:bg-red-100"
+                              title="Excluir produto"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
                             {ajustando===produto.id ? (
                               <div className="flex items-center gap-1">
                                 <input type="number" min="1" value={quantidadeAjuste} onChange={e=>setQuantidadeAjuste(e.target.value)} placeholder="Qtd" className="w-14 px-2 py-1.5 text-sm rounded-lg border border-gray-200 text-gray-900 text-center focus:outline-none focus:border-[#C9A227]" autoFocus/>
@@ -728,6 +785,59 @@ export function EstoqueAvancado() {
               <button onClick={()=>setShowModal(false)} className="flex-1 py-3 rounded-xl border border-gray-200 text-gray-600 text-sm font-medium hover:bg-gray-50">Cancelar</button>
               <button onClick={handleSave} disabled={saving} className="flex-[2] py-3 rounded-xl bg-[#C9A227] text-white text-sm font-bold hover:bg-[#9A7B1A] disabled:opacity-50">
                 {saving ? 'Salvando...' : (editingId ? 'Salvar Altera\u00e7\u00f5es' : 'Criar Produto')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Delete Single Product Modal */}
+      {deleteConfirm && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setDeleteConfirm(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-sm w-full" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
+                <Trash2 className="w-6 h-6 text-red-500" />
+              </div>
+              <div>
+                <h3 className="font-bold text-gray-900">Excluir Produto</h3>
+                <p className="text-sm text-gray-500">Esta ação não pode ser desfeita.</p>
+              </div>
+            </div>
+            <p className="text-sm text-gray-600 mb-6">
+              Tem certeza que deseja excluir <span className="font-semibold text-gray-900">"{deleteConfirm.nome}"</span>?
+            </p>
+            <div className="flex gap-3">
+              <button onClick={() => setDeleteConfirm(null)} className="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-600 font-medium hover:bg-gray-50">Cancelar</button>
+              <button onClick={handleDeleteProd} disabled={deletingProd} className="flex-1 py-2.5 rounded-xl bg-red-500 text-white font-semibold hover:bg-red-600 disabled:opacity-60 flex items-center justify-center gap-2">
+                {deletingProd && <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin inline-block"/>}
+                Excluir
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete All Products Modal */}
+      {deleteAllConfirm && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setDeleteAllConfirm(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-sm w-full" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
+                <Trash2 className="w-6 h-6 text-red-500" />
+              </div>
+              <div>
+                <h3 className="font-bold text-gray-900">Excluir Todos os Produtos</h3>
+                <p className="text-sm text-gray-500">Esta ação não pode ser desfeita.</p>
+              </div>
+            </div>
+            <p className="text-sm text-gray-600 mb-6">
+              Isso vai excluir <span className="font-semibold text-red-600">todos os {produtos.length} produtos</span> do estoque permanentemente.
+            </p>
+            <div className="flex gap-3">
+              <button onClick={() => setDeleteAllConfirm(false)} className="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-600 font-medium hover:bg-gray-50">Cancelar</button>
+              <button onClick={handleDeleteAll} disabled={deletingAll} className="flex-1 py-2.5 rounded-xl bg-red-500 text-white font-semibold hover:bg-red-600 disabled:opacity-60 flex items-center justify-center gap-2">
+                {deletingAll && <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin inline-block"/>}
+                {deletingAll ? 'Excluindo...' : 'Excluir Tudo'}
               </button>
             </div>
           </div>
