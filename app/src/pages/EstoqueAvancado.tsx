@@ -231,41 +231,81 @@ export function EstoqueAvancado() {
     toast.success('Hist\u00f3rico exportado!');
   };
 
+  const getCol = (row: any, ...keys: string[]) => {
+    for (const k of keys) {
+      const found = Object.keys(row).find(rk => rk.toLowerCase().trim() === k.toLowerCase().trim())
+      if (found !== undefined && row[found] !== undefined && row[found] !== '') return row[found]
+    }
+    return undefined
+  }
+
+  const handleDownloadTemplate = () => {
+    const template = [
+      { 'Nome': 'Exemplo Produto', 'Categoria': 'Cabelo', 'Preco Venda': 25.00, 'Preco Custo': 15.00, 'Estoque': 10, 'Estoque Minimo': 2, 'Unidade': 'un' }
+    ]
+    const ws = XLSX.utils.json_to_sheet(template)
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Modelo')
+    XLSX.writeFile(wb, 'modelo_estoque.xlsx')
+    toast.success('Modelo baixado!')
+  }
+
+  const cleanNum = (v: any): number => {
+    if (v === undefined || v === null || v === '') return 0
+    // Remove $, spaces, then replace comma decimal separator with dot
+    const s = String(v).replace(/[$\s]/g, '').replace(',', '.')
+    const n = parseFloat(s)
+    return isNaN(n) ? 0 : n
+  }
+
   const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    toast.info('Importando planilha...')
     const reader = new FileReader();
     reader.onload = async (evt) => {
       try {
         const data = new Uint8Array(evt.target!.result as ArrayBuffer);
         const wb = XLSX.read(data, { type: 'array' });
         const ws = wb.Sheets[wb.SheetNames[0]];
-        const rows: any[] = XLSX.utils.sheet_to_json(ws);
+        const rows: any[] = XLSX.utils.sheet_to_json(ws, { defval: '' });
+        if (rows.length === 0) { toast.error('Planilha vazia ou formato inv\u00e1lido'); return; }
         let count = 0;
+        let skipped = 0;
         for (const row of rows) {
-          const nome = row['Nome'] || row['nome'];
-          if (!nome) continue;
-          const custo = parseFloat(row['Pre\u00e7o Custo ($)'] || row['preco_custo'] || 0);
-          const venda = parseFloat(row['Pre\u00e7o Venda ($)'] || row['preco'] || row['preco_venda'] || 0);
+          const nome = getCol(row, 'Nome', 'NOME', 'name', 'produto', 'product', 'descricao', 'description')
+          if (!nome) { skipped++; continue; }
+          const custo = cleanNum(getCol(row, 'Preco Custo', 'Pre\u00e7o Custo ($)', 'Pre\u00e7o Custo', 'Preco Custo ($)', 'preco_custo', 'custo', 'cost'))
+          const venda = cleanNum(getCol(row, 'Preco Venda', 'Pre\u00e7o Venda ($)', 'Pre\u00e7o Venda', 'Preco Venda ($)', 'preco', 'preco_venda', 'venda', 'price'))
+          const estoque = Math.round(cleanNum(getCol(row, 'Estoque', 'estoque', 'qty', 'quantidade', 'stock')))
+          const estoqueMin = Math.round(cleanNum(getCol(row, 'Estoque Minimo', 'Estoque M\u00ednimo', 'estoque_minimo', 'minimo', 'min')))
+          const margem = venda > 0 && custo >= 0 ? Math.round(((venda - custo) / venda) * 10000) / 100 : 0
           await addDoc(collection(db, 'produtos'), {
             nome: String(nome).trim(),
-            categoria: String(row['Categoria'] || row['categoria'] || '').trim(),
+            categoria: String(getCol(row, 'Categoria', 'categoria', 'category') || '').trim(),
             preco: venda,
             preco_venda: venda,
             preco_custo: custo,
-            margem_lucro: venda > 0 ? Math.round(((venda - custo) / venda) * 10000) / 100 : 0,
-            estoque: parseInt(row['Estoque'] || row['estoque'] || 0),
-            estoque_minimo: parseInt(row['Estoque M\u00ednimo'] || row['estoque_minimo'] || 0),
-            unidade: String(row['Unidade'] || row['unidade'] || 'un'),
+            margem_lucro: margem,
+            estoque: isNaN(estoque) ? 0 : estoque,
+            estoque_minimo: isNaN(estoqueMin) ? 0 : estoqueMin,
+            unidade: String(getCol(row, 'Unidade', 'unidade', 'unit') || 'un').trim(),
             ativo: true,
             created_at: Timestamp.now(),
             updated_at: Timestamp.now(),
           });
           count++;
         }
-        toast.success(`${count} produto(s) importado(s)!`);
-        fetchProdutos();
-      } catch(err) { console.error(err); toast.error('Erro ao importar planilha'); }
+        if (count === 0) {
+          toast.error(`Nenhum produto importado. A planilha precisa ter a coluna "Nome". Linhas ignoradas: ${skipped}`)
+        } else {
+          toast.success(`${count} produto(s) importado(s)!${skipped > 0 ? ` (${skipped} linha(s) ignorada(s))` : ''}`)
+          fetchProdutos();
+        }
+      } catch(err) {
+        console.error('Erro importa\u00e7\u00e3o:', err)
+        toast.error('Erro ao ler planilha. Verifique se o arquivo \u00e9 .xlsx ou .csv v\u00e1lido.')
+      }
     };
     reader.readAsArrayBuffer(file);
     e.target.value = '';
@@ -339,6 +379,9 @@ export function EstoqueAvancado() {
             <>
               <button onClick={handleExport} className="flex items-center gap-2 px-3 py-2 rounded-xl border border-gray-200 text-gray-600 text-sm hover:bg-gray-50">
                 <Download className="w-4 h-4"/> Exportar Excel
+              </button>
+              <button onClick={handleDownloadTemplate} className="flex items-center gap-2 px-3 py-2 rounded-xl border border-[#C9A227]/50 text-[#C9A227] text-sm hover:bg-[#C9A227]/5">
+                <Download className="w-4 h-4"/> Baixar Modelo
               </button>
               <button onClick={() => importRef.current?.click()} className="flex items-center gap-2 px-3 py-2 rounded-xl border border-gray-200 text-gray-600 text-sm hover:bg-gray-50">
                 <Upload className="w-4 h-4"/> Importar Excel

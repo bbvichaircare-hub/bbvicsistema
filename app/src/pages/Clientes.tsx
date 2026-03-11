@@ -12,7 +12,9 @@ import {
   getDocs,
   orderBy,
   deleteDoc,
-  doc
+  doc,
+  addDoc,
+  Timestamp
 } from "firebase/firestore"
 import { db } from "@/lib/firebase"
 import { Plus, Search, Users, Download, Upload, Trash2 } from "lucide-react"
@@ -118,50 +120,83 @@ export function Clientes() {
     toast.success('Clientes exportados para Excel!')
   }
 
+  const getColCli = (row: any, ...keys: string[]) => {
+    for (const k of keys) {
+      const found = Object.keys(row).find(rk => rk.toLowerCase().trim() === k.toLowerCase().trim())
+      if (found !== undefined && row[found] !== undefined && row[found] !== '') return row[found]
+    }
+    return undefined
+  }
+
+  const handleDownloadTemplateCli = () => {
+    const template = [
+      { 'Nome': 'Maria Silva', 'Email': 'maria@email.com', 'Telefone': '617-555-0100', 'Endereco': '123 Main St', 'Cidade': 'Framingham', 'Estado': 'MA', 'CEP': '01701', 'Data Nascimento': '1990-01-15', 'Empresa': '', 'Observacoes': '' }
+    ]
+    const ws = XLSX.utils.json_to_sheet(template)
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Modelo')
+    XLSX.writeFile(wb, 'modelo_clientes.xlsx')
+    toast.success('Modelo baixado!')
+  }
+
   const handleImportClientes = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
+    toast.info('Importando clientes...')
     const reader = new FileReader()
     reader.onload = async (evt) => {
       try {
         const data = new Uint8Array(evt.target!.result as ArrayBuffer)
         const wb = XLSX.read(data, { type: 'array' })
         const ws = wb.Sheets[wb.SheetNames[0]]
-        const rows: any[] = XLSX.utils.sheet_to_json(ws)
+        const rows: any[] = XLSX.utils.sheet_to_json(ws, { defval: '' })
+        if (rows.length === 0) { toast.error('Planilha vazia ou formato inv\u00e1lido'); return }
         let count = 0
+        let duplicados = 0
+        let skipped = 0
         for (const row of rows) {
-          const nome = row['Nome'] || row['nome']
-          if (!nome) continue
-          const email = (row['Email'] || row['email'] || '').toLowerCase().trim()
-          const telefone = (row['Telefone'] || row['telefone'] || '').trim()
-          // Check duplicate by email or phone
-          const { collection: col, query: q, where: wh, getDocs: gd } = await import('firebase/firestore')
-          const { db: firedb } = await import('@/lib/firebase')
+          const nome = getColCli(row, 'Nome', 'name', 'cliente', 'client', 'nome completo', 'full name')
+          if (!nome) { skipped++; continue }
+          const email = String(getColCli(row, 'Email', 'email', 'e-mail') || '').toLowerCase().trim()
+          const telefone = String(getColCli(row, 'Telefone', 'telefone', 'phone', 'tel', 'celular') || '').trim()
+          // Check duplicate
           if (email) {
-            const snap = await gd(q(col(firedb,'clientes'), wh('email','==',email)))
-            if (!snap.empty) continue
+            const snap = await getDocs(query(collection(db, 'clientes'), where('email', '==', email)))
+            if (!snap.empty) { duplicados++; continue }
           }
-          const { addDoc: ad, Timestamp: Ts } = await import('firebase/firestore')
-          await ad(col(firedb,'clientes'), {
+          if (telefone && !email) {
+            const snap = await getDocs(query(collection(db, 'clientes'), where('telefone', '==', telefone)))
+            if (!snap.empty) { duplicados++; continue }
+          }
+          await addDoc(collection(db, 'clientes'), {
             nome: String(nome).trim(),
             email,
             telefone,
-            endereco: String(row['Endereço'] || row['endereco'] || '').trim(),
-            cidade: String(row['Cidade'] || row['cidade'] || '').trim(),
-            estado: String(row['Estado'] || row['estado'] || '').trim(),
-            cep: String(row['CEP'] || row['cep'] || '').trim(),
-            data_nascimento: String(row['Data Nascimento'] || row['data_nascimento'] || '').trim(),
-            empresa: String(row['Empresa'] || row['empresa'] || '').trim(),
-            observacoes: String(row['Observações'] || row['observacoes'] || '').trim(),
+            endereco: String(getColCli(row, 'Endereco', 'Endere\u00e7o', 'endereco', 'address') || '').trim(),
+            cidade: String(getColCli(row, 'Cidade', 'cidade', 'city') || '').trim(),
+            estado: String(getColCli(row, 'Estado', 'estado', 'state') || '').trim(),
+            cep: String(getColCli(row, 'CEP', 'cep', 'zip', 'zipcode') || '').trim(),
+            data_nascimento: String(getColCli(row, 'Data Nascimento', 'data_nascimento', 'birthday', 'nascimento') || '').trim(),
+            empresa: String(getColCli(row, 'Empresa', 'empresa', 'company') || '').trim(),
+            observacoes: String(getColCli(row, 'Observacoes', 'Observa\u00e7\u00f5es', 'observacoes', 'notes') || '').trim(),
             vendedor_id: user?.uid || '',
             ativo: true,
-            created_at: Ts.now(),
+            created_at: Timestamp.now(),
           })
           count++
         }
-        toast.success(`${count} cliente(s) importado(s)!`)
-        fetchClientes()
-      } catch(err) { console.error(err); toast.error('Erro ao importar planilha') }
+        if (count === 0 && duplicados === 0) {
+          toast.error(`Nenhum cliente importado. Verifique se a planilha tem coluna "Nome". Linhas ignoradas: ${skipped}`)
+        } else {
+          let msg = `${count} cliente(s) importado(s)!`
+          if (duplicados > 0) msg += ` (${duplicados} duplicado(s) ignorado(s))`
+          toast.success(msg)
+          fetchClientes()
+        }
+      } catch(err) {
+        console.error('Erro importa\u00e7\u00e3o clientes:', err)
+        toast.error('Erro ao ler planilha. Verifique se o arquivo \u00e9 .xlsx ou .csv v\u00e1lido.')
+      }
     }
     reader.readAsArrayBuffer(file)
     e.target.value = ''
@@ -210,6 +245,12 @@ export function Clientes() {
             className="flex items-center gap-2 px-3 py-2 rounded-xl border border-gray-200 text-gray-600 text-sm hover:bg-gray-50"
           >
             <Download className="w-4 h-4"/> Exportar
+          </button>
+          <button
+            onClick={handleDownloadTemplateCli}
+            className="flex items-center gap-2 px-3 py-2 rounded-xl border border-[#C9A227]/50 text-[#C9A227] text-sm hover:bg-[#C9A227]/5"
+          >
+            <Download className="w-4 h-4"/> Baixar Modelo
           </button>
           <button
             onClick={() => importClienteRef.current?.click()}
