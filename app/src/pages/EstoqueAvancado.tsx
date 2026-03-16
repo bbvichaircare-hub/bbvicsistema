@@ -403,6 +403,35 @@ export function EstoqueAvancado() {
     }
   }
 
+  const handleRemoverZerados = async () => {
+    const zerados = produtos.filter(p => {
+      const venda = parseFloat(String(p.preco_venda || 0))
+      const custo = parseFloat(String(p.preco_custo || 0))
+      return venda === 0 && custo === 0
+    })
+    if (zerados.length === 0) {
+      toast.info('Nenhum produto com custo e venda zerados encontrado.')
+      return
+    }
+    try {
+      const BATCH_SIZE = 400
+      for (let i = 0; i < zerados.length; i += BATCH_SIZE) {
+        const lote = zerados.slice(i, i + BATCH_SIZE)
+        const batch = writeBatch(db)
+        lote.forEach(p => batch.delete(doc(db, 'produtos', p.id!)))
+        await batch.commit()
+      }
+      setProdutos(prev => prev.filter(p => {
+        const venda = parseFloat(String(p.preco_venda || 0))
+        const custo = parseFloat(String(p.preco_custo || 0))
+        return !(venda === 0 && custo === 0)
+      }))
+      toast.success(`${zerados.length} produto(s) zerado(s) removido(s)!`)
+    } catch (e) {
+      toast.error('Erro ao remover produtos zerados')
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
@@ -423,6 +452,13 @@ export function EstoqueAvancado() {
                 <Upload className="w-4 h-4"/> Importar Excel
               </button>
               <input ref={importRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleImport}/>
+              <button
+                onClick={handleRemoverZerados}
+                className="flex items-center gap-2 px-3 py-2 rounded-xl border border-orange-200 text-orange-600 text-sm hover:bg-orange-50"
+                title="Remove todos produtos com preço de custo e venda iguais a zero"
+              >
+                <Trash2 className="w-4 h-4"/> Remover Zerados
+              </button>
               <div className="flex gap-2">
                 {produtos.length > 0 && (
                   <button
