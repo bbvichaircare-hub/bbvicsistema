@@ -5,7 +5,7 @@ import { collection, query, getDocs, addDoc, updateDoc, doc, Timestamp, orderBy,
 import { db } from '@/lib/firebase'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { toast } from 'sonner'
-import { Plus, Search, Trash2, ShoppingCart, Loader2, ArrowLeft, Package, Building2, CheckCircle, Edit2, AlertCircle } from 'lucide-react'
+import { Plus, Search, Trash2, ShoppingCart, Loader2, ArrowLeft, Package, Building2, CheckCircle, Edit2, AlertCircle, FileText, X, Check, HelpCircle } from 'lucide-react'
 
 interface ProdutoEstoque {
   id: string
@@ -39,6 +39,17 @@ interface Compra {
   admin_id: string
 }
 
+interface ProdutoMatch {
+  nomePDF: string
+  quantidade: number
+  preco: number
+  melhorMatch: ProdutoEstoque | null
+  similaridade: number
+  decisao: 'confirmar' | 'ignorar' | 'manual'
+  produtoSelecionado: ProdutoEstoque | null
+  buscaManual: string
+}
+
 export function Compras() {
   const { user, isAdmin } = useAuth()
   const navigate = useNavigate()
@@ -64,6 +75,8 @@ export function Compras() {
   const [pdfLoading, setPdfLoading] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
+  const [showMatchModal, setShowMatchModal] = useState(false)
+  const [pdfMatches, setPdfMatches] = useState<ProdutoMatch[]>([])
 
   const total = items.reduce((a, i) => a + i.subtotal, 0)
 
@@ -124,6 +137,113 @@ export function Compras() {
   }
 
   const removeItem = (tempId: string) => setItems(items.filter(i => i.tempId !== tempId))
+
+  // Calcula similaridade entre dois strings (0-1)
+  const calcSimilaridade = (a: string, b: string): number => {
+    const na = a.toUpperCase().replace(/[^A-Z0-9]/g, ' ').replace(/\s+/g, ' ').trim()
+    const nb = b.toUpperCase().replace(/[^A-Z0-9]/g, ' ').replace(/\s+/g, ' ').trim()
+    if (na === nb) return 1
+    const wordsA = na.split(' ')
+    const wordsB = nb.split(' ')
+    const matched = wordsA.filter(w => w.length > 2 && wordsB.some(wb => wb.includes(w) || w.includes(wb)))
+    const score = (matched.length * 2) / (wordsA.length + wordsB.length)
+    // bonus se começa igual
+    const prefixLen = [...na].findIndex((c, i) => c !== nb[i])
+    const prefixBonus = prefixLen > 4 ? 0.1 : 0
+    return Math.min(1, score + prefixBonus)
+  }
+
+  // Encontra melhor produto do estoque para um nome do PDF
+  const encontrarMelhorMatch = (nomePDF: string): { produto: ProdutoEstoque | null; score: number } => {
+    let melhor: ProdutoEstoque | null = null
+    let melhorScore = 0
+    for (const p of produtos) {
+      const score = calcSimilaridade(nomePDF, p.nome)
+      if (score > melhorScore) { melhorScore = score; melhor = p }
+    }
+    return { produto: melhor, score: melhorScore }
+  }
+
+  // Extrai linhas de produtos do texto do PDF
+  const extrairProdutosDoPDF = (fullText: string): Array<{ nome: string; quantidade: number; preco: number }> => {
+    const linhas = fullText.split('\n').map(l => l.trim()).filter(l => l.length > 3)
+    const resultado: Array<{ nome: string; quantidade: number; preco: number }> = []
+    const vistos = new Set<string>()
+
+    // Padrão 1: "NOME PRODUTO   QTD   $PRECO"
+    const padraoLinha = /^(.{5,60?}?)\s+(\d{1,4})\s+\$?\s*([\d,]+\.?\d{0,2})\s*$/
+    // Padrão 2: linha com nome seguida de linha com qty e preco
+    const padraoPreco = /\$\s*([\d,]+\.\d{2})/
+
+    for (let i = 0; i < linhas.length; i++) {
+      const linha = linhas[i]
+
+      // Tenta padrão simples: nome + qty + preco na mesma linha
+      const m = linha.match(padraoLinha)
+      if (m) {
+        const nome = m[1].trim()
+        const qty = parseInt(m[2])
+        const preco = parseFloat(m[3].replace(/,/g, ''))
+        const key = nome.toUpperCase().substring(0, 20)
+        if (!vistos.has(key) && qty > 0 && qty < 500 && preco > 0 && preco < 10000) {
+          vistos.add(key)
+          resultado.push({ nome, quantidade: qty, preco })
+        }
+        continue
+      }
+
+      // Tenta identificar nome de produto (linha sem números grandes, sem $ sozinha)
+      const temPrecoNaLinha = linha.match(padraoPreco)
+      const pareceProduto = linha.length > 5 && linha.length < 80 &&
+        !linha.match(/^[\d\s$.,]+$/) &&
+        !linha.match(/^(total|subtotal|tax|shipping|balance|due|date|invoice|order|bill|page|amount|thank)/i)
+
+      if (pareceProduto && temPrecoNaLinha) {
+        // Linha tem nome e preço juntos, tenta extrair qty
+        const qtyMatch = linha.match(/\b(\d{1,3})\s*(?:x|pc|pcs|un|unid)?\b/i)
+        const qty = qtyMatch ? parseInt(qtyMatch[1]) : 1
+        const preco = parseFloat(temPrecoNaLinha[1].replace(/,/g, ''))
+        const nome = linha.replace(padraoPreco, '').replace(/\d+\s*x?\s*/i, '').replace(/[$,]/g, '').trim()
+        const key = nome.toUpperCase().substring(0, 20)
+        if (nome.length > 3 && !vistos.has(key) && preco > 0 && preco < 10000) {
+          vistos.add(key)
+          resultado.push({ nome, quantidade: qty, preco })
+        }
+      }
+    }
+
+    return resultado.slice(0, 50) // máximo 50 produtos
+  }
+
+  const aplicarMatches = () => {
+    const novosItems: ItemCompra[] = []
+    for (const match of pdfMatches) {
+      if (match.decisao === 'ignorar') continue
+      const produto = match.decisao === 'confirmar' ? match.melhorMatch : match.produtoSelecionado
+      if (!produto) continue
+      const existente = items.find(i => i.produto_id === produto.id)
+      if (existente) {
+        // já existe, soma quantidade
+        setItems(prev => prev.map(i => i.produto_id === produto.id
+          ? { ...i, quantidade: i.quantidade + match.quantidade, subtotal: (i.quantidade + match.quantidade) * i.preco_custo }
+          : i
+        ))
+      } else {
+        novosItems.push({
+          tempId: crypto.randomUUID(),
+          produto_id: produto.id,
+          produto_nome: produto.nome,
+          quantidade: match.quantidade,
+          preco_custo: match.preco || produto.preco_custo || 0,
+          subtotal: match.quantidade * (match.preco || produto.preco_custo || 0),
+        })
+      }
+    }
+    setItems(prev => [...prev, ...novosItems])
+    setShowMatchModal(false)
+    setPdfMatches([])
+    toast.success(`${novosItems.length} produto(s) adicionado(s) da nota fiscal!`)
+  }
 
   const handlePDF = async (file: File) => {
     setPdfLoading(true)
@@ -187,6 +307,26 @@ export function Compras() {
       if (totalV) { const _t = parseUSD(totalV[1]).toFixed(2); void _t }
 
       toast.success('PDF lido! Dados preenchidos automaticamente.')
+
+      // Extrair produtos do PDF e fazer fuzzy matching
+      const produtosPDF = extrairProdutosDoPDF(fullText)
+      if (produtosPDF.length > 0) {
+        const matches: ProdutoMatch[] = produtosPDF.map(p => {
+          const { produto, score } = encontrarMelhorMatch(p.nome)
+          return {
+            nomePDF: p.nome,
+            quantidade: p.quantidade,
+            preco: p.preco,
+            melhorMatch: produto,
+            similaridade: score,
+            decisao: score >= 0.6 ? 'confirmar' : 'manual',
+            produtoSelecionado: score >= 0.6 ? produto : null,
+            buscaManual: '',
+          }
+        })
+        setPdfMatches(matches)
+        setShowMatchModal(true)
+      }
     } catch (e) {
       console.error(e)
       toast.error('Não foi possível ler o PDF. Preencha manualmente.')
@@ -718,6 +858,123 @@ export function Compras() {
             <div className="flex gap-3">
               <button onClick={() => setDeleteConfirm(null)} className="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-600 font-medium hover:bg-gray-50">Cancelar</button>
               <button onClick={() => handleDelete(deleteConfirm)} className="flex-1 py-2.5 rounded-xl bg-red-500 text-white font-semibold hover:bg-red-600">Excluir</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Confirmação de Produtos do PDF */}
+      {showMatchModal && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between p-5 border-b border-gray-100">
+              <div>
+                <h3 className="font-bold text-gray-900 text-lg flex items-center gap-2">
+                  <FileText className="w-5 h-5 text-[#C9A227]" />
+                  Produtos encontrados no PDF
+                </h3>
+                <p className="text-sm text-gray-500 mt-0.5">Confirme o match de cada produto com seu estoque. Produtos em verde foram identificados automaticamente.</p>
+              </div>
+              <button onClick={() => setShowMatchModal(false)} className="p-2 rounded-xl hover:bg-gray-100 text-gray-400">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="overflow-y-auto flex-1 p-5 space-y-3">
+              {pdfMatches.map((match, idx) => (
+                <div key={idx} className={`border rounded-xl p-4 ${
+                  match.decisao === 'ignorar' ? 'border-gray-200 bg-gray-50 opacity-60' :
+                  match.decisao === 'confirmar' && match.similaridade >= 0.6 ? 'border-green-200 bg-green-50' :
+                  'border-amber-200 bg-amber-50'
+                }`}>
+                  <div className="flex items-start justify-between gap-3 mb-2">
+                    <div className="flex-1">
+                      <p className="text-xs text-gray-400 font-medium uppercase mb-0.5">No PDF:</p>
+                      <p className="font-semibold text-gray-900 text-sm">{match.nomePDF}</p>
+                      <p className="text-xs text-gray-500">Qtd: {match.quantidade} · Preço: {formatCurrency(match.preco)}</p>
+                    </div>
+                    <div className="flex gap-2 flex-shrink-0">
+                      <button
+                        onClick={() => setPdfMatches(prev => prev.map((m, i) => i === idx ? { ...m, decisao: 'confirmar' } : m))}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1 transition-colors ${match.decisao === 'confirmar' ? 'bg-green-600 text-white' : 'border border-green-300 text-green-700 hover:bg-green-50'}`}
+                      >
+                        <Check className="w-3 h-3" /> Confirmar
+                      </button>
+                      <button
+                        onClick={() => setPdfMatches(prev => prev.map((m, i) => i === idx ? { ...m, decisao: 'manual', produtoSelecionado: null } : m))}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1 transition-colors ${match.decisao === 'manual' ? 'bg-amber-500 text-white' : 'border border-amber-300 text-amber-700 hover:bg-amber-50'}`}
+                      >
+                        <HelpCircle className="w-3 h-3" /> Trocar
+                      </button>
+                      <button
+                        onClick={() => setPdfMatches(prev => prev.map((m, i) => i === idx ? { ...m, decisao: 'ignorar' } : m))}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1 transition-colors ${match.decisao === 'ignorar' ? 'bg-gray-500 text-white' : 'border border-gray-300 text-gray-600 hover:bg-gray-50'}`}
+                      >
+                        <X className="w-3 h-3" /> Ignorar
+                      </button>
+                    </div>
+                  </div>
+
+                  {match.decisao !== 'ignorar' && (
+                    <div className="mt-2">
+                      {match.decisao === 'confirmar' && match.melhorMatch ? (
+                        <div className="flex items-center gap-2 text-sm text-green-800 bg-green-100 rounded-lg px-3 py-2">
+                          <Check className="w-4 h-4 text-green-600 flex-shrink-0" />
+                          <span>Match: <strong>{match.melhorMatch.nome}</strong></span>
+                          <span className="text-xs text-green-600 ml-auto">{Math.round(match.similaridade * 100)}% similar</span>
+                        </div>
+                      ) : match.decisao === 'manual' ? (
+                        <div className="space-y-2">
+                          {match.produtoSelecionado ? (
+                            <div className="flex items-center gap-2 text-sm text-amber-800 bg-amber-100 rounded-lg px-3 py-2">
+                              <Check className="w-4 h-4 text-amber-600 flex-shrink-0" />
+                              <span>Selecionado: <strong>{match.produtoSelecionado.nome}</strong></span>
+                              <button onClick={() => setPdfMatches(prev => prev.map((m, i) => i === idx ? { ...m, produtoSelecionado: null, buscaManual: '' } : m))} className="ml-auto text-amber-600 hover:text-amber-800">
+                                <X className="w-3 h-3" />
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="relative">
+                              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+                              <input
+                                value={match.buscaManual}
+                                onChange={e => setPdfMatches(prev => prev.map((m, i) => i === idx ? { ...m, buscaManual: e.target.value } : m))}
+                                placeholder="Buscar produto no estoque..."
+                                className="w-full pl-8 pr-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:border-[#C9A227]"
+                              />
+                              {match.buscaManual.length > 1 && (
+                                <div className="absolute top-full left-0 right-0 z-30 bg-white border border-gray-200 rounded-xl shadow-lg mt-1 max-h-36 overflow-y-auto">
+                                  {produtos.filter(p => p.nome.toLowerCase().includes(match.buscaManual.toLowerCase())).slice(0, 6).map(p => (
+                                    <button key={p.id} onClick={() => setPdfMatches(prev => prev.map((m, i) => i === idx ? { ...m, produtoSelecionado: p, decisao: 'confirmar', buscaManual: '' } : m))}
+                                      className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 text-gray-800">
+                                      {p.nome}
+                                    </button>
+                                  ))}
+                                  {produtos.filter(p => p.nome.toLowerCase().includes(match.buscaManual.toLowerCase())).length === 0 && (
+                                    <p className="px-3 py-2 text-xs text-gray-400">Nenhum produto encontrado</p>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      ) : null}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            <div className="p-5 border-t border-gray-100 flex items-center justify-between gap-3">
+              <p className="text-sm text-gray-500">
+                {pdfMatches.filter(m => m.decisao !== 'ignorar' && (m.melhorMatch || m.produtoSelecionado)).length} de {pdfMatches.length} produtos serão adicionados
+              </p>
+              <div className="flex gap-3">
+                <button onClick={() => setShowMatchModal(false)} className="px-5 py-2.5 rounded-xl border border-gray-200 text-gray-600 text-sm hover:bg-gray-50">Cancelar</button>
+                <button onClick={aplicarMatches} className="px-6 py-2.5 rounded-xl bg-[#C9A227] text-white text-sm font-medium hover:bg-[#b8911f] flex items-center gap-2">
+                  <Check className="w-4 h-4" /> Adicionar Produtos Confirmados
+                </button>
+              </div>
             </div>
           </div>
         </div>

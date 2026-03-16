@@ -1,1 +1,0 @@
-import{g as i,a as s,c,d as u,T as d}from"./index-pbajwR2f.js";async function n(o,r,e="geral"){try{const t=i().currentUser;await s(c(u,"audit_log"),{acao:o,detalhes:r,tipo:e,usuario_id:t?.uid||"sistema",usuario_email:t?.email||"",created_at:d.now()})}catch(a){console.error("Audit log error:",a)}}export{n as logActivity};
