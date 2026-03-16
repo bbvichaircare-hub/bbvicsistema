@@ -2,39 +2,114 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Usuarios autenticados tem acesso completo
+    // === REGRAS PARA USUARIOS AUTENTICADOS ===
+    // Acesso completo para usuarios logados no sistema
     match /{document=**} {
       allow read, write: if request.auth != null;
     }
 
-    // === ACESSO PUBLICO (paginas de orcamento e fatura) ===
+    // === ACESSO PUBLICO CONTROLADO ===
+    // Necessario para paginas publicas de orcamento e fatura (link enviado ao cliente)
 
-    // Configuracoes de pagamento - leitura publica
+    // Configuracoes - apenas leitura publica (cliente precisa ver dados da empresa)
     match /configuracoes/{docId} {
       allow read: if true;
     }
 
-    // Orcamentos - leitura e atualizacao publica via token
+    // Orcamentos - leitura publica para o cliente ver pelo link
+    // Update permitido apenas para campos especificos (aprovacao pelo cliente)
     match /estimates/{estimateId} {
       allow read: if true;
-      allow update: if true;
+      allow update: if request.auth != null ||
+        (request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['status', 'aprovado_em', 'visualizado_em', 'cliente_assinou']));
     }
 
-    // Faturas - leitura e atualizacao publica via token
+    // Faturas - leitura publica para o cliente ver pelo link
+    // Update limitado a campos de confirmacao do cliente
     match /invoices/{invoiceId} {
       allow read: if true;
-      allow create: if true;
-      allow update: if true;
+      allow create: if request.auth != null;
+      allow update: if request.auth != null ||
+        (request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['status', 'visualizado_em', 'cliente_confirmou', 'pago_em']));
     }
 
     // Notificacoes - criacao publica (cliente aprovando/visualizando)
     match /notificacoes/{notifId} {
       allow create: if true;
+      allow read, update, delete: if request.auth != null;
     }
 
-    // Contas a receber - criacao publica (gerada ao aprovar orcamento)
+    // Contas a receber - criacao controlada
     match /contas_receber/{docId} {
-      allow create: if true;
+      allow create: if request.auth != null;
+      allow read, update, delete: if request.auth != null;
+    }
+
+    // Clientes - apenas usuarios autenticados
+    match /clientes/{docId} {
+      allow read, write: if request.auth != null;
+    }
+
+    // Produtos / Estoque - apenas usuarios autenticados
+    match /produtos/{docId} {
+      allow read, write: if request.auth != null;
+    }
+
+    // Vendedores - apenas usuarios autenticados
+    match /vendedores/{docId} {
+      allow read, write: if request.auth != null;
+    }
+
+    // Despesas - apenas usuarios autenticados
+    match /despesas/{docId} {
+      allow read, write: if request.auth != null;
+    }
+
+    // Compras - apenas usuarios autenticados
+    match /compras/{docId} {
+      allow read, write: if request.auth != null;
+    }
+
+    // Caixa - apenas usuarios autenticados
+    match /caixa/{docId} {
+      allow read, write: if request.auth != null;
+    }
+
+    // Contas a pagar - apenas usuarios autenticados
+    match /contas_pagar/{docId} {
+      allow read, write: if request.auth != null;
+    }
+
+    // Agenda - apenas usuarios autenticados
+    match /agenda/{docId} {
+      allow read, write: if request.auth != null;
+    }
+
+    // Projetos - apenas usuarios autenticados
+    match /projetos/{docId} {
+      allow read, write: if request.auth != null;
+    }
+
+    // Quilometragem - apenas usuarios autenticados
+    match /quilometragem/{docId} {
+      allow read, write: if request.auth != null;
+    }
+
+    // Comissoes - apenas usuarios autenticados
+    match /comissoes/{docId} {
+      allow read, write: if request.auth != null;
+    }
+
+    // Logs de auditoria - apenas usuarios autenticados
+    match /audit_logs/{docId} {
+      allow read, write: if request.auth != null;
+    }
+
+    // Usuarios do sistema - apenas usuarios autenticados
+    match /usuarios/{docId} {
+      allow read, write: if request.auth != null;
     }
   }
 }
