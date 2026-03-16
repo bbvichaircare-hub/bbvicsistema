@@ -246,18 +246,26 @@ export function Compras() {
       for (let i = 1; i <= pdf.numPages; i++) {
         const page = await pdf.getPage(i)
         const content = await page.getTextContent()
-        // Agrupar itens por posição Y para reconstruir linhas reais
-        const lineMap = new Map<number, string[]>()
+        // Agrupar itens por posição Y com tolerância de ±3 para reconstruir linhas reais
+        type LineGroup = { centerY: number; items: Array<{ x: number; text: string }> }
+        const lineGroups: LineGroup[] = []
         for (const item of content.items) {
-          if (!('str' in item) || !item.str.trim()) continue
-          const y = Math.round((item as any).transform[5])
-          if (!lineMap.has(y)) lineMap.set(y, [])
-          lineMap.get(y)!.push(item.str)
+          if (!('str' in item) || !(item as any).str.trim()) continue
+          const y = (item as any).transform[5] as number
+          const x = (item as any).transform[4] as number
+          const text = (item as any).str as string
+          const group = lineGroups.find(g => Math.abs(y - g.centerY) <= 3)
+          if (group) {
+            group.centerY = (group.centerY + y) / 2
+            group.items.push({ x, text })
+          } else {
+            lineGroups.push({ centerY: y, items: [{ x, text }] })
+          }
         }
-        // Ordenar por Y decrescente (topo para baixo) e juntar cada linha
-        const sortedYs = Array.from(lineMap.keys()).sort((a, b) => b - a)
-        for (const y of sortedYs) {
-          fullText += lineMap.get(y)!.join(' ') + '\n'
+        lineGroups.sort((a, b) => b.centerY - a.centerY)
+        for (const group of lineGroups) {
+          group.items.sort((a, b) => a.x - b.x)
+          fullText += group.items.map(i => i.text).join(' ') + '\n'
         }
       }
 
