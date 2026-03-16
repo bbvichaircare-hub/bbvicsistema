@@ -171,8 +171,8 @@ export function Compras() {
     const resultado: Array<{ nome: string; quantidade: number; preco: number }> = []
     const vistos = new Set<string>()
 
-    // Padrão principal: "NOME   QTY.00   RATE   AMOUNT" - 3 números no final
-    const padraoFatura = /^(.+?)\s{2,}(\d+(?:\.\d{0,2})?)\s+([\d,]+\.\d{2})\s+([\d,]+\.\d{2})\s*$/
+    // Padrão principal: "NOME QTY.00 RATE AMOUNT" - qty sempre tem .00, rate e amount têm .XX
+    const padraoFatura = /^(.+?)\s+(\d+\.\d{2})\s+([\d,]+\.\d{2})\s+([\d,]+\.\d{2})\s*$/
 
     // Palavras que indicam linha de rodapé/cabeçalho (não produto)
     const ignorar = /^(item|description|qty|rate|amount|sub.?total|total|tax|shipping|balance|due|payment|invoice|bill|terms|p\.o|enviado|page|\d+\s*$)/i
