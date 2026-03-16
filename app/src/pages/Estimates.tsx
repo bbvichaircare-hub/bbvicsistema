@@ -12,7 +12,8 @@ import {
   getDocs,
   orderBy,
   deleteDoc,
-  doc
+  doc,
+  getDoc
 } from "firebase/firestore"
 
 import { db } from "@/lib/firebase"
@@ -22,8 +23,8 @@ import {
   Plus,
   Search,
   ClipboardList,
-  Eye,
-  Trash2
+  Trash2,
+  MessageCircle
 } from "lucide-react"
 
 import type { Estimate } from "@/types"
@@ -140,6 +141,28 @@ export function Estimates() {
 
   }
 
+  const sendWAEstimate = async (est: Estimate) => {
+    const phone = ((est as any).cliente_telefone || '').replace(/\D/g, '')
+    if (!phone) { alert('Cliente sem telefone cadastrado'); return }
+    const token = (est as any).public_token || ''
+    const estimateUrl = token ? `${window.location.origin}/estimate/${token}` : ''
+    const dataEnvio = new Date().toLocaleDateString('pt-BR')
+    const dataVal = (() => { try { const d = (est as any).data_validade; return d ? (d.toDate ? d.toDate() : new Date(d)).toLocaleDateString('pt-BR') : '' } catch { return '' } })()
+    let msgTemplate = `Olá {NOME}!\n\nSegue o orçamento da BBVIC Hair Care:\n{LINK}\n\nTotal: {TOTAL}\nVálido até: {VALIDADE}\nEmitido em: {DATA_ENVIO}`
+    try {
+      const snapMsg = await getDoc(doc(db, 'configuracoes', 'mensagens'))
+      if (snapMsg.exists() && snapMsg.data().orcamento) msgTemplate = snapMsg.data().orcamento
+    } catch { }
+    const msg = msgTemplate
+      .replace(/{NOME}/g, est.cliente_nome)
+      .replace(/{NUMERO}/g, est.numero)
+      .replace(/{TOTAL}/g, formatCurrency(est.total))
+      .replace(/{VALIDADE}/g, dataVal)
+      .replace(/{DATA_ENVIO}/g, dataEnvio)
+      .replace(/{LINK}/g, estimateUrl)
+    window.open(`https://wa.me/1${phone}?text=${encodeURIComponent(msg)}`, '_blank', 'noopener,noreferrer')
+  }
+
   return (
 
     <div className="space-y-8">
@@ -210,8 +233,7 @@ export function Estimates() {
 
             <div
               key={estimate.id}
-              className="flex items-center justify-between px-6 py-4 border-b hover:bg-gray-50 transition cursor-pointer"
-              onClick={() => navigate(`/estimates/${estimate.id}/editar`)}
+              className="flex items-center justify-between px-6 py-4 border-b hover:bg-gray-50 transition"
             >
 
               <div className="flex items-center gap-4 flex-1 min-w-0">
@@ -226,9 +248,9 @@ export function Estimates() {
                     {estimate.numero}
                   </p>
 
-                  <p className="text-sm text-gray-500">
+                  <button onClick={() => navigate(`/estimates/${estimate.id}/editar`)} className="text-sm font-medium text-[#C9A227] hover:underline text-left">
                     {estimate.cliente_nome}
-                  </p>
+                  </button>
 
                 </div>
 
@@ -248,9 +270,11 @@ export function Estimates() {
                 </span>
 
                 <button
-                  className="p-2 rounded-lg hover:bg-gray-100"
+                  onClick={e => { e.stopPropagation(); sendWAEstimate(estimate) }}
+                  className="p-2 rounded-lg hover:bg-green-50 text-green-600"
+                  title="Enviar WhatsApp"
                 >
-                  <Eye className="w-5 h-5 text-gray-500"/>
+                  <MessageCircle className="w-5 h-5"/>
                 </button>
                 <button
                   onClick={e => { e.stopPropagation(); setDeleteConfirm({ id: estimate.id!, numero: estimate.numero, cliente: estimate.cliente_nome }) }}

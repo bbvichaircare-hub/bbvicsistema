@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+﻿import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { collection, query, where, getDocs, addDoc, updateDoc, doc, Timestamp, orderBy, limit, deleteDoc, writeBatch } from 'firebase/firestore';
@@ -150,7 +150,7 @@ export function EstoqueAvancado() {
     setShowModal(true);
   };
 
-  const calcMargem = (custo: number, venda: number) => venda > 0 ? Math.round(((venda - custo) / venda) * 10000) / 100 : 0;
+  const calcMargem = (custo: number, venda: number) => custo > 0 ? Math.round(((venda - custo) / custo) * 10000) / 100 : (venda > 0 ? 100 : 0);
 
   const handleSave = async () => {
     if (!form.nome.trim()) { toast.error('Nome obrigat\u00f3rio'); return; }
@@ -279,7 +279,7 @@ export function EstoqueAvancado() {
           const venda = cleanNum(getCol(row, 'Preco Venda', 'Pre\u00e7o Venda ($)', 'Pre\u00e7o Venda', 'Preco Venda ($)', 'preco', 'preco_venda', 'venda', 'price'))
           const estoque = Math.round(cleanNum(getCol(row, 'Estoque', 'estoque', 'qty', 'quantidade', 'stock')))
           const estoqueMin = Math.round(cleanNum(getCol(row, 'Estoque Minimo', 'Estoque M\u00ednimo', 'estoque_minimo', 'minimo', 'min')))
-          const margem = venda > 0 && custo >= 0 ? Math.round(((venda - custo) / venda) * 10000) / 100 : 0
+          const margem = custo > 0 ? Math.round(((venda - custo) / custo) * 10000) / 100 : (venda > 0 ? 100 : 0)
           await addDoc(collection(db, 'produtos'), {
             nome: String(nome).trim(),
             categoria: String(getCol(row, 'Categoria', 'categoria', 'category') || '').trim(),
@@ -323,7 +323,7 @@ export function EstoqueAvancado() {
   const totalValorVenda = produtos.reduce((sum, p) => sum + ((p as any).preco||0) * (p.estoque||0), 0);
   const totalValorCusto = produtos.reduce((sum, p) => sum + ((p as any).preco_custo||0) * (p.estoque||0), 0);
   const lucroEstoque = totalValorVenda - totalValorCusto;
-  const margemMediaGeral = totalValorVenda > 0 ? (lucroEstoque / totalValorVenda) * 100 : 0;
+  const margemMediaGeral = totalValorCusto > 0 ? (lucroEstoque / totalValorCusto) * 100 : 0;
   const totalItens = produtos.reduce((sum, p) => sum + (p.estoque||0), 0);
 
   const fmt = (v: number) => v.toLocaleString('en-US', { minimumFractionDigits:2, maximumFractionDigits:2 });
@@ -889,3 +889,6 @@ export function EstoqueAvancado() {
     </div>
   );
 }
+
+
+

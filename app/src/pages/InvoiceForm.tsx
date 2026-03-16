@@ -76,6 +76,9 @@ export function InvoiceForm() {
   const [searchProduto, setSearchProduto] = useState('');
   const [showClienteDropdown, setShowClienteDropdown] = useState(false);
   const [showProdutoDropdown, setShowProdutoDropdown] = useState(false);
+  const [produtoModal, setProdutoModal] = useState<Produto | null>(null);
+  const [produtoModalQty, setProdutoModalQty] = useState(1);
+  const [produtoModalObs, setProdutoModalObs] = useState('');
 
   const [numero, setNumero] = useState('');
   const [cliente, setCliente] = useState<Cliente | null>(null);
@@ -101,6 +104,12 @@ export function InvoiceForm() {
   const [parcelasAtivo, setParcelasAtivo] = useState(false);
   const [numParcelas, setNumParcelas] = useState(2);
   const [parcelas, setParcelas] = useState<{numero: number; valor: number; data: string; status: 'pendente'|'pago'}[]>([]);
+  const [valorPago, setValorPago] = useState(0);
+  const [descontoTipo, setDescontoTipo] = useState<'pct' | 'valor'>('pct');
+  const [originalToken, setOriginalToken] = useState('');
+  const [statusOriginal, setStatusOriginal] = useState('rascunho');
+  const [dataPagamento, setDataPagamento] = useState<Date | null>(null);
+  const [formaPgtoRecebido, setFormaPgtoRecebido] = useState('');
 
   useEffect(() => {
     fetchClientes();
@@ -115,7 +124,7 @@ export function InvoiceForm() {
   }, []);
 
   useEffect(() => { if (isEditing && id) fetchInvoice(id); }, [id]);
-  useEffect(() => { calcularTotais(); }, [items, descontoInput, taxaInput, taxaEnvioInput]);
+  useEffect(() => { calcularTotais(); }, [items, descontoInput, taxaInput, taxaEnvioInput, descontoTipo]);
 
   const fetchClientes = async () => {
     try {
@@ -160,14 +169,24 @@ export function InvoiceForm() {
         const data = snap.data() as Invoice;
         setNumero(data.numero);
         setObservacoes(data.observacoes || '');
-        setDescontoInput((data as any).desconto_pct !== undefined ? String((data as any).desconto_pct) : '0');
+        const dTipo: 'pct' | 'valor' = (data as any).desconto_tipo || 'pct';
+        setDescontoTipo(dTipo);
+        setDescontoInput(dTipo === 'valor'
+          ? String((data as any).desconto || 0)
+          : String((data as any).desconto_pct !== undefined ? (data as any).desconto_pct : 0));
         setTaxaInput((data as any).taxa_pct !== undefined ? String((data as any).taxa_pct) : '6.25');
         const venc = (data.data_vencimento as any)?.toDate ? (data.data_vencimento as any).toDate() : new Date(data.data_vencimento as any);
         setDataVencimento(venc.toISOString().split('T')[0]);
         setPaymentTerms((data as any).payment_terms || 'Net 30 dias');
         setDepositValue(String((data as any).deposit || '0'));
         setSquareLink((data as any).square_link || '');
-        setTaxaEnvioInput(String((data as any).taxa_envio || '15.00'));
+        setTaxaEnvioInput((data as any).taxa_envio !== undefined && (data as any).taxa_envio !== null ? String((data as any).taxa_envio) : '15.00');
+        setValorPago((data as any).valor_pago || 0);
+        setOriginalToken((data as any).public_token || '');
+        setStatusOriginal(data.status || 'rascunho');
+        setFormaPgtoRecebido((data as any).forma_pagamento_recebido || '');
+        const dp = (data as any).data_pagamento;
+        setDataPagamento(dp ? (dp?.toDate ? dp.toDate() : new Date(dp)) : null);
         setObservacaoInterna((data as any).observacao_interna || '');
         if ((data as any).parcelas_ativo) {
           setParcelasAtivo(true);
@@ -180,7 +199,30 @@ export function InvoiceForm() {
         }
         if (data.cliente_id) {
           const cliSnap = await getDoc(doc(db, 'clientes', data.cliente_id));
-          if (cliSnap.exists()) setCliente({ id: cliSnap.id, ...cliSnap.data() } as Cliente);
+          if (cliSnap.exists()) {
+            const cliData = cliSnap.data() as any;
+            setCliente({
+              id: cliSnap.id,
+              ...cliData,
+              endereco: cliData.endereco || (data as any).cliente_endereco || '',
+              cidade: cliData.cidade || (data as any).cliente_cidade || '',
+              estado: cliData.estado || (data as any).cliente_estado || '',
+              cep: cliData.cep || (data as any).cliente_cep || '',
+              email: cliData.email || (data as any).cliente_email || '',
+              telefone: cliData.telefone || (data as any).cliente_telefone || '',
+            } as Cliente);
+          } else {
+            setCliente({
+              id: data.cliente_id,
+              nome: data.cliente_nome,
+              email: (data as any).cliente_email || '',
+              telefone: (data as any).cliente_telefone || '',
+              endereco: (data as any).cliente_endereco || '',
+              cidade: (data as any).cliente_cidade || '',
+              estado: (data as any).cliente_estado || '',
+              cep: (data as any).cliente_cep || '',
+            } as Cliente);
+          }
         }
         setItems(data.items.map((item, i) => ({ ...item, tempId: `e-${i}` })));
       }
@@ -190,15 +232,31 @@ export function InvoiceForm() {
 
   const calcularTotais = () => {
     const sub = items.reduce((a, i) => a + i.subtotal, 0);
-    const desc = (sub * (parseFloat(descontoInput) || 0)) / 100;
+    const desc = descontoTipo === 'valor'
+      ? Math.min(parseFloat(descontoInput) || 0, sub)
+      : (sub * (parseFloat(descontoInput) || 0)) / 100;
     const tx = ((sub - desc) * (parseFloat(taxaInput) || 0)) / 100;
     const envio = parseFloat(taxaEnvioInput) || 0;
     setSubtotal(sub); setDesconto(desc); setTaxa(tx); setTotal(sub - desc + tx + envio);
   };
 
-  const addItem = (produto: Produto) => {
-    setItems([...items, { tempId: uuidv4(), produto_id: produto.id!, produto_nome: produto.nome, descricao: produto.descricao || '', quantidade: 1, preco_unitario: produto.preco_venda, desconto: 0, subtotal: produto.preco_venda }]);
+  const addItem = (produto: Produto, qty = 1, obs = '') => {
+    setItems(prev => [...prev, { tempId: uuidv4(), produto_id: produto.id!, produto_nome: produto.nome, descricao: obs || produto.descricao || '', quantidade: qty, preco_unitario: produto.preco_venda, desconto: 0, subtotal: qty * produto.preco_venda }]);
     setSearchProduto(''); setShowProdutoDropdown(false);
+  };
+
+  const openProdutoModal = (produto: Produto) => {
+    setProdutoModal(produto);
+    setProdutoModalQty(1);
+    setProdutoModalObs('');
+    setShowProdutoDropdown(false);
+    setSearchProduto('');
+  };
+
+  const confirmProdutoModal = () => {
+    if (!produtoModal) return;
+    addItem(produtoModal, produtoModalQty, produtoModalObs);
+    setProdutoModal(null);
   };
 
   const removeItem = (tempId: string) => setItems(items.filter(i => i.tempId !== tempId));
@@ -239,9 +297,13 @@ export function InvoiceForm() {
     numero, cliente_id: cliente!.id!, cliente_nome: cliente!.nome,
     cliente_email: cliente!.email || '', cliente_telefone: cliente!.telefone || '',
     cliente_endereco: (cliente as any)?.endereco || '',
+    cliente_cidade: (cliente as any)?.cidade || '',
+    cliente_estado: (cliente as any)?.estado || '',
+    cliente_cep: (cliente as any)?.cep || '',
     items: items.map(({ tempId, ...item }) => item),
     subtotal, desconto, taxa, total,
-    desconto_pct: parseFloat(descontoInput) || 0,
+    desconto_tipo: descontoTipo,
+    desconto_pct: descontoTipo === 'pct' ? (parseFloat(descontoInput) || 0) : 0,
     taxa_pct: parseFloat(taxaInput) || 0,
     deposit: parseFloat(depositValue) || 0,
     payment_terms: paymentTerms,
@@ -286,10 +348,35 @@ export function InvoiceForm() {
     if (items.length === 0) { toast.error('Adicione pelo menos um item'); return; }
     setSaving(true);
     try {
-      const data = buildInvoiceData('rascunho');
       if (isEditing && id) {
-        await updateDoc(doc(db, 'invoices', id), { ...data, updated_at: Timestamp.now() });
+        const updateData: any = {
+          numero, cliente_id: cliente!.id!, cliente_nome: cliente!.nome,
+          cliente_email: cliente!.email || '', cliente_telefone: cliente!.telefone || '',
+          cliente_endereco: (cliente as any)?.endereco || '',
+          cliente_cidade: (cliente as any)?.cidade || '',
+          cliente_estado: (cliente as any)?.estado || '',
+          cliente_cep: (cliente as any)?.cep || '',
+          items: items.map(({ tempId, ...item }) => item),
+          subtotal, desconto, taxa, total,
+          desconto_tipo: descontoTipo,
+          desconto_pct: descontoTipo === 'pct' ? (parseFloat(descontoInput) || 0) : 0,
+          taxa_pct: parseFloat(taxaInput) || 0,
+          deposit: parseFloat(depositValue) || 0,
+          payment_terms: paymentTerms,
+          square_link: squareLink,
+          observacoes,
+          observacao_interna: observacaoInterna,
+          taxa_envio: parseFloat(taxaEnvioInput) || 0,
+          data_vencimento: Timestamp.fromDate(new Date(dataVencimento)),
+          vendedor_id: vendedorId || user?.uid || '',
+          vendedor_nome: vendedorNome || (user as any)?.nome || '',
+          parcelas_ativo: parcelasAtivo,
+          parcelas: parcelasAtivo ? parcelas : [],
+          updated_at: Timestamp.now(),
+        };
+        await updateDoc(doc(db, 'invoices', id), updateData);
       } else {
+        const data = buildInvoiceData('rascunho');
         const ref = await addDoc(collection(db, 'invoices'), data);
         await criarContaReceber(data, ref.id, numero);
         await registrarMovimentosVenda(items);
@@ -306,19 +393,88 @@ export function InvoiceForm() {
     if (!cliente.telefone) { toast.error('Cliente não tem número de telefone cadastrado'); return; }
     setSaving(true);
     try {
-      const token = uuidv4();
-      const data = { ...buildInvoiceData('enviado'), public_token: token };
+      const token = originalToken || uuidv4();
       if (isEditing && id) {
-        await updateDoc(doc(db, 'invoices', id), data);
+        const updateData: any = {
+          numero, cliente_id: cliente!.id!, cliente_nome: cliente!.nome,
+          cliente_email: cliente!.email || '', cliente_telefone: cliente!.telefone || '',
+          cliente_endereco: (cliente as any)?.endereco || '',
+          cliente_cidade: (cliente as any)?.cidade || '',
+          cliente_estado: (cliente as any)?.estado || '',
+          cliente_cep: (cliente as any)?.cep || '',
+          items: items.map(({ tempId, ...item }) => item),
+          subtotal, desconto, taxa, total,
+          desconto_tipo: descontoTipo,
+          desconto_pct: descontoTipo === 'pct' ? (parseFloat(descontoInput) || 0) : 0,
+          taxa_pct: parseFloat(taxaInput) || 0,
+          deposit: parseFloat(depositValue) || 0,
+          payment_terms: paymentTerms,
+          square_link: squareLink,
+          status: (['pago', 'parcial', 'pago_parcial'].includes(statusOriginal) ? statusOriginal : 'enviado'),
+          observacoes,
+          observacao_interna: observacaoInterna,
+          taxa_envio: parseFloat(taxaEnvioInput) || 0,
+          data_vencimento: Timestamp.fromDate(new Date(dataVencimento)),
+          vendedor_id: vendedorId || user?.uid || '',
+          vendedor_nome: vendedorNome || (user as any)?.nome || '',
+          public_token: token,
+          parcelas_ativo: parcelasAtivo,
+          parcelas: parcelasAtivo ? parcelas : [],
+          updated_at: Timestamp.now(),
+        };
+        await updateDoc(doc(db, 'invoices', id), updateData);
       } else {
+        const data = { ...buildInvoiceData('enviado'), public_token: token };
         const ref = await addDoc(collection(db, 'invoices'), data);
         await criarContaReceber(data, ref.id, numero);
         await registrarMovimentosVenda(items);
       }
       const invoiceUrl = `${window.location.origin}/invoice/${token}`;
-      const depositMsg = (parseFloat(depositValue) || 0) > 0 ? `\nAdiantamento: ${formatCurrency(parseFloat(depositValue))}` : '';
+      const dataEnvio = new Date().toLocaleDateString('pt-BR');
+      const dataVenc = dataVencimento ? new Date(dataVencimento + 'T12:00:00').toLocaleDateString('pt-BR') : '';
       const squareMsg = squareLink ? `\n\n💳 Pague agora: ${squareLink}` : '';
-      const msg = `Olá ${cliente.nome}!\n\nSegue sua fatura da BBVIC Hair Care:\n${invoiceUrl}\n\nTotal: ${formatCurrency(total)}${depositMsg}\nVencimento: ${new Date(dataVencimento).toLocaleDateString('pt-BR')} (${paymentTerms})${squareMsg}`;
+      const statusAtual = (['pago', 'parcial', 'pago_parcial'].includes(statusOriginal) ? statusOriginal : 'enviado');
+
+      // Build the main financial details block based on status
+      let totalMsgVar: string;
+      if (statusAtual === 'pago') {
+        const dpStr = dataPagamento ? dataPagamento.toLocaleDateString('pt-BR') : dataEnvio;
+        const fpStr = formaPgtoRecebido ? ` via ${formaPgtoRecebido}` : '';
+        totalMsgVar = `✅ *FATURA PAGA*\nTotal: ${formatCurrency(total)}\nPago em: ${dpStr}${fpStr}`;
+      } else if (parcelasAtivo && parcelas.length > 0) {
+        const linhasParcelas = parcelas.map(p => {
+          const dataParc = p.data ? new Date(p.data + 'T12:00:00').toLocaleDateString('pt-BR') : '';
+          const icon = p.status === 'pago' ? '✅' : '⏳';
+          return `  ${icon} ${p.numero}ª parcela: ${formatCurrency(p.valor)} — ${dataParc}`;
+        }).join('\n');
+        totalMsgVar = `Total: ${formatCurrency(total)}\n\n📋 *Parcelas:*\n${linhasParcelas}`;
+      } else if (valorPago > 0) {
+        const dpStr = dataPagamento ? dataPagamento.toLocaleDateString('pt-BR') : '';
+        const fpStr = formaPgtoRecebido ? ` via ${formaPgtoRecebido}` : '';
+        const saldo = Math.max(0, total - valorPago);
+        totalMsgVar = `Total: ${formatCurrency(total)}\n✅ Já pago: ${formatCurrency(valorPago)}${dpStr ? ` em ${dpStr}` : ''}${fpStr}\n💰 Saldo restante: ${formatCurrency(saldo)}\n📅 Vencimento do saldo: ${dataVenc}`;
+      } else {
+        totalMsgVar = `Total: ${formatCurrency(total)}\n📅 Vencimento: ${dataVenc}`;
+      }
+
+      let msgTemplate = `Olá {NOME}!\n\nSegue sua fatura da BBVIC Hair Care:\n{LINK}\n\n{TOTAL_MSG}\nEmitido em: {DATA_ENVIO}`;
+      try {
+        const snapMsg = await getDoc(doc(db, 'configuracoes', 'mensagens'));
+        if (snapMsg.exists() && snapMsg.data().fatura) msgTemplate = snapMsg.data().fatura;
+      } catch { /* usa padrão */ }
+
+      const msg = msgTemplate
+        .replace(/{NOME}/g, cliente.nome)
+        .replace(/{NUMERO}/g, numero)
+        .replace(/{TOTAL}/g, formatCurrency(total))
+        .replace(/{TOTAL_MSG}/g, totalMsgVar)
+        .replace(/{JA_PAGO}/g, valorPago > 0 ? formatCurrency(valorPago) : '')
+        .replace(/{SALDO}/g, valorPago > 0 ? formatCurrency(Math.max(0, total - valorPago)) : formatCurrency(total))
+        .replace(/{VENCIMENTO}/g, dataVenc)
+        .replace(/{DATA_ENVIO}/g, dataEnvio)
+        .replace(/{LINK}/g, invoiceUrl)
+        .replace(/{CONSULTOR}/g, vendedorNome || '')
+        + squareMsg;
       const phone = cliente.telefone.replace(/\D/g, '');
       openWhatsApp(`https://wa.me/1${phone}?text=${encodeURIComponent(msg)}`);
       import('@/lib/auditLog').then(({ logActivity }) => logActivity('Fatura enviada por WhatsApp', `Fatura enviada para ${cliente?.nome || ''} via WhatsApp`, 'fatura')).catch(() => {});
@@ -334,7 +490,11 @@ export function InvoiceForm() {
   );
 
   const filteredClientes = clientes.filter(c => c.nome.toLowerCase().includes(searchCliente.toLowerCase()) || (c.telefone && c.telefone.includes(searchCliente)));
-  const filteredProdutos = produtos.filter(p => p.nome.toLowerCase().includes(searchProduto.toLowerCase()));
+  const filteredProdutos = produtos.filter(p => {
+    const terms = searchProduto.toLowerCase().split(/\s+/).filter(Boolean);
+    const haystack = `${p.nome} ${p.descricao || ''}`.toLowerCase();
+    return terms.every(t => haystack.includes(t));
+  });
   const depositAmt = parseFloat(depositValue) || 0;
   const balanceDue = total - depositAmt;
 
@@ -342,9 +502,12 @@ export function InvoiceForm() {
     gerarPDFFatura({
       numero,
       cliente_nome: cliente?.nome || 'Cliente',
-      cliente_email: cliente?.email,
-      cliente_telefone: cliente?.telefone,
-      cliente_endereco: cliente?.endereco,
+      cliente_email: (cliente as any)?.email || '',
+      cliente_telefone: (cliente as any)?.telefone || '',
+      cliente_endereco: (cliente as any)?.endereco || '',
+      cliente_cidade: (cliente as any)?.cidade || '',
+      cliente_estado: (cliente as any)?.estado || '',
+      cliente_cep: (cliente as any)?.cep || '',
       data_emissao: new Date(),
       data_vencimento: dataVencimento ? new Date(dataVencimento + 'T12:00:00') : undefined,
       items: items.map(i => ({
@@ -357,10 +520,14 @@ export function InvoiceForm() {
       subtotal,
       desconto: desconto > 0 ? desconto : undefined,
       taxa: taxa > 0 ? taxa : undefined,
+      taxa_envio: (parseFloat(taxaEnvioInput) || 0) > 0 ? parseFloat(taxaEnvioInput) : undefined,
       total,
       observacoes: observacoes || undefined,
       deposit: depositAmt > 0 ? depositAmt : undefined,
       vendedor_nome: vendedorNome || undefined,
+      parcelas_ativo: parcelasAtivo,
+      parcelas: parcelasAtivo ? parcelas : undefined,
+      valor_pago: valorPago > 0 ? valorPago : undefined,
     });
   };
 
@@ -445,9 +612,15 @@ export function InvoiceForm() {
             {showProdutoDropdown && searchProduto && (
               <div className="absolute z-20 w-full mt-1 bg-white rounded-xl border border-gray-200 shadow-lg max-h-52 overflow-auto">
                 {filteredProdutos.map(p => (
-                  <button key={p.id} onClick={() => addItem(p)} className="w-full px-4 py-3 text-left hover:bg-gray-50 border-b last:border-b-0 flex justify-between items-center gap-2">
-                    <div><p className="font-medium text-gray-900 text-sm">{p.nome}</p></div>
-                    <p className="text-[#C9A227] font-semibold text-sm flex-shrink-0">{formatCurrency(p.preco_venda)}</p>
+                  <button key={p.id} onClick={() => openProdutoModal(p)} className="w-full px-4 py-3 text-left hover:bg-gray-50 border-b last:border-b-0 flex justify-between items-center gap-2">
+                    <div>
+                      <p className="font-medium text-gray-900 text-sm">{p.nome}</p>
+                      {p.descricao && <p className="text-xs text-gray-400">{p.descricao}</p>}
+                    </div>
+                    <div className="text-right flex-shrink-0">
+                      <p className="text-[#C9A227] font-semibold text-sm">{formatCurrency(p.preco_venda)}</p>
+                      <p className="text-xs text-gray-400">Estoque: {(p as any).estoque ?? '—'}</p>
+                    </div>
                   </button>
                 ))}
               </div>
@@ -483,6 +656,15 @@ export function InvoiceForm() {
                     <div className="ml-auto">
                       <span className="font-semibold text-[#C9A227] text-sm">{formatCurrency(item.subtotal)}</span>
                     </div>
+                  </div>
+                  <div>
+                    <input
+                      type="text"
+                      value={item.descricao || ''}
+                      onChange={e => setItems(items.map(i => i.tempId === item.tempId ? { ...i, descricao: e.target.value } : i))}
+                      placeholder="Observação deste item (visível na nota)..."
+                      className="w-full px-3 py-1.5 text-xs bg-white border border-gray-200 rounded-lg focus:outline-none focus:border-[#C9A227] text-gray-700 placeholder-gray-300"
+                    />
                   </div>
                 </div>
               ))}
@@ -521,8 +703,23 @@ export function InvoiceForm() {
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Desconto (%)</label>
-                <input type="number" min="0" max="100" value={descontoInput} onChange={e => setDescontoInput(e.target.value)} className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-gray-900 focus:outline-none focus:border-[#C9A227]" />
+              <label className="block text-sm font-medium text-gray-700 mb-1">Desconto</label>
+              <div className="flex gap-1">
+                <button
+                  type="button"
+                  onClick={() => { setDescontoTipo('pct'); setDescontoInput('0'); }}
+                  className={`px-2 py-1 text-xs rounded-lg border font-medium transition ${descontoTipo === 'pct' ? 'bg-[#C9A227] text-white border-[#C9A227]' : 'bg-white text-gray-600 border-gray-200'}`}
+                >%</button>
+                <button
+                  type="button"
+                  onClick={() => { setDescontoTipo('valor'); setDescontoInput('0'); }}
+                  className={`px-2 py-1 text-xs rounded-lg border font-medium transition ${descontoTipo === 'valor' ? 'bg-[#C9A227] text-white border-[#C9A227]' : 'bg-white text-gray-600 border-gray-200'}`}
+                >$</button>
+              </div>
+              <input
+                type="number"
+                value={descontoInput}
+                onChange={e => setDescontoInput(e.target.value)} className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-gray-900 focus:outline-none focus:border-[#C9A227]" />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Tax (%)</label>
@@ -642,7 +839,7 @@ export function InvoiceForm() {
             <h2 className="text-base font-semibold text-gray-900 mb-4">Resumo</h2>
             <div className="space-y-3 text-sm">
               <div className="flex justify-between text-gray-600"><span>Subtotal</span><span>{formatCurrency(subtotal)}</span></div>
-              {desconto > 0 && <div className="flex justify-between text-gray-600"><span>Desconto ({descontoInput}%)</span><span className="text-red-500">-{formatCurrency(desconto)}</span></div>}
+              {desconto > 0 && <div className="flex justify-between text-gray-600"><span>Desconto ({descontoTipo === 'pct' ? `${descontoInput}%` : formatCurrency(parseFloat(descontoInput) || 0)})</span><span className="text-red-500">-{formatCurrency(desconto)}</span></div>}
               <div className="flex justify-between text-gray-600"><span>Tax ({taxaInput}%)</span><span>+{formatCurrency(taxa)}</span></div>
               {(parseFloat(taxaEnvioInput) || 0) > 0 && <div className="flex justify-between text-gray-600"><span>Envio</span><span>+{formatCurrency(parseFloat(taxaEnvioInput) || 0)}</span></div>}
               <div className="border-t border-gray-200 pt-3">
@@ -655,6 +852,18 @@ export function InvoiceForm() {
                     <div className="flex justify-between text-gray-900 font-bold text-base"><span>Saldo Restante</span><span className="text-[#C9A227]">{formatCurrency(balanceDue)}</span></div>
                   </div>
                 </>
+              )}
+              {valorPago > 0 && (
+                <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-xl space-y-1">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-green-700 font-medium">✅ Já pago</span>
+                    <span className="text-green-700 font-bold">{formatCurrency(valorPago)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-red-600 font-medium">💰 Saldo restante</span>
+                    <span className="text-red-600 font-bold">{formatCurrency(Math.max(0, total - valorPago))}</span>
+                  </div>
+                </div>
               )}
               {vendedorNome && (
                 <div className="pt-2 border-t border-gray-100">
@@ -670,6 +879,38 @@ export function InvoiceForm() {
         </div>
 
       </div>
+
+      {/* Modal de seleção de produto */}
+      {produtoModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setProdutoModal(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="font-bold text-gray-900">{produtoModal.nome}</h3>
+                <p className="text-sm text-[#C9A227] font-semibold">{formatCurrency(produtoModal.preco_venda)}</p>
+              </div>
+              <button onClick={() => setProdutoModal(null)} className="p-2 hover:bg-gray-100 rounded-xl"><X className="w-4 h-4" /></button>
+            </div>
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Quantidade</label>
+              <div className="flex items-center gap-3">
+                <button onClick={() => setProdutoModalQty(q => Math.max(1, q - 1))} className="w-9 h-9 rounded-xl border border-gray-200 flex items-center justify-center hover:bg-gray-100"><Minus className="w-4 h-4" /></button>
+                <input type="number" min="1" value={produtoModalQty} onChange={e => setProdutoModalQty(Math.max(1, parseInt(e.target.value) || 1))} className="w-20 text-center text-lg font-bold border border-gray-200 rounded-xl py-2 focus:outline-none focus:border-[#C9A227]" />
+                <button onClick={() => setProdutoModalQty(q => q + 1)} className="w-9 h-9 rounded-xl border border-gray-200 flex items-center justify-center hover:bg-gray-100"><Plus className="w-4 h-4" /></button>
+              </div>
+              <p className="text-xs text-gray-400 mt-1">Subtotal: <span className="font-semibold text-[#C9A227]">{formatCurrency(produtoModal.preco_venda * produtoModalQty)}</span></p>
+            </div>
+            <div className="mb-5">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Observação do item <span className="text-gray-400 font-normal">(aparece na nota)</span></label>
+              <input type="text" value={produtoModalObs} onChange={e => setProdutoModalObs(e.target.value)} placeholder="Ex: Tamanho G, cor preta..." className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-gray-900 text-sm focus:outline-none focus:border-[#C9A227]" autoFocus />
+            </div>
+            <div className="flex gap-3">
+              <button onClick={() => setProdutoModal(null)} className="flex-1 py-3 rounded-xl border border-gray-200 text-gray-600 font-medium hover:bg-gray-50">Cancelar</button>
+              <button onClick={confirmProdutoModal} className="flex-[2] py-3 rounded-xl bg-[#C9A227] text-white font-bold hover:bg-[#b8911f]">Adicionar à Nota</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Barra de ações fixa */}
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-3 shadow-lg z-30">

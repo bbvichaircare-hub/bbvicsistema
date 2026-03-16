@@ -23,11 +23,14 @@ interface PDFItem {
 interface PDFDoc {
   numero: string; cliente_nome: string; cliente_email?: string
   cliente_telefone?: string; cliente_endereco?: string
+  cliente_cidade?: string; cliente_estado?: string; cliente_cep?: string
   data_emissao: any; data_vencimento?: any; data_validade?: any
   items: PDFItem[]; subtotal: number; desconto?: number
   taxa?: number; total: number; observacoes?: string
   termos_condicoes?: string; deposit?: number; vendedor_nome?: string
-  status?: string
+  taxa_envio?: number; status?: string
+  parcelas_ativo?: boolean; parcelas?: {numero: number; valor: number; data: string; status: string}[]
+  valor_pago?: number
 }
 
 async function loadLogoBase64(): Promise<string | null> {
@@ -50,94 +53,90 @@ async function buildPDF(doc: PDFDoc, tipo: 'FATURA' | 'ORCAMENTO'): Promise<jsPD
   const L = 15
   const R = 195
   const logoBase64 = await loadLogoBase64()
-
-  // ── HEADER: left = logo + company address, right = invoice info + client
-  const logoW = 44; const logoH = 28
-  if (logoBase64) {
-    try { pdf.addImage(logoBase64, 'JPEG', L, 10, logoW, logoH) } catch { /* skip */ }
-  }
-
-  // Company address below logo
   const vendedor = clean(doc.vendedor_nome) || 'Julieth Batista Gomes'
-  pdf.setFont('helvetica', 'normal')
-  pdf.setFontSize(8)
-  pdf.setTextColor(70, 70, 70)
-  pdf.text('10 Howe St', L, 42)
-  pdf.text('Framingham MA', L, 47)
-  pdf.text('617 768 7191', L, 52)
-
-  // Right column header info
-  const rightX = 120
   const tipoLabel = tipo === 'FATURA' ? 'INVOICE' : 'ESTIMATE'
 
-  // Document number
+  // ── HEADER: Logo left, address RIGHT NEXT TO logo (same vertical level), invoice info far right
+  const logoW = 55; const logoH = 35
+  if (logoBase64) {
+    try { pdf.addImage(logoBase64, 'JPEG', L, 8, logoW, logoH) } catch { /* skip */ }
+  }
+
+  // Address — below logo, left aligned
   pdf.setFont('helvetica', 'normal')
   pdf.setFontSize(9)
-  pdf.setTextColor(60, 60, 60)
-  pdf.text(`: ${doc.numero}`, rightX + 22, 16)
-  pdf.setFont('helvetica', 'bold')
-  pdf.setFontSize(9)
-  pdf.setTextColor(20, 20, 20)
-  pdf.text(tipoLabel, rightX, 16)
+  pdf.setTextColor(70, 70, 70)
+  pdf.text('10 Howe St', L, 47)
+  pdf.text('Framingham MA', L, 53)
+  pdf.text('617 768 7191', L, 59)
 
-  // Due date
+  // Invoice info — far right
+  const rightX = 120
   const dueDate = doc.data_vencimento
     ? fmtDate(doc.data_vencimento)
     : doc.data_validade
       ? fmtDate(doc.data_validade)
       : 'Due on Receipt'
+
+  pdf.setFont('helvetica', 'bold')
+  pdf.setFontSize(9)
+  pdf.setTextColor(20, 20, 20)
+  pdf.text(tipoLabel, rightX, 16)
+  pdf.setFont('helvetica', 'normal')
+  pdf.setTextColor(60, 60, 60)
+  pdf.text(` : ${doc.numero}`, rightX + 18, 16)
+
   pdf.setFont('helvetica', 'normal')
   pdf.setFontSize(9)
   pdf.setTextColor(60, 60, 60)
-  pdf.text('Due on Receipt : ', rightX, 22)
+  pdf.text('Due on Receipt : ', rightX, 23)
   pdf.setFont('helvetica', 'bold')
   pdf.setTextColor(20, 20, 20)
-  pdf.text(dueDate, rightX + 34, 22)
+  pdf.text(dueDate, rightX + 34, 23)
 
-  // Bill To label
+  // Bill To
   pdf.setFont('helvetica', 'normal')
   pdf.setFontSize(8)
   pdf.setTextColor(80, 80, 80)
-  pdf.text('Bill To', rightX, 30)
+  pdf.text('Bill To', rightX, 33)
 
-  // Client info
   pdf.setFont('helvetica', 'bold')
   pdf.setFontSize(9)
   pdf.setTextColor(10, 10, 10)
-  pdf.text(clean(doc.cliente_nome).toUpperCase(), rightX, 36)
+  pdf.text(clean(doc.cliente_nome).toUpperCase(), rightX, 40)
 
   pdf.setFont('helvetica', 'normal')
-  pdf.setFontSize(8)
+  pdf.setFontSize(8.5)
   pdf.setTextColor(50, 50, 50)
-  let cy = 41
+  let cy = 47
   if (doc.cliente_endereco) {
     const addr = clean(doc.cliente_endereco)
-    if (addr) { pdf.text(addr.substring(0, 60), rightX, cy); cy += 5 }
+    if (addr) {
+      const addrLines = pdf.splitTextToSize(addr, 70)
+      addrLines.forEach((line: string) => { pdf.text(line, rightX, cy); cy += 5 })
+    }
   }
-  if (doc.cliente_telefone) { pdf.text(doc.cliente_telefone, rightX, cy); cy += 5 }
+  if (doc.cliente_cidade || doc.cliente_estado || doc.cliente_cep) {
+    const cityLine = [clean(doc.cliente_cidade), clean(doc.cliente_estado), clean(doc.cliente_cep)].filter(Boolean).join(', ')
+    if (cityLine) { pdf.text(cityLine, rightX, cy); cy += 5 }
+  }
+  if (doc.cliente_telefone) { pdf.text(clean(doc.cliente_telefone), rightX, cy); cy += 5 }
   if (doc.cliente_email) { pdf.text(clean(doc.cliente_email), rightX, cy); cy += 5 }
 
   // ── SEPARATOR LINE
-  const sepY = Math.max(cy + 4, 60)
+  const sepY = Math.max(cy + 6, 55)
   pdf.setDrawColor(180, 180, 180)
   pdf.setLineWidth(0.3)
   pdf.line(L, sepY, R, sepY)
 
   // ── ITEMS TABLE
-  const tableStartY = sepY + 4
-
   autoTable(pdf, {
-    startY: tableStartY,
+    startY: sepY + 5,
     margin: { left: L, right: W - R },
     head: [['Item & Description', 'Qty', 'Rate', 'Amount']],
     body: doc.items.map((it) => {
       const desc = it.descricao ? `${clean(it.produto_nome)}\n${clean(it.descricao)}` : clean(it.produto_nome)
-      return [
-        desc,
-        String(it.quantidade),
-        fmt(it.preco_unitario),
-        fmt(it.subtotal),
-      ]
+      return [desc, String(it.quantidade), fmt(it.preco_unitario), fmt(it.subtotal)]
     }),
     headStyles: {
       fillColor: [240, 240, 240],
@@ -166,13 +165,12 @@ async function buildPDF(doc: PDFDoc, tipo: 'FATURA' | 'ORCAMENTO'): Promise<jsPD
     tableLineWidth: 0.3,
   })
 
-  const afterTableY = (pdf as any).lastAutoTable.finalY + 4
+  const afterTableY = (pdf as any).lastAutoTable.finalY + 6
 
   // ── TOTALS right side
   const totX = 130
   let ty = afterTableY
 
-  // Separator above totals
   pdf.setDrawColor(180, 180, 180)
   pdf.setLineWidth(0.3)
   pdf.line(totX, ty, R, ty)
@@ -182,22 +180,21 @@ async function buildPDF(doc: PDFDoc, tipo: 'FATURA' | 'ORCAMENTO'): Promise<jsPD
     ['Subtotal', fmt(doc.subtotal || doc.total)],
     ...(doc.desconto ? [['Discount', `-${fmt(doc.desconto)}`] as [string, string]] : []),
     ...(doc.taxa ? [['Tax (6.25%)', fmt(doc.taxa)] as [string, string]] : []),
+    ...(doc.taxa_envio && doc.taxa_envio > 0 ? [['Shipping', fmt(doc.taxa_envio)] as [string, string]] : []),
     ...(doc.deposit ? [['Deposit Received', `-${fmt(doc.deposit)}`] as [string, string]] : []),
   ]
 
   totals.forEach(([lbl, val]) => {
     pdf.setFont('helvetica', 'normal')
-    pdf.setFontSize(8)
+    pdf.setFontSize(8.5)
     pdf.setTextColor(80, 80, 80)
     pdf.text(lbl, totX, ty)
-    pdf.setFont('helvetica', 'normal')
     pdf.setTextColor(20, 20, 20)
     pdf.text(val, R, ty, { align: 'right' })
     ty += 6
   })
 
-  // Final total line
-  pdf.setDrawColor(30, 30, 30)
+  pdf.setDrawColor(20, 20, 20)
   pdf.setLineWidth(0.5)
   pdf.line(totX, ty, R, ty)
   ty += 5
@@ -207,14 +204,46 @@ async function buildPDF(doc: PDFDoc, tipo: 'FATURA' | 'ORCAMENTO'): Promise<jsPD
   pdf.setFontSize(10)
   pdf.setTextColor(20, 20, 20)
   pdf.text('Total', totX, ty)
-  pdf.setFontSize(10)
   pdf.text(fmt(balanceDue), R, ty, { align: 'right' })
 
-  // ── NOTES / TERMS
+  if (doc.valor_pago && doc.valor_pago > 0) {
+    ty += 6
+    pdf.setFont('helvetica', 'bold')
+    pdf.setFontSize(8)
+    pdf.setTextColor(34, 139, 34)
+    pdf.text('Already Paid', totX, ty)
+    pdf.text(fmt(doc.valor_pago), R, ty, { align: 'right' })
+    ty += 6
+    pdf.setTextColor(200, 50, 50)
+    pdf.text('Balance Due', totX, ty)
+    pdf.text(fmt(Math.max(0, doc.total - doc.valor_pago)), R, ty, { align: 'right' })
+    pdf.setTextColor(40, 40, 40)
+  }
+
+  // ── INSTALLMENT SCHEDULE
+  if (doc.parcelas_ativo && doc.parcelas && doc.parcelas.length > 0) {
+    ty += 8
+    pdf.setFont('helvetica', 'bold')
+    pdf.setFontSize(8.5)
+    pdf.setTextColor(40, 40, 40)
+    pdf.text('Payment Schedule', totX, ty)
+    ty += 5
+    doc.parcelas.forEach((p) => {
+      const dateStr = (() => { try { return new Date(p.data + 'T12:00:00').toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: '2-digit' }) } catch { return p.data } })()
+      pdf.setFont('helvetica', 'normal')
+      pdf.setFontSize(8)
+      pdf.setTextColor(60, 60, 60)
+      pdf.text(`Installment ${p.numero}  ${dateStr}`, totX, ty)
+      pdf.setTextColor(p.status === 'pago' ? 34 : 20, p.status === 'pago' ? 139 : 20, p.status === 'pago' ? 34 : 20)
+      pdf.text(fmt(p.valor), R, ty, { align: 'right' })
+      ty += 5
+    })
+  }
+
+  // ── NOTES left side
   if (doc.observacoes || doc.termos_condicoes) {
     let ny = afterTableY
-    const noteW = totX - L - 8
-
+    const noteW = totX - L - 6
     if (doc.observacoes) {
       pdf.setFont('helvetica', 'bold')
       pdf.setFontSize(8)
@@ -226,7 +255,7 @@ async function buildPDF(doc: PDFDoc, tipo: 'FATURA' | 'ORCAMENTO'): Promise<jsPD
       pdf.setTextColor(80, 80, 80)
       const lines = pdf.splitTextToSize(clean(doc.observacoes), noteW)
       pdf.text(lines, L, ny)
-      ny += lines.length * 4.5 + 3
+      ny += lines.length * 4.5 + 4
     }
     if (doc.termos_condicoes) {
       pdf.setFont('helvetica', 'bold')
@@ -244,22 +273,17 @@ async function buildPDF(doc: PDFDoc, tipo: 'FATURA' | 'ORCAMENTO'): Promise<jsPD
 
   // ── FOOTER
   const H = 297
-  // Vendor / consultant name at bottom
-  pdf.setFont('helvetica', 'normal')
-  pdf.setFontSize(8)
-  pdf.setTextColor(100, 100, 100)
-  pdf.text('Prepared by:', L, H - 24)
-  pdf.setFont('helvetica', 'bold')
-  pdf.setFontSize(9)
-  pdf.setTextColor(20, 20, 20)
-  pdf.text(vendedor, L + 28, H - 24)
   pdf.setDrawColor(200, 200, 200)
   pdf.setLineWidth(0.3)
-  pdf.line(L, H - 16, R, H - 16)
+  pdf.line(L, H - 22, R, H - 22)
+  pdf.setFont('helvetica', 'bold')
+  pdf.setFontSize(8.5)
+  pdf.setTextColor(20, 20, 20)
+  pdf.text('Consultor: ' + clean(vendedor).toUpperCase(), L, H - 15)
   pdf.setFont('helvetica', 'normal')
   pdf.setFontSize(7)
   pdf.setTextColor(150, 150, 150)
-  pdf.text('BBVIC Hair Care  |  10 Howe St, Framingham MA  |  617 768 7191  |  Thank you for your business!', W / 2, H - 9, { align: 'center' })
+  pdf.text('BBVIC Hair Care  |  10 Howe St, Framingham MA 01702  |  617 768 7191  |  Thank you for your business!', W / 2, H - 8, { align: 'center' })
 
   return pdf
 }

@@ -97,6 +97,7 @@ export function Comissoes() {
   const fileRef = useRef<HTMLInputElement>(null)
 
   const [vendedoresSalario, setVendedoresSalario] = useState<VendedorSalario[]>([])
+  const [salarioSemanaSelecionada, setSalarioSemanaSelecionada] = useState<string>(getISOWeek(new Date()))
   const [salarioPayModal, setSalarioPayModal] = useState<VendedorSalario | null>(null)
   const [salarioMetodo, setSalarioMetodo] = useState<'venmo' | 'zelle' | 'cash'>('cash')
   const [salarioComprovante, setSalarioComprovante] = useState<File | null>(null)
@@ -295,11 +296,11 @@ export function Comissoes() {
     }
   }
 
-  const fetchVendedoresSalarios = async () => {
+  const fetchVendedoresSalarios = async (semanaIso?: string) => {
     try {
-      const currentWeekIso = getISOWeek(new Date())
+      const weekIso = semanaIso || getISOWeek(new Date())
       const vendedoresSnap = await getDocs(query(collection(db, 'users'), where('role', '==', 'vendedor')))
-      const pagosSnap = await getDocs(query(collection(db, 'pagamentos_salario'), where('semana_iso', '==', currentWeekIso)))
+      const pagosSnap = await getDocs(query(collection(db, 'pagamentos_salario'), where('semana_iso', '==', weekIso)))
       const pagosMap = new Map(pagosSnap.docs.map(d => [d.data().vendedor_id, d.data()]))
       const list: VendedorSalario[] = vendedoresSnap.docs
         .filter(d => d.data().role === 'vendedor')
@@ -310,7 +311,7 @@ export function Comissoes() {
             uid: d.id,
             nome: data.nome || data.displayName || 'Vendedor',
             salario_semanal: data.salario_semanal || 0,
-            semana_iso: currentWeekIso,
+            semana_iso: weekIso,
             ja_pago: !!pago,
             data_pagamento: pago?.data_pagamento,
             metodo_pagamento: pago?.metodo_pagamento,
@@ -339,7 +340,7 @@ export function Comissoes() {
       }
       const now = Timestamp.now()
       const metodoLabel = salarioMetodo === 'venmo' ? 'Venmo' : salarioMetodo === 'zelle' ? 'Zelle' : 'Cash'
-      const weekRange = getWeekRange(salarioPayModal.semana_iso)
+      const weekRange = getWeekRange(salarioPayModal.semana_iso || salarioSemanaSelecionada)
       await addDoc(collection(db, 'pagamentos_salario'), {
         vendedor_id: salarioPayModal.uid,
         vendedor_nome: salarioPayModal.nome,
@@ -719,12 +720,34 @@ export function Comissoes() {
       {/* SALARY SECTION */}
       {vendedoresSalario.length > 0 && (
         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-          <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+          <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between flex-wrap gap-3">
             <div className="flex items-center gap-2">
               <Briefcase className="w-5 h-5 text-[#C9A227]" />
               <h2 className="font-semibold text-gray-900">Salários Semanais</h2>
             </div>
-            <span className="text-xs text-gray-400">Semana atual</span>
+            <div className="flex items-center gap-2">
+              <Calendar className="w-4 h-4 text-gray-400" />
+              <input
+                type="week"
+                value={salarioSemanaSelecionada}
+                onChange={e => {
+                  if (!e.target.value) return
+                  setSalarioSemanaSelecionada(e.target.value)
+                  fetchVendedoresSalarios(e.target.value)
+                }}
+                className="px-3 py-1.5 rounded-xl border border-gray-200 text-sm text-gray-700 focus:outline-none focus:border-[#C9A227]"
+              />
+              <button
+                onClick={() => {
+                  const w = getISOWeek(new Date())
+                  setSalarioSemanaSelecionada(w)
+                  fetchVendedoresSalarios(w)
+                }}
+                className="text-xs text-[#C9A227] font-semibold hover:underline"
+              >
+                Semana atual
+              </button>
+            </div>
           </div>
           <div className="divide-y divide-gray-50">
             {vendedoresSalario.map(v => (

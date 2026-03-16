@@ -11,7 +11,6 @@ import {
   ShoppingCart, Award, Target, User, Search, Filter
 } from 'lucide-react'
 
-const MONTHS = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']
 const fmt = (v: number) => `$${v.toLocaleString('en-US', { minimumFractionDigits:2, maximumFractionDigits:2 })}`
 const fmtDate = (v: any) => {
   if (!v) return '-'
@@ -35,9 +34,10 @@ const auditTipoCls: Record<string,string> = {
 export function Relatorios() {
   const { user, isAdmin } = useAuth()
   const navigate = useNavigate()
-  const hoje = new Date()
-  const [mes, setMes] = useState(hoje.getMonth() + 1)
-  const [ano, setAno] = useState(hoje.getFullYear())
+  const [dataInicio, setDataInicio] = useState<string>(() => {
+    const d = new Date(); d.setDate(1); return d.toISOString().split('T')[0]
+  })
+  const [dataFim, setDataFim] = useState<string>(() => new Date().toISOString().split('T')[0])
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState<'visao'|'vendas'|'despesas'|'estoque'|'vendedores'|'clientes'|'auditoria'>('visao')
 
@@ -53,14 +53,14 @@ export function Relatorios() {
   const [auditSearch, setAuditSearch] = useState('')
   const [auditTipoFiltro, setAuditTipoFiltro] = useState('todos')
 
-  useEffect(() => { fetchAll() }, [mes, ano, user, isAdmin])
+  useEffect(() => { fetchAll() }, [dataInicio, dataFim, user, isAdmin])
   useEffect(() => { if (tab === 'auditoria') fetchAudit() }, [tab])
 
   const fetchAll = async () => {
     try {
       setLoading(true)
-      const inicio = new Date(ano, mes - 1, 1)
-      const fim = new Date(ano, mes, 0, 23, 59, 59)
+      const inicio = new Date(dataInicio + 'T00:00:00')
+      const fim = new Date(dataFim + 'T23:59:59')
       const tsIni = Timestamp.fromDate(inicio)
       const tsFim = Timestamp.fromDate(fim)
 
@@ -106,7 +106,12 @@ export function Relatorios() {
   }
 
   // ── COMPUTED ──────────────────────────────────────────────────────────────
-  const receitaFaturas = invoices.filter(i => ['pago','parcial'].includes(i.status)).reduce((s,i) => s + (i.valor_pago || (i.status==='pago' ? i.total : 0)), 0)
+  const receitaFaturas = invoices.filter(i => ['pago','parcial'].includes(i.status)).reduce((s,i) => {
+    if (i.status === 'pago') {
+      return s + (i.total - (i.desconto || 0))
+    }
+    return s + (i.valor_pago || 0)
+  }, 0)
   const totalDespesas = expenses.reduce((s,e) => s + (e.valor || 0), 0)
   const totalContasPagar = contasPagar.reduce((s,c) => s + (c.valor || 0), 0)
   const lucroLiquido = receitaFaturas - totalDespesas
@@ -172,7 +177,7 @@ export function Relatorios() {
     const hOrc = ['Nº','Cliente','Vendedor','Data','Status','Total']
     const rOrc = estimates.map(e => [e.numero||'', e.cliente_nome||'', e.vendedor_nome||'Admin', fmtDate(e.data_emissao), e.status, e.total||0])
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([hOrc,...rOrc]), 'Orçamentos')
-    XLSX.writeFile(wb, `relatorio_vendas_${MONTHS[mes-1]}_${ano}.xlsx`)
+    XLSX.writeFile(wb, `relatorio_vendas_${dataInicio}_${dataFim}.xlsx`)
     toast.success('Relatório de vendas exportado!')
   }
 
@@ -184,7 +189,7 @@ export function Relatorios() {
     const hCP = ['Descrição','Fornecedor','Vencimento','Valor','Status']
     const rCP = contasPagar.map(c => [c.descricao||'', c.fornecedor||'', fmtDate(c.data_vencimento), c.valor||0, c.status||''])
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([hCP,...rCP]), 'Contas a Pagar')
-    XLSX.writeFile(wb, `relatorio_despesas_${MONTHS[mes-1]}_${ano}.xlsx`)
+    XLSX.writeFile(wb, `relatorio_despesas_${dataInicio}_${dataFim}.xlsx`)
     toast.success('Relatório de despesas exportado!')
   }
 
@@ -198,7 +203,7 @@ export function Relatorios() {
       (p.preco||0)*(p.estoque||0), (p.preco_custo||0)*(p.estoque||0),
     ])
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([h,...r]), 'Estoque')
-    XLSX.writeFile(wb, `relatorio_estoque_${MONTHS[mes-1]}_${ano}.xlsx`)
+    XLSX.writeFile(wb, `relatorio_estoque_${dataInicio}_${dataFim}.xlsx`)
     toast.success('Relatório de estoque exportado!')
   }
 
@@ -207,7 +212,7 @@ export function Relatorios() {
     const h = ['Vendedor','Email','Faturas','Receita','Orçamentos','Ticket Médio','Conversão %']
     const r = resumoVendedores.map(v => [v.nome||'', v.email||'', v.faturas, v.receita, v.orcamentos, v.ticketMedio.toFixed(2), v.conversao.toFixed(1)])
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([h,...r]), 'Vendedores')
-    XLSX.writeFile(wb, `relatorio_vendedores_${MONTHS[mes-1]}_${ano}.xlsx`)
+    XLSX.writeFile(wb, `relatorio_vendedores_${dataInicio}_${dataFim}.xlsx`)
     toast.success('Relatório de vendedores exportado!')
   }
 
@@ -216,7 +221,7 @@ export function Relatorios() {
     const h = ['Nome','Email','Telefone','Cidade','Estado']
     const r = clientes.map(c => [c.nome||'', c.email||'', c.telefone||'', c.cidade||'', c.estado||''])
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([h,...r]), 'Clientes')
-    XLSX.writeFile(wb, `relatorio_clientes_${MONTHS[mes-1]}_${ano}.xlsx`)
+    XLSX.writeFile(wb, `relatorio_clientes_${dataInicio}_${dataFim}.xlsx`)
     toast.success('Relatório de clientes exportado!')
   }
 
@@ -225,7 +230,7 @@ export function Relatorios() {
     const h = ['Posição','Produto','Qtd Vendida','Receita']
     const r = rankingProdutos.map((p,i) => [i+1, p.nome, p.quantidade, p.receita.toFixed(2)])
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([h,...r]), 'Produtos Mais Vendidos')
-    XLSX.writeFile(wb, `produtos_mais_vendidos_${MONTHS[mes-1]}_${ano}.xlsx`)
+    XLSX.writeFile(wb, `produtos_mais_vendidos_${dataInicio}_${dataFim}.xlsx`)
     toast.success('Ranking exportado!')
   }
 
@@ -248,7 +253,7 @@ export function Relatorios() {
     const wb = XLSX.utils.book_new()
     const pl = [
       ['BBVIC GESTÃO - RELATÓRIO GERAL',''],
-      ['Período', `${MONTHS[mes-1]} ${ano}`],['',''],
+      ['Período', periodoLabel],['',''],
       ['RECEITAS',''],
       ['Faturas Pagas / Parciais', receitaFaturas],
       ['A Receber', aReceber],
@@ -268,7 +273,7 @@ export function Relatorios() {
       ...rankingProdutos.map((p,i) => [i+1, p.nome, p.quantidade, p.receita.toFixed(2)]),
     ]
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(pl), 'Visão Geral')
-    XLSX.writeFile(wb, `relatorio_geral_${MONTHS[mes-1]}_${ano}.xlsx`)
+    XLSX.writeFile(wb, `relatorio_geral_${dataInicio}_${dataFim}.xlsx`)
     toast.success('Relatório geral exportado!')
   }
 
@@ -285,6 +290,11 @@ export function Relatorios() {
     ] : []),
   ] as const
 
+  const periodoLabel = (() => {
+    if (dataInicio === dataFim) return new Date(dataInicio + 'T12:00:00').toLocaleDateString('pt-BR')
+    return `${new Date(dataInicio + 'T12:00:00').toLocaleDateString('pt-BR')} – ${new Date(dataFim + 'T12:00:00').toLocaleDateString('pt-BR')}`
+  })()
+
   const cardCls = 'bg-white rounded-2xl border border-gray-200 shadow-sm p-5'
   const thCls = 'text-left text-xs font-semibold text-gray-400 uppercase tracking-wide px-4 py-3'
   const tdCls = 'px-4 py-3 text-sm text-gray-700'
@@ -300,19 +310,45 @@ export function Relatorios() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold text-gray-900">Relatórios</h1>
-          <p className="text-gray-500 text-sm">Dados de {MONTHS[mes-1]} {ano}</p>
+          <p className="text-gray-500 text-sm">Período: {periodoLabel}</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          <select value={mes} onChange={e=>setMes(parseInt(e.target.value))} className="px-3 py-2 rounded-xl border border-gray-200 text-sm text-gray-900 focus:outline-none focus:border-[#C9A227]">
-            {MONTHS.map((m,i) => <option key={i} value={i+1}>{m}</option>)}
-          </select>
-          <select value={ano} onChange={e=>setAno(parseInt(e.target.value))} className="px-3 py-2 rounded-xl border border-gray-200 text-sm text-gray-900 focus:outline-none focus:border-[#C9A227]">
-            {[2024,2025,2026,2027].map(y => <option key={y} value={y}>{y}</option>)}
-          </select>
           <button onClick={exportGeral} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-green-600 text-white text-sm font-medium hover:bg-green-700">
             <Download className="w-4 h-4"/> Exportar Geral
           </button>
         </div>
+      </div>
+
+      {/* Date Range Filter */}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm px-5 py-3 flex flex-wrap items-center gap-3">
+        <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide flex-shrink-0">Período</span>
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-gray-500">De:</span>
+            <input type="date" value={dataInicio} onChange={e => setDataInicio(e.target.value)}
+              className="px-2 py-1.5 rounded-lg border border-gray-200 text-xs text-gray-700 focus:outline-none focus:border-[#C9A227]" />
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-gray-500">Até:</span>
+            <input type="date" value={dataFim} onChange={e => setDataFim(e.target.value)}
+              className="px-2 py-1.5 rounded-lg border border-gray-200 text-xs text-gray-700 focus:outline-none focus:border-[#C9A227]" />
+          </div>
+        </div>
+        <div className="flex gap-1.5 flex-wrap">
+          {[
+            { label: 'Hoje', fn: () => { const t = new Date().toISOString().split('T')[0]; setDataInicio(t); setDataFim(t) } },
+            { label: '7 dias', fn: () => { const t = new Date(); const s = new Date(t); s.setDate(s.getDate()-6); setDataInicio(s.toISOString().split('T')[0]); setDataFim(t.toISOString().split('T')[0]) } },
+            { label: 'Mês atual', fn: () => { const t = new Date(); const s = new Date(t.getFullYear(), t.getMonth(), 1); setDataInicio(s.toISOString().split('T')[0]); setDataFim(t.toISOString().split('T')[0]) } },
+            { label: 'Mês ant.', fn: () => { const t = new Date(); const s = new Date(t.getFullYear(), t.getMonth()-1, 1); const e = new Date(t.getFullYear(), t.getMonth(), 0); setDataInicio(s.toISOString().split('T')[0]); setDataFim(e.toISOString().split('T')[0]) } },
+            { label: 'Este ano', fn: () => { const t = new Date(); const s = new Date(t.getFullYear(), 0, 1); setDataInicio(s.toISOString().split('T')[0]); setDataFim(t.toISOString().split('T')[0]) } },
+          ].map(btn => (
+            <button key={btn.label} onClick={btn.fn}
+              className="px-2.5 py-1 rounded-lg bg-gray-50 border border-gray-200 text-xs text-gray-600 hover:bg-[#C9A227] hover:text-white hover:border-[#C9A227] transition">
+              {btn.label}
+            </button>
+          ))}
+        </div>
+        <span className="text-xs text-gray-400 ml-auto hidden sm:block">{periodoLabel}</span>
       </div>
 
       {/* Tabs */}
@@ -334,7 +370,7 @@ export function Relatorios() {
               {/* KPI Cards */}
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 {[
-                  { label:'Receita do Mês', value:fmt(receitaFaturas), icon:TrendingUp, color:'text-green-600', bg:'bg-green-100' },
+                  { label:'Receita do Período', value:fmt(receitaFaturas), icon:TrendingUp, color:'text-green-600', bg:'bg-green-100' },
                   { label:'Despesas', value:fmt(totalDespesas), icon:TrendingDown, color:'text-red-500', bg:'bg-red-100' },
                   { label:'Lucro Líquido', value:fmt(lucroLiquido), icon:DollarSign, color:lucroLiquido>=0?'text-green-600':'text-red-500', bg:lucroLiquido>=0?'bg-green-100':'bg-red-100' },
                   { label:'A Receber', value:fmt(aReceber), icon:Receipt, color:'text-blue-600', bg:'bg-blue-100' },
@@ -353,7 +389,7 @@ export function Relatorios() {
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 <div className={cardCls}>
                   <div className="flex items-center justify-between mb-3">
-                    <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Faturas do Mês</span>
+                    <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Faturas do Período</span>
                     <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center"><Receipt className="w-4 h-4 text-gray-500"/></div>
                   </div>
                   <p className="text-2xl font-bold text-gray-900">{invoices.length}</p>
@@ -537,7 +573,7 @@ export function Relatorios() {
               )}
 
               <div className="flex justify-between items-center">
-                <p className="text-sm text-gray-500">{invoices.length} faturas · {estimates.length} orçamentos em {MONTHS[mes-1]} {ano}</p>
+                <p className="text-sm text-gray-500">{invoices.length} faturas · {estimates.length} orçamentos em {periodoLabel}</p>
                 <button onClick={exportVendas} className="flex items-center gap-2 px-3 py-2 rounded-xl bg-green-600 text-white text-sm hover:bg-green-700"><Download className="w-4 h-4"/> Exportar</button>
               </div>
               <div className={cardCls}>

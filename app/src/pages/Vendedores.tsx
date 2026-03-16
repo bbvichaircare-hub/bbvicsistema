@@ -23,7 +23,7 @@ const fmt = (v: number) => `$${v.toLocaleString('en-US', { minimumFractionDigits
 
 export function Vendedores() {
   const navigate = useNavigate()
-  const { isAdmin, criarVendedor, atualizarVendedor, ativarDesativarUsuario, excluirUsuario, resetarSenha } = useAuth()
+  const { isAdmin, criarVendedor, atualizarVendedor, ativarDesativarUsuario, excluirUsuario } = useAuth()
 
   const [vendedores, setVendedores] = useState<User[]>([])
   const [stats, setStats] = useState<Record<string, VendedorStats>>({})
@@ -38,10 +38,7 @@ export function Vendedores() {
   // Forms
   const [form, setForm] = useState<FormData>(emptyForm)
   const [editForm, setEditForm] = useState({ nome:'', telefone:'', email:'', comissao_percentual:10 })
-  const [newPassword, setNewPassword] = useState('')
-  const [confirmNewPassword, setConfirmNewPassword] = useState('')
   const [showPwd, setShowPwd] = useState(false)
-  const [showNewPwd, setShowNewPwd] = useState(false)
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
@@ -112,18 +109,37 @@ export function Vendedores() {
     finally { setSaving(false) }
   }
 
-  const handlePasswordReset = async () => {
+  const handleResetPassword = async () => {
     if (!passwordUser) return
-    if (newPassword.length < 6) { toast.error('Senha mínima de 6 caracteres'); return }
-    if (newPassword !== confirmNewPassword) { toast.error('Senhas não conferem'); return }
     setSaving(true)
     try {
-      await resetarSenha(passwordUser.uid, newPassword)
-      setPasswordUser(null)
-      setNewPassword('')
-      setConfirmNewPassword('')
-    } catch(e: any) { toast.error(e.message || 'Erro ao redefinir senha') }
-    finally { setSaving(false) }
+      const apiKey = 'AIzaSyC8bUzmGsfMCuBHIuONhW7qOTb5vqQQOP0'
+      // Send Firebase password reset email
+      const resetRes = await fetch(
+        `https://identitytoolkit.googleapis.com/v1/accounts:sendOobCode?key=${apiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ requestType: 'PASSWORD_RESET', email: passwordUser.email })
+        }
+      )
+      const resetData = await resetRes.json()
+      if (resetData.email) {
+        toast.success(`Email de redefinição enviado para ${passwordUser.email}`)
+        setPasswordUser(null)
+      } else {
+        const errMsg = resetData.error?.message || 'Erro desconhecido'
+        if (errMsg === 'EMAIL_NOT_FOUND' || errMsg.includes('not found')) {
+          toast.error(`Vendedor não encontrado no sistema de autenticação. Execute o script fix-vendor-logins.mjs para corrigir.`)
+        } else {
+          toast.error(`Erro: ${errMsg}`)
+        }
+      }
+    } catch (e: any) {
+      toast.error('Erro ao enviar email: ' + (e.message || ''))
+    } finally {
+      setSaving(false)
+    }
   }
 
   const handleToggle = async (v: User) => {
@@ -208,7 +224,7 @@ export function Vendedores() {
                   </div>
                   <div className="flex items-center gap-1">
                     <button onClick={()=>openEdit(v)} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400" title="Editar"><Edit2 className="w-4 h-4"/></button>
-                    <button onClick={()=>{ setPasswordUser(v); setNewPassword(''); setConfirmNewPassword('') }} className="p-1.5 rounded-lg hover:bg-blue-50 text-gray-400 hover:text-blue-600" title="Alterar Senha"><Key className="w-4 h-4"/></button>
+                    <button onClick={()=>{ setPasswordUser(v) }} className="p-1.5 rounded-lg hover:bg-blue-50 text-gray-400 hover:text-blue-600" title="Alterar Senha"><Key className="w-4 h-4"/></button>
                     <button onClick={()=>handleToggle(v)} className={`p-1.5 rounded-lg ${v.ativo?'hover:bg-red-50 text-gray-400 hover:text-red-500':'hover:bg-green-50 text-gray-400 hover:text-green-600'}`} title={v.ativo?'Desativar':'Ativar'}>
                       <Power className="w-4 h-4"/>
                     </button>
@@ -354,41 +370,26 @@ export function Vendedores() {
           <div className="bg-white w-full sm:max-w-md sm:rounded-2xl rounded-t-2xl shadow-2xl" onClick={e=>e.stopPropagation()}>
             <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
               <div>
-                <div className="flex items-center gap-2"><Key className="w-5 h-5 text-[#C9A227]"/><h2 className="text-lg font-bold text-gray-900">Alterar Senha</h2></div>
+                <div className="flex items-center gap-2"><Key className="w-5 h-5 text-[#C9A227]"/><h2 className="text-lg font-bold text-gray-900">Redefinir Senha</h2></div>
                 <p className="text-xs text-gray-400 mt-0.5">{passwordUser.nome} · {passwordUser.email}</p>
               </div>
               <button onClick={()=>setPasswordUser(null)} className="p-2 rounded-xl hover:bg-gray-100 text-gray-400"><X className="w-5 h-5"/></button>
             </div>
             <div className="px-5 py-4 space-y-3">
+              <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 text-sm text-blue-700">
+                <p className="font-semibold mb-1">Como funciona:</p>
+                <p>Um email de redefinição de senha será enviado para <span className="font-medium">{passwordUser.email}</span>. O vendedor clica no link do email para criar uma nova senha.</p>
+              </div>
               <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-sm text-amber-700">
-                A nova senha será enviada ao vendedor. Ele poderá fazer login com ela imediatamente.
-              </div>
-              <div>
-                <label className={labelCls}>Nova Senha *</label>
-                <div className="relative">
-                  <input type={showNewPwd?'text':'password'} value={newPassword} onChange={e=>setNewPassword(e.target.value)} placeholder="Mínimo 6 caracteres" className={`${inputCls} pr-10`}/>
-                  <button type="button" onClick={()=>setShowNewPwd(p=>!p)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
-                    {showNewPwd?<EyeOff className="w-4 h-4"/>:<Eye className="w-4 h-4"/>}
-                  </button>
-                </div>
-              </div>
-              <div>
-                <label className={labelCls}>Confirmar Nova Senha *</label>
-                <div className="relative">
-                  <input type={showNewPwd?'text':'password'} value={confirmNewPassword} onChange={e=>setConfirmNewPassword(e.target.value)} placeholder="Repita a nova senha" className={`${inputCls} pr-10`}/>
-                  {confirmNewPassword && (
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2">
-                      {newPassword===confirmNewPassword?<CheckCircle className="w-4 h-4 text-green-500"/>:<XCircle className="w-4 h-4 text-red-400"/>}
-                    </span>
-                  )}
-                </div>
+                <p className="font-semibold mb-1">Vendedor não consegue fazer login?</p>
+                <p>Se a conta ainda não existe no sistema de autenticação, execute o script <span className="font-mono font-semibold">fix-vendor-logins.mjs</span> na pasta do projeto para criar e configurar o acesso automaticamente.</p>
               </div>
             </div>
             <div className="px-5 py-4 border-t border-gray-100 flex gap-3">
               <button onClick={()=>setPasswordUser(null)} className="flex-1 py-3 rounded-xl border border-gray-200 text-gray-600 text-sm">Cancelar</button>
-              <button onClick={handlePasswordReset} disabled={saving} className="flex-[2] py-3 rounded-xl bg-blue-600 text-white text-sm font-bold disabled:opacity-50 flex items-center justify-center gap-2">
-                {saving?<Loader2 className="w-4 h-4 animate-spin"/>:<Key className="w-4 h-4"/>}
-                {saving?'Enviando...':'Redefinir Senha'}
+              <button onClick={handleResetPassword} disabled={saving} className="flex-[2] py-3 rounded-xl bg-blue-600 text-white text-sm font-bold disabled:opacity-50 flex items-center justify-center gap-2">
+                {saving?<Loader2 className="w-4 h-4 animate-spin"/>:<Mail className="w-4 h-4"/>}
+                {saving?'Enviando...':'Enviar Email de Redefinição'}
               </button>
             </div>
           </div>

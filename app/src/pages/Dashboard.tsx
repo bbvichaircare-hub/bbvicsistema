@@ -8,7 +8,8 @@ import { formatCurrency } from "@/lib/utils"
 import {
   TrendingUp, TrendingDown, DollarSign, Users, Clock,
   Plus, FileText, AlertCircle, ArrowUpRight, ArrowDownRight,
-  Package, ChevronRight, AlertTriangle, Hourglass
+  Package, ChevronRight, AlertTriangle, Hourglass, CreditCard,
+  BarChart2, X
 } from "lucide-react"
 
 interface KPI {
@@ -20,6 +21,8 @@ interface KPI {
 }
 interface FaturaReceber { id: string; cliente_nome: string; total: number; data_vencimento: any; status: string; numero: string }
 interface OrcamentoAberto { id: string; cliente_nome: string; total: number; data_emissao: any; status: string; numero: string }
+interface FaturaParcelada { id: string; cliente_nome: string; total: number; numero: string; status: string; metodo_pagamento: string; data_emissao: any; data_vencimento: any; parcelas?: number }
+interface LucroProduto { nome: string; qtd_vendida: number; receita: number; custo_total: number; lucro: number; margem: number }
 
 export function Dashboard() {
   const { user, isAdmin } = useAuth()
@@ -36,14 +39,102 @@ export function Dashboard() {
   const [faturasAtrasadas, setFaturasAtrasadas] = useState<FaturaReceber[]>([])
   const [orcamentosAbertos, setOrcamentosAbertos] = useState<OrcamentoAberto[]>([])
   const [estoqueBaixo, setEstoqueBaixo] = useState<{ id: string; nome: string; estoque: number; estoque_minimo: number }[]>([])
+  const [faturasParceladas, setFaturasParceladas] = useState<FaturaParcelada[]>([])
+  const [showParceladasModal, setShowParceladasModal] = useState(false)
+  const [lucrosProdutos, setLucrosProdutos] = useState<LucroProduto[]>([])
+  const [showLucroModal, setShowLucroModal] = useState(false)
+  const [dataInicioLucro, setDataInicioLucro] = useState<string>(() => {
+    const d = new Date(); d.setDate(1); return d.toISOString().split('T')[0]
+  })
+  const [dataFimLucro, setDataFimLucro] = useState<string>(() => new Date().toISOString().split('T')[0])
+  const [allInvoicesCache, setAllInvoicesCache] = useState<any[]>([])
+  const [allExpensesCache, setAllExpensesCache] = useState<any[]>([])
+  const [prodMapCache, setProdMapCache] = useState<Map<string, any>>(new Map())
+  const [dataInicioKPI, setDataInicioKPI] = useState<string>(() => {
+    const d = new Date(); d.setDate(1); return d.toISOString().split('T')[0]
+  })
+  const [dataFimKPI, setDataFimKPI] = useState<string>(() => new Date().toISOString().split('T')[0])
+  const [kpiRange, setKpiRange] = useState<KPI | null>(null)
 
   const [lembretesModal, setLembretesModal] = useState(false)
   const [atrasadosParaLembrete, setAtrasadosParaLembrete] = useState<any[]>([])
   const [lembreteIdx, setLembreteIdx] = useState(0)
 
   useEffect(() => { fetchDados() }, [user, isAdmin])
+  useEffect(() => {
+    if (allInvoicesCache.length > 0) {
+      calcularLucroProdutos(allInvoicesCache, prodMapCache, dataInicioLucro, dataFimLucro)
+    }
+  }, [dataInicioLucro, dataFimLucro])
+
+  useEffect(() => {
+    if (allInvoicesCache.length > 0 || allExpensesCache.length > 0) {
+      calcularKPIRange(allInvoicesCache, allExpensesCache, dataInicioKPI, dataFimKPI)
+    }
+  }, [dataInicioKPI, dataFimKPI, allInvoicesCache, allExpensesCache])
 
   const toDate = (v: any) => { try { return v?.toDate ? v.toDate() : new Date(v) } catch { return new Date(0) } }
+
+  const calcularKPIRange = (invoices: any[], expenses: any[], inicio: string, fim: string) => {
+    const iniDate = new Date(inicio + 'T00:00:00')
+    const fimDate = new Date(fim + 'T23:59:59')
+    const inRange = (v: any) => { try { const d = toDate(v); return d >= iniDate && d <= fimDate } catch { return false } }
+    const rec = invoices
+      .filter((i: any) => ['pago','parcial'].includes(i.status) && inRange(i.data_emissao ?? i.created_at))
+      .reduce((s: number, i: any) => {
+        const base = (i.total || 0) - (i.desconto || 0)
+        const pago = (i as any).valor_pago
+        return s + (pago !== undefined && pago !== null ? pago : base)
+      }, 0)
+    const desp = expenses
+      .filter((e: any) => inRange(e.data ?? e.created_at))
+      .reduce((s: number, e: any) => s + (e.valor || 0), 0)
+    setKpiRange(prev => ({
+      ...(prev || { receitas:0, despesas:0, lucro:0, clientesAtivos: kpi.clientesAtivos, faturasPendentesValor:kpi.faturasPendentesValor, faturasPendentesQtd:kpi.faturasPendentesQtd, receitasAnterior:0, despesasAnterior:0, faturasAtrasadasQtd:kpi.faturasAtrasadasQtd, faturasAtrasadasValor:kpi.faturasAtrasadasValor, orcamentosAbertosQtd:kpi.orcamentosAbertosQtd }),
+      receitas: rec,
+      despesas: desp,
+      lucro: rec - desp,
+    }))
+  }
+
+  const calcularLucroProdutos = (invoices: any[], prodMap: Map<string, any>, inicio: string, fim: string) => {
+    const iniDate = new Date(inicio + 'T00:00:00')
+    const fimDate = new Date(fim + 'T23:59:59')
+    const lucroMap = new Map<string, LucroProduto>()
+    invoices
+      .filter((inv: any) => {
+        if (inv.status !== 'pago') return false
+        const d = inv.data_emissao ? (inv.data_emissao?.toDate ? inv.data_emissao.toDate() : new Date(inv.data_emissao)) : (inv.created_at?.toDate ? inv.created_at.toDate() : new Date(inv.created_at))
+        return d >= iniDate && d <= fimDate
+      })
+      .forEach((inv: any) => {
+        const items: any[] = inv.items || inv.itens || []
+        const subtotalBruto = items.reduce((s: number, it: any) => s + (it.preco_unitario || 0) * (it.quantidade || 1), 0)
+        const desconto = inv.desconto || 0
+        const descontoRatio = subtotalBruto > 0 ? desconto / subtotalBruto : 0
+        items.forEach((item: any) => {
+          const nomeKey = (item.produto_nome || '').toLowerCase().trim()
+          const prodData = prodMap.get(item.produto_id) || prodMap.get(nomeKey)
+          const custo = prodData?.preco_custo || prodData?.custo || 0
+          const qty = item.quantidade || 1
+          const preco = item.preco_unitario || 0
+          const receita = qty * preco * (1 - descontoRatio)
+          const custoTotal = qty * custo
+          const lucro = receita - custoTotal
+          const key = item.produto_nome || 'Produto'
+          if (lucroMap.has(key)) {
+            const prev = lucroMap.get(key)!
+            const newReceita = prev.receita + receita
+            const newLucro = prev.lucro + lucro
+            const newCusto = prev.custo_total + custoTotal
+            lucroMap.set(key, { ...prev, qtd_vendida: prev.qtd_vendida + qty, receita: newReceita, custo_total: newCusto, lucro: newLucro, margem: newCusto > 0 ? (newLucro / newCusto) * 100 : (newLucro > 0 ? 100 : 0), sem_custo: (prev as any).sem_custo && custo === 0 } as any)
+          } else {
+            lucroMap.set(key, { nome: item.produto_nome || 'Produto', qtd_vendida: qty, receita, custo_total: custoTotal, lucro, margem: custoTotal > 0 ? (lucro / custoTotal) * 100 : (lucro > 0 ? 100 : 0), sem_custo: custo === 0 } as any)
+          }
+        })
+      })
+    setLucrosProdutos([...lucroMap.values()].sort((a, b) => b.lucro - a.lucro))
+  }
 
   const fetchDados = async () => {
     try {
@@ -124,6 +215,33 @@ export function Dashboard() {
         setEstoqueBaixo(baixo)
       }
 
+      // FATURAS PARCELADAS
+      const parceladas = allInvoices.filter((i: any) => {
+        const mp = (i.metodo_pagamento || '').toLowerCase()
+        return i.parcelas_ativo === true ||
+               (Array.isArray(i.parcelas) && i.parcelas.length > 0) ||
+               mp.includes('parcel') || mp.includes('installment') || mp.includes('parcelado')
+      }).sort((a: any, b: any) => toDate(b.data_emissao ?? b.created_at).getTime() - toDate(a.data_emissao ?? a.created_at).getTime())
+      setFaturasParceladas(parceladas as FaturaParcelada[])
+
+      // LUCRO POR PRODUTO — busca produtos para obter custo
+      try {
+        const prodSnap2 = await getDocs(query(collection(db, 'produtos')))
+        const prodMap = new Map<string, any>()
+        prodSnap2.docs.forEach(d => {
+          const data = d.data()
+          prodMap.set(d.id, data)
+          prodMap.set((data.nome || '').toLowerCase().trim(), data)
+        })
+        setAllInvoicesCache(allInvoices)
+        setAllExpensesCache(allExpenses)
+        setProdMapCache(prodMap)
+        const hoje2 = new Date()
+        const iniMes2 = new Date(hoje2.getFullYear(), hoje2.getMonth(), 1).toISOString().split('T')[0]
+        const fimMes2 = hoje2.toISOString().split('T')[0]
+        calcularLucroProdutos(allInvoices, prodMap, iniMes2, fimMes2)
+      } catch(e) { console.error('Erro lucro produtos:', e) }
+
       // Auto-lembretes: verificar faturas em atraso sem lembrete hoje
       if (atrasados.length > 0) {
         const hoje_str = new Date().toISOString().split('T')[0]
@@ -138,11 +256,21 @@ export function Dashboard() {
     finally { setLoading(false) }
   }
 
-  const sendLembreteWA = (inv: any) => {
+  const sendLembreteWA = async (inv: any) => {
     const phone = (inv.cliente_telefone || '').replace(/\D/g, '')
     if (!phone) return
     const venc = inv.data_vencimento ? (() => { try { return toDate(inv.data_vencimento).toLocaleDateString('pt-BR') } catch { return '' } })() : ''
-    const msg = `Olá ${inv.cliente_nome}! Passando para lembrar que sua fatura ${inv.numero} da BBVIC Hair Care no valor de ${formatCurrency(inv.total)} está em atraso desde ${venc}. Por favor, entre em contato para regularizar. Obrigada!`
+    let template = `Olá {NOME}! Passando para lembrar que sua fatura {NUMERO} da BBVIC Hair Care no valor de {TOTAL} está em atraso desde {VENCIMENTO}. Por favor, entre em contato para regularizar. Obrigada!`
+    try {
+      const msgSnap = await import('firebase/firestore').then(({ doc: d, getDoc: gd }) => gd(d(db, 'configuracoes', 'mensagens')))
+      if (msgSnap.exists() && msgSnap.data().cobranca) template = msgSnap.data().cobranca
+    } catch { /* usa padrão */ }
+    const msg = template
+      .replace(/{NOME}/g, inv.cliente_nome || '')
+      .replace(/{NUMERO}/g, inv.numero || '')
+      .replace(/{TOTAL}/g, formatCurrency(inv.total))
+      .replace(/{VENCIMENTO}/g, venc)
+      .replace(/{LINK}/g, `${window.location.origin}/invoice/${inv.public_token || ''}`)
     const url = `https://wa.me/1${phone}?text=${encodeURIComponent(msg)}`
     const a = document.createElement('a'); a.href = url; a.target = '_blank'; a.rel = 'noopener noreferrer'
     document.body.appendChild(a); a.click(); setTimeout(() => document.body.removeChild(a), 100)
@@ -187,7 +315,7 @@ export function Dashboard() {
     return <span className="text-gray-500">Vence em {diff}d</span>
   }
 
-  const margemLucro = kpi.receitas > 0 ? ((kpi.lucro / kpi.receitas) * 100).toFixed(1) : "0"
+
 
   if (loading) return (
     <div className="flex items-center justify-center h-96">
@@ -269,6 +397,37 @@ export function Dashboard() {
         </div>
       )}
 
+      {/* Date Range Filter for KPIs */}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm px-5 py-3 flex flex-wrap items-center gap-3">
+        <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide flex-shrink-0">Período KPI</span>
+        <div className="flex items-center gap-2 flex-1 min-w-0 flex-wrap">
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-gray-500">De:</span>
+            <input type="date" value={dataInicioKPI} onChange={e => setDataInicioKPI(e.target.value)}
+              className="px-2 py-1.5 rounded-lg border border-gray-200 text-xs text-gray-700 focus:outline-none focus:border-[#C9A227]" />
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-gray-500">Até:</span>
+            <input type="date" value={dataFimKPI} onChange={e => setDataFimKPI(e.target.value)}
+              className="px-2 py-1.5 rounded-lg border border-gray-200 text-xs text-gray-700 focus:outline-none focus:border-[#C9A227]" />
+          </div>
+        </div>
+        <div className="flex gap-1.5 flex-wrap">
+          {[
+            { label: 'Hoje', fn: () => { const t = new Date().toISOString().split('T')[0]; setDataInicioKPI(t); setDataFimKPI(t) } },
+            { label: '7 dias', fn: () => { const t = new Date(); const s = new Date(t); s.setDate(s.getDate()-6); setDataInicioKPI(s.toISOString().split('T')[0]); setDataFimKPI(t.toISOString().split('T')[0]) } },
+            { label: 'Mês atual', fn: () => { const t = new Date(); const s = new Date(t.getFullYear(), t.getMonth(), 1); setDataInicioKPI(s.toISOString().split('T')[0]); setDataFimKPI(t.toISOString().split('T')[0]) } },
+            { label: 'Mês ant.', fn: () => { const t = new Date(); const s = new Date(t.getFullYear(), t.getMonth()-1, 1); const e = new Date(t.getFullYear(), t.getMonth(), 0); setDataInicioKPI(s.toISOString().split('T')[0]); setDataFimKPI(e.toISOString().split('T')[0]) } },
+            { label: 'Este ano', fn: () => { const t = new Date(); const s = new Date(t.getFullYear(), 0, 1); setDataInicioKPI(s.toISOString().split('T')[0]); setDataFimKPI(t.toISOString().split('T')[0]) } },
+          ].map(btn => (
+            <button key={btn.label} onClick={btn.fn}
+              className="px-2.5 py-1 rounded-lg bg-gray-50 border border-gray-200 text-xs text-gray-600 hover:bg-[#C9A227] hover:text-white hover:border-[#C9A227] transition">
+              {btn.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* KPI Cards Row 1 */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Receitas */}
@@ -282,8 +441,8 @@ export function Dashboard() {
               <TrendingUp className="w-5 h-5 text-green-600" />
             </div>
           </div>
-          <p className="text-2xl font-bold text-gray-900">{formatCurrency(kpi.receitas)}</p>
-          <div className="mt-1.5"><TrendBadge val={trendPct(kpi.receitas, kpi.receitasAnterior)} /></div>
+          <p className="text-2xl font-bold text-gray-900">{formatCurrency(kpiRange?.receitas ?? kpi.receitas)}</p>
+          <div className="mt-1.5"><TrendBadge val={trendPct(kpiRange?.receitas ?? kpi.receitas, kpi.receitasAnterior)} /></div>
         </div>
 
         {/* Despesas */}
@@ -297,8 +456,8 @@ export function Dashboard() {
               <TrendingDown className="w-5 h-5 text-red-500" />
             </div>
           </div>
-          <p className="text-2xl font-bold text-gray-900">{formatCurrency(kpi.despesas)}</p>
-          <div className="mt-1.5"><TrendBadge val={trendPct(kpi.despesas, kpi.despesasAnterior)} invert /></div>
+          <p className="text-2xl font-bold text-gray-900">{formatCurrency(kpiRange?.despesas ?? kpi.despesas)}</p>
+          <div className="mt-1.5"><TrendBadge val={trendPct(kpiRange?.despesas ?? kpi.despesas, kpi.despesasAnterior)} invert /></div>
         </div>
 
         {/* Lucro */}
@@ -309,8 +468,17 @@ export function Dashboard() {
               <DollarSign className="w-5 h-5 text-[#C9A227]" />
             </div>
           </div>
-          <p className={`text-2xl font-bold ${kpi.lucro < 0 ? "text-red-600" : "text-gray-900"}`}>{formatCurrency(kpi.lucro)}</p>
-          <p className="mt-1.5 text-xs text-gray-400">Margem: <span className="font-semibold text-gray-600">{margemLucro}%</span></p>
+          {(() => {
+            const lucroVal = kpiRange?.lucro ?? kpi.lucro
+            const recVal = kpiRange?.receitas ?? kpi.receitas
+            const margem = recVal > 0 ? ((lucroVal / recVal) * 100).toFixed(1) : '0'
+            return (
+              <>
+                <p className={`text-2xl font-bold ${lucroVal < 0 ? "text-red-600" : "text-gray-900"}`}>{formatCurrency(lucroVal)}</p>
+                <p className="mt-1.5 text-xs text-gray-400">Margem: <span className="font-semibold text-gray-600">{margem}%</span></p>
+              </>
+            )
+          })()}
         </div>
 
         {/* Clientes */}
@@ -367,6 +535,215 @@ export function Dashboard() {
           </p>
         </div>
       </div>
+
+      {/* KPI Cards Row 3 — Parceladas + Lucro Produtos */}
+      <div className="grid grid-cols-2 gap-4">
+        {/* Faturas Parceladas */}
+        <div
+          onClick={() => setShowParceladasModal(true)}
+          className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm hover:shadow-lg hover:border-purple-200 cursor-pointer transition-all group"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-purple-100 flex items-center justify-center group-hover:scale-110 transition-transform flex-shrink-0">
+              <CreditCard className="w-5 h-5 text-purple-600" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Faturas Parceladas</p>
+              <p className="text-xl font-bold text-gray-900">{faturasParceladas.length}</p>
+            </div>
+          </div>
+          <p className="text-xs text-gray-400 mt-2">
+            Total: <span className="font-semibold text-purple-600">{formatCurrency(faturasParceladas.reduce((s, f) => s + f.total, 0))}</span>
+          </p>
+        </div>
+
+        {/* Lucro por Produto */}
+        <div
+          onClick={() => setShowLucroModal(true)}
+          className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm hover:shadow-lg hover:border-[#C9A227]/40 cursor-pointer transition-all group"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-[#C9A227]/15 flex items-center justify-center group-hover:scale-110 transition-transform flex-shrink-0">
+              <BarChart2 className="w-5 h-5 text-[#C9A227]" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Lucro por Produto</p>
+              <p className="text-xl font-bold text-gray-900">{formatCurrency(lucrosProdutos.reduce((s, p) => s + p.lucro, 0))}</p>
+            </div>
+          </div>
+          <p className="text-xs text-gray-400 mt-2">
+            {lucrosProdutos.length} produto(s) vendido(s) este mês
+          </p>
+        </div>
+      </div>
+
+      {/* Modal Faturas Parceladas */}
+      {showParceladasModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowParceladasModal(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-5 border-b border-gray-100">
+              <div className="flex items-center gap-2">
+                <CreditCard className="w-5 h-5 text-purple-600" />
+                <h3 className="font-bold text-gray-900">Faturas Parceladas</h3>
+                <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-purple-100 text-purple-700">{faturasParceladas.length}</span>
+              </div>
+              <button onClick={() => setShowParceladasModal(false)} className="p-2 hover:bg-gray-100 rounded-xl"><X className="w-4 h-4" /></button>
+            </div>
+            <div className="overflow-y-auto flex-1 divide-y divide-gray-50">
+              {faturasParceladas.length === 0 ? (
+                <div className="text-center py-12 text-gray-400">
+                  <CreditCard className="w-10 h-10 mx-auto mb-2 opacity-30" />
+                  <p className="text-sm">Nenhuma fatura parcelada</p>
+                </div>
+              ) : faturasParceladas.map(f => (
+                <div key={f.id} className="flex items-center justify-between px-5 py-4 hover:bg-gray-50 cursor-pointer" onClick={() => { setShowParceladasModal(false); navigate(`/invoices/${f.id}/editar`) }}>
+                  <div>
+                    <p className="font-semibold text-gray-900 text-sm">{f.cliente_nome}</p>
+                    <p className="text-xs text-gray-400">{f.numero} · {f.metodo_pagamento}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-bold text-purple-600">{formatCurrency(f.total)}</p>
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${f.status === 'pago' ? 'bg-green-100 text-green-700' : f.status === 'atrasado' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'}`}>{f.status}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="p-4 border-t border-gray-100 bg-gray-50 rounded-b-2xl">
+              <p className="text-xs text-gray-500 text-center">
+                Total parcelado: <span className="font-bold text-purple-600">{formatCurrency(faturasParceladas.reduce((s, f) => s + f.total, 0))}</span>
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Lucro por Produto */}
+      {showLucroModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowLucroModal(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
+
+            {/* Header */}
+            <div className="flex items-center justify-between p-5 border-b border-gray-100">
+              <div className="flex items-center gap-2">
+                <BarChart2 className="w-5 h-5 text-[#C9A227]" />
+                <h3 className="font-bold text-gray-900">Lucro por Produto</h3>
+                <span className="text-xs text-gray-400 font-normal">(somente faturas pagas)</span>
+              </div>
+              <button onClick={() => setShowLucroModal(false)} className="p-2 hover:bg-gray-100 rounded-xl"><X className="w-4 h-4" /></button>
+            </div>
+
+            {/* Date range filter */}
+            <div className="px-5 py-3 border-b border-gray-100 flex items-center gap-3 flex-wrap">
+              <div className="flex items-center gap-2 flex-1 min-w-0">
+                <label className="text-xs text-gray-500 flex-shrink-0">De:</label>
+                <input
+                  type="date"
+                  value={dataInicioLucro}
+                  onChange={e => setDataInicioLucro(e.target.value)}
+                  className="flex-1 text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:border-[#C9A227]"
+                />
+              </div>
+              <div className="flex items-center gap-2 flex-1 min-w-0">
+                <label className="text-xs text-gray-500 flex-shrink-0">Até:</label>
+                <input
+                  type="date"
+                  value={dataFimLucro}
+                  onChange={e => setDataFimLucro(e.target.value)}
+                  className="flex-1 text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:border-[#C9A227]"
+                />
+              </div>
+              <button
+                onClick={() => {
+                  const d = new Date()
+                  setDataInicioLucro(new Date(d.getFullYear(), d.getMonth(), 1).toISOString().split('T')[0])
+                  setDataFimLucro(d.toISOString().split('T')[0])
+                }}
+                className="text-xs text-[#C9A227] hover:underline flex-shrink-0"
+              >
+                Mês atual
+              </button>
+            </div>
+
+            {/* Totals summary — ALWAYS shown at top */}
+            <div className="px-5 py-4 bg-gray-50 border-b border-gray-100 grid grid-cols-4 gap-2">
+              <div className="bg-white rounded-xl p-3 text-center shadow-sm">
+                <p className="text-xs text-gray-400 mb-1">Total Receita</p>
+                <p className="text-sm font-bold text-blue-600">{formatCurrency(lucrosProdutos.reduce((s, p) => s + p.receita, 0))}</p>
+              </div>
+              <div className="bg-white rounded-xl p-3 text-center shadow-sm">
+                <p className="text-xs text-gray-400 mb-1">Total Custo</p>
+                <p className="text-sm font-bold text-red-500">{formatCurrency(lucrosProdutos.reduce((s, p) => s + p.custo_total, 0))}</p>
+              </div>
+              <div className="bg-white rounded-xl p-3 text-center shadow-sm">
+                <p className="text-xs text-gray-400 mb-1">Total Lucro</p>
+                <p className={`text-sm font-bold ${lucrosProdutos.reduce((s, p) => s + p.lucro, 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  {formatCurrency(lucrosProdutos.reduce((s, p) => s + p.lucro, 0))}
+                </p>
+              </div>
+              <div className="bg-white rounded-xl p-3 text-center shadow-sm">
+                <p className="text-xs text-gray-400 mb-1">Margem Geral</p>
+                {(() => {
+                  const withCost = lucrosProdutos.filter((p: any) => !p.sem_custo)
+                  const totalCusto = withCost.reduce((s, p) => s + p.custo_total, 0)
+                  const totalLuc = withCost.reduce((s, p) => s + p.lucro, 0)
+                  const pct = totalCusto > 0 ? (totalLuc / totalCusto) * 100 : (totalLuc > 0 ? 100 : 0)
+                  return (
+                    <p className={`text-sm font-bold ${pct >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      {pct > 0 ? '+' : ''}{pct.toFixed(1)}%
+                    </p>
+                  )
+                })()}
+              </div>
+            </div>
+
+            {/* Product list */}
+            <div className="overflow-y-auto flex-1 p-4 space-y-3">
+              {lucrosProdutos.length === 0 ? (
+                <div className="text-center py-12 text-gray-400">
+                  <BarChart2 className="w-10 h-10 mx-auto mb-2 opacity-30" />
+                  <p className="text-sm">Nenhuma venda paga no período selecionado</p>
+                </div>
+              ) : lucrosProdutos.map((p, i) => (
+                <div key={i} className="bg-gray-50 rounded-xl p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="font-semibold text-gray-900 text-sm truncate flex-1 mr-2">{p.nome}</p>
+                    {(p as any).sem_custo ? (
+                      <span className="text-xs font-bold px-2 py-0.5 rounded-full flex-shrink-0 bg-gray-100 text-gray-500">
+                        Sem custo
+                      </span>
+                    ) : (
+                      <span className={`text-xs font-bold px-2 py-0.5 rounded-full flex-shrink-0 ${p.margem >= 30 ? 'bg-green-100 text-green-700' : p.margem >= 10 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>
+                        {p.margem > 0 ? '+' : ''}{p.margem.toFixed(1)}% markup
+                      </span>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-4 gap-2 text-center">
+                    <div>
+                      <p className="text-xs text-gray-400">Qtd</p>
+                      <p className="text-sm font-bold text-gray-700">{p.qtd_vendida}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-400">Receita</p>
+                      <p className="text-sm font-bold text-blue-600">{formatCurrency(p.receita)}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-400">Custo</p>
+                      <p className="text-sm font-bold text-red-500">{formatCurrency(p.custo_total)}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-400">Lucro</p>
+                      <p className={`text-sm font-bold ${p.lucro >= 0 ? 'text-green-600' : 'text-red-600'}`}>{formatCurrency(p.lucro)}</p>
+                    </div>
+                  </div>
+                  <div className="mt-2 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                    <div className={`h-full rounded-full transition-all ${p.margem >= 30 ? 'bg-green-500' : p.margem >= 10 ? 'bg-yellow-400' : 'bg-red-400'}`} style={{ width: `${Math.min(Math.max(p.margem, 0), 100)}%` }} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Faturas em Atraso (lista) */}
       {faturasAtrasadas.length > 0 && (

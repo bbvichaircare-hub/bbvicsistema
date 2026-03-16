@@ -50,7 +50,10 @@ export function EstimateForm() {
   const [validadeDias, setValidadeDias] = useState('30')
   const [dataValidade, setDataValidade] = useState(addDays(30))
   const [descontoInput, setDescontoInput] = useState('0')
+  const [descontoTipo, setDescontoTipo] = useState<'pct' | 'valor'>('pct')
   const [taxaInput, setTaxaInput] = useState('6.25')
+  const [originalToken, setOriginalToken] = useState('')
+  const [_statusOriginal, setStatusOriginal] = useState('rascunho')
   const [markupInput, setMarkupInput] = useState('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -70,9 +73,14 @@ export function EstimateForm() {
   const [produtos, setProdutos] = useState<Produto[]>([])
   const [searchProduto, setSearchProduto] = useState('')
   const [showProdutoDropdown, setShowProdutoDropdown] = useState(false)
+  const [produtoModal, setProdutoModal] = useState<any | null>(null);
+  const [produtoModalQty, setProdutoModalQty] = useState(1);
+  const [produtoModalObs, setProdutoModalObs] = useState('');
 
   const subtotal = items.reduce((a, i) => a + i.subtotal, 0)
-  const desconto = subtotal * (parseFloat(descontoInput) || 0) / 100
+  const desconto = descontoTipo === 'valor'
+    ? Math.min(parseFloat(descontoInput) || 0, subtotal)
+    : subtotal * (parseFloat(descontoInput) || 0) / 100
   const taxa = (subtotal - desconto) * (parseFloat(taxaInput) || 0) / 100
   const taxaEnvio = parseFloat(taxaEnvioInput) || 0
   const total = subtotal - desconto + taxa + taxaEnvio
@@ -84,6 +92,9 @@ export function EstimateForm() {
       cliente_email: (cliente as any)?.email,
       cliente_telefone: (cliente as any)?.telefone,
       cliente_endereco: (cliente as any)?.endereco,
+      cliente_cidade: (cliente as any)?.cidade,
+      cliente_estado: (cliente as any)?.estado,
+      cliente_cep: (cliente as any)?.cep,
       data_emissao: new Date(),
       data_validade: dataValidade ? new Date(dataValidade + 'T12:00:00') : undefined,
       items: items.map(i => ({
@@ -96,6 +107,7 @@ export function EstimateForm() {
       subtotal,
       desconto: desconto > 0 ? desconto : undefined,
       taxa: taxa > 0 ? taxa : undefined,
+      taxa_envio: (parseFloat(taxaEnvioInput) || 0) > 0 ? parseFloat(taxaEnvioInput) : undefined,
       total,
       observacoes: observacoes || undefined,
       termos_condicoes: termosCondicoes || undefined,
@@ -153,40 +165,90 @@ export function EstimateForm() {
       if (snap.exists()) {
         const data: any = snap.data()
         setNumero(data.numero || '')
-        setCliente({ id: data.cliente_id, nome: data.cliente_nome, telefone: data.cliente_telefone, email: data.cliente_email })
+        if (data.cliente_id) {
+          const cliSnap = await getDoc(doc(db, 'clientes', data.cliente_id))
+          if (cliSnap.exists()) {
+            const cliData = cliSnap.data() as any
+            setCliente({
+              id: cliSnap.id,
+              ...cliData,
+              endereco: cliData.endereco || (data as any).cliente_endereco || '',
+              cidade: cliData.cidade || (data as any).cliente_cidade || '',
+              estado: cliData.estado || (data as any).cliente_estado || '',
+              cep: cliData.cep || (data as any).cliente_cep || '',
+              email: cliData.email || (data as any).cliente_email || '',
+              telefone: cliData.telefone || (data as any).cliente_telefone || '',
+            } as Cliente)
+          } else {
+            setCliente({
+              id: data.cliente_id,
+              nome: (data as any).cliente_nome || '',
+              email: (data as any).cliente_email || '',
+              telefone: (data as any).cliente_telefone || '',
+              endereco: (data as any).cliente_endereco || '',
+              cidade: (data as any).cliente_cidade || '',
+              estado: (data as any).cliente_estado || '',
+              cep: (data as any).cliente_cep || '',
+            } as Cliente)
+          }
+        }
         setSearchCliente(data.cliente_nome || '')
         setItems((data.items || []).map((i: any) => ({ ...i, tempId: uuidv4() })))
         setObservacoes(data.observacoes || '')
         setTermosCondicoes(data.termos_condicoes || '')
-        setDescontoInput(data.desconto_pct ? String(data.desconto_pct) : '0')
+        const dTipo: 'pct' | 'valor' = data.desconto_tipo || 'pct';
+        setDescontoTipo(dTipo);
+        setDescontoInput(dTipo === 'valor'
+          ? String(data.desconto || 0)
+          : String(data.desconto_pct || 0));
         setTaxaInput(data.taxa_pct ? String(data.taxa_pct) : '6.25')
         if (data.data_validade) {
           const d = data.data_validade.toDate ? data.data_validade.toDate() : new Date(data.data_validade)
           setDataValidade(d.toISOString().split('T')[0])
         }
         if (data.vendedor_id) { setVendedorId(data.vendedor_id); setVendedorNome(data.vendedor_nome || '') }
-        if (data.taxa_envio !== undefined) setTaxaEnvioInput(String(data.taxa_envio))
+        if (data.taxa_envio !== undefined && data.taxa_envio !== null) setTaxaEnvioInput(String(data.taxa_envio))
         if (data.observacao_interna) setObservacaoInterna(data.observacao_interna)
+        setOriginalToken(data.public_token || '')
+        setStatusOriginal(data.status || 'rascunho')
       }
     } catch { toast.error('Erro ao carregar orçamento') }
     finally { setLoading(false) }
   }
 
   const clientesFiltrados = clientes.filter(c => c.nome.toLowerCase().includes(searchCliente.toLowerCase())).slice(0, 8)
-  const produtosFiltrados = produtos.filter(p => p.nome.toLowerCase().includes(searchProduto.toLowerCase())).slice(0, 8)
+  const filteredProdutos = produtos.filter(p => {
+    const terms = searchProduto.toLowerCase().split(/\s+/).filter(Boolean);
+    const haystack = `${p.nome} ${p.descricao || ''}`.toLowerCase();
+    return terms.every(t => haystack.includes(t));
+  });
 
-  const addProduto = (produto: Produto) => {
+  const addItem = (produto: Produto, qty = 1, obs = '') => {
     setItems([...items, {
       tempId: uuidv4(),
       produto_id: produto.id!,
       produto_nome: produto.nome,
-      descricao: produto.descricao || '',
-      quantidade: 1,
+      descricao: obs || produto.descricao || '',
+      quantidade: qty,
       preco_unitario: produto.preco_venda,
-      subtotal: produto.preco_venda,
+      subtotal: qty * produto.preco_venda,
     }])
     setSearchProduto(''); setShowProdutoDropdown(false)
   }
+
+  const openProdutoModal = (produto: any) => {
+    setProdutoModal(produto);
+    setProdutoModalQty(1);
+    setProdutoModalObs('');
+    setShowProdutoDropdown(false);
+    setSearchProduto('');
+  };
+
+  const confirmProdutoModal = () => {
+    if (!produtoModal) return;
+    addItem(produtoModal, produtoModalQty, produtoModalObs);
+    setProdutoModal(null);
+  };
 
   const updateQty = (tempId: string, qty: number) => {
     if (qty < 1) return
@@ -224,8 +286,12 @@ export function EstimateForm() {
     cliente_nome: cliente?.nome || '',
     cliente_telefone: cliente?.telefone || '',
     cliente_email: cliente?.email || '',
+    cliente_endereco: (cliente as any)?.endereco || '',
+    cliente_cidade: (cliente as any)?.cidade || '',
+    cliente_estado: (cliente as any)?.estado || '',
+    cliente_cep: (cliente as any)?.cep || '',
     items: items.map(({ tempId, ...i }) => i),
-    subtotal, desconto, desconto_pct: parseFloat(descontoInput) || 0,
+    subtotal, desconto, desconto_tipo: descontoTipo, desconto_pct: descontoTipo === 'pct' ? (parseFloat(descontoInput) || 0) : 0,
     taxa, taxa_pct: parseFloat(taxaInput) || 6.25,
     total,
     observacoes, termos_condicoes: termosCondicoes,
@@ -247,7 +313,32 @@ export function EstimateForm() {
     setSaving(true)
     try {
       if (isEditing) {
-        await updateDoc(doc(db, 'estimates', id!), { ...buildData('rascunho'), updated_at: Timestamp.now() })
+        const updateData: any = {
+          numero,
+          cliente_id: cliente?.id || '',
+          cliente_nome: cliente?.nome || '',
+          cliente_telefone: cliente?.telefone || '',
+          cliente_email: (cliente as any)?.email || '',
+          cliente_endereco: (cliente as any)?.endereco || '',
+          cliente_cidade: (cliente as any)?.cidade || '',
+          cliente_estado: (cliente as any)?.estado || '',
+          cliente_cep: (cliente as any)?.cep || '',
+          items: items.map(({ tempId, ...i }) => i),
+          subtotal, desconto,
+          desconto_tipo: descontoTipo,
+          desconto_pct: descontoTipo === 'pct' ? (parseFloat(descontoInput) || 0) : 0,
+          taxa, taxa_pct: parseFloat(taxaInput) || 6.25,
+          total,
+          observacoes, termos_condicoes: termosCondicoes,
+          observacao_interna: observacaoInterna,
+          taxa_envio: parseFloat(taxaEnvioInput) || 0,
+          validade_dias: parseInt(validadeDias) || 30,
+          data_validade: Timestamp.fromDate(new Date(dataValidade)),
+          vendedor_id: vendedorId || user?.uid || '',
+          vendedor_nome: vendedorNome || (user as any)?.nome || '',
+          updated_at: Timestamp.now(),
+        }
+        await updateDoc(doc(db, 'estimates', id!), updateData)
       } else {
         await addDoc(collection(db, 'estimates'), buildData('rascunho'))
       }
@@ -265,15 +356,58 @@ export function EstimateForm() {
     }
     setSaving(true)
     try {
-      const token = uuidv4()
-      const data = buildData('enviado', token)
+      const token = originalToken || uuidv4()
       if (isEditing) {
-        await updateDoc(doc(db, 'estimates', id!), { ...data, updated_at: Timestamp.now() })
+        const updateData: any = {
+          numero,
+          cliente_id: cliente?.id || '',
+          cliente_nome: cliente?.nome || '',
+          cliente_telefone: cliente?.telefone || '',
+          cliente_email: (cliente as any)?.email || '',
+          cliente_endereco: (cliente as any)?.endereco || '',
+          cliente_cidade: (cliente as any)?.cidade || '',
+          cliente_estado: (cliente as any)?.estado || '',
+          cliente_cep: (cliente as any)?.cep || '',
+          items: items.map(({ tempId, ...i }) => i),
+          subtotal, desconto,
+          desconto_tipo: descontoTipo,
+          desconto_pct: descontoTipo === 'pct' ? (parseFloat(descontoInput) || 0) : 0,
+          taxa, taxa_pct: parseFloat(taxaInput) || 6.25,
+          total,
+          observacoes, termos_condicoes: termosCondicoes,
+          observacao_interna: observacaoInterna,
+          taxa_envio: parseFloat(taxaEnvioInput) || 0,
+          validade_dias: parseInt(validadeDias) || 30,
+          data_validade: Timestamp.fromDate(new Date(dataValidade)),
+          status: 'enviado',
+          public_token: token,
+          vendedor_id: vendedorId || user?.uid || '',
+          vendedor_nome: vendedorNome || (user as any)?.nome || '',
+          updated_at: Timestamp.now(),
+        }
+        await updateDoc(doc(db, 'estimates', id!), updateData)
       } else {
+        const data = buildData('enviado', token)
         await addDoc(collection(db, 'estimates'), data)
       }
       const estimateUrl = `${window.location.origin}/estimate/${token}`
-      const msg = `Olá ${cliente.nome}!\n\nSegue o orçamento da BBVIC Hair Care:\n${estimateUrl}\n\nTotal: ${formatCurrency(total)}\nVálido até: ${new Date(dataValidade).toLocaleDateString('pt-BR')}`
+      const dataEnvio = new Date().toLocaleDateString('pt-BR')
+      const dataVal = dataValidade ? new Date(dataValidade + 'T12:00:00').toLocaleDateString('pt-BR') : ''
+
+      let msgTemplate = `Olá {NOME}!\n\nSegue o orçamento da BBVIC Hair Care:\n{LINK}\n\nTotal: {TOTAL}\nVálido até: {VALIDADE}\nEmitido em: {DATA_ENVIO}`
+      try {
+        const snapMsg = await getDoc(doc(db, 'configuracoes', 'mensagens'))
+        if (snapMsg.exists() && snapMsg.data().orcamento) msgTemplate = snapMsg.data().orcamento
+      } catch { /* usa padrão */ }
+
+      const msg = msgTemplate
+        .replace(/{NOME}/g, cliente?.nome || '')
+        .replace(/{NUMERO}/g, numero)
+        .replace(/{TOTAL}/g, formatCurrency(total))
+        .replace(/{VALIDADE}/g, dataVal)
+        .replace(/{DATA_ENVIO}/g, dataEnvio)
+        .replace(/{LINK}/g, estimateUrl)
+        .replace(/{CONSULTOR}/g, vendedorNome || '')
       const phone = cliente.telefone.replace(/\D/g, '')
       openWhatsApp(`https://wa.me/1${phone}?text=${encodeURIComponent(msg)}`)
       toast.success(`Orçamento enviado para ${cliente.nome}!`)
@@ -425,10 +559,10 @@ export function EstimateForm() {
               placeholder="Buscar produto ou serviço para adicionar..."
               className="w-full pl-9 pr-4 py-3 rounded-xl border border-gray-200 text-gray-900 focus:outline-none focus:border-[#C9A227] text-sm"
             />
-            {showProdutoDropdown && produtosFiltrados.length > 0 && (
+            {showProdutoDropdown && filteredProdutos.length > 0 && (
               <div className="absolute top-full left-0 right-0 z-20 bg-white border border-gray-200 rounded-xl shadow-lg mt-1 max-h-52 overflow-y-auto">
-                {produtosFiltrados.map(p => (
-                  <button key={p.id} onClick={() => addProduto(p)} className="w-full px-4 py-3 text-left hover:bg-gray-50 border-b border-gray-50 last:border-0 flex items-center justify-between gap-2">
+                {filteredProdutos.map(p => (
+                  <button key={p.id} onClick={() => openProdutoModal(p)} className="w-full px-4 py-3 text-left hover:bg-gray-50 border-b border-gray-50 last:border-0 flex items-center justify-between gap-2">
                     <span className="text-gray-900 text-sm font-medium">{p.nome}</span>
                     <span className="text-[#C9A227] font-semibold text-sm flex-shrink-0">{formatCurrency(p.preco_venda)}</span>
                   </button>
@@ -476,6 +610,15 @@ export function EstimateForm() {
                     <div className="ml-auto">
                       <span className="font-semibold text-[#C9A227] text-sm">{formatCurrency(item.subtotal)}</span>
                     </div>
+                  </div>
+                  <div>
+                    <input
+                      type="text"
+                      value={item.descricao || ''}
+                      onChange={e => setItems(items.map(i => i.tempId === item.tempId ? { ...i, descricao: e.target.value } : i))}
+                      placeholder="Observação deste item (visível na nota)..."
+                      className="w-full px-3 py-1.5 text-xs bg-white border border-gray-200 rounded-lg focus:outline-none focus:border-[#C9A227] text-gray-700 placeholder-gray-300"
+                    />
                   </div>
                 </div>
               ))}
@@ -529,8 +672,20 @@ export function EstimateForm() {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Desconto (%)</label>
-                <input type="number" min="0" max="100" value={descontoInput} onChange={e => setDescontoInput(e.target.value)}
+                <label className="block text-sm font-medium text-gray-700 mb-1">Desconto</label>
+                <div className="flex gap-1">
+                  <button
+                    type="button"
+                    onClick={() => { setDescontoTipo('pct'); setDescontoInput('0'); }}
+                    className={`px-2 py-1 text-xs rounded-lg border font-medium transition ${descontoTipo === 'pct' ? 'bg-[#C9A227] text-white border-[#C9A227]' : 'bg-white text-gray-600 border-gray-200'}`}
+                  >%</button>
+                  <button
+                    type="button"
+                    onClick={() => { setDescontoTipo('valor'); setDescontoInput('0'); }}
+                    className={`px-2 py-1 text-xs rounded-lg border font-medium transition ${descontoTipo === 'valor' ? 'bg-[#C9A227] text-white border-[#C9A227]' : 'bg-white text-gray-600 border-gray-200'}`}
+                  >$</button>
+                </div>
+                <input type="number" min="0" value={descontoInput} onChange={e => setDescontoInput(e.target.value)}
                   className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-gray-900 focus:outline-none focus:border-[#C9A227]" />
               </div>
               <div>
@@ -584,6 +739,37 @@ export function EstimateForm() {
         </div>
 
       </div>
+
+      {produtoModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setProdutoModal(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="font-bold text-gray-900">{produtoModal.nome}</h3>
+                <p className="text-sm text-[#C9A227] font-semibold">${(produtoModal.preco_venda || 0).toFixed(2)}</p>
+              </div>
+              <button onClick={() => setProdutoModal(null)} className="p-2 hover:bg-gray-100 rounded-xl">✕</button>
+            </div>
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Quantidade</label>
+              <div className="flex items-center gap-3">
+                <button onClick={() => setProdutoModalQty(q => Math.max(1, q - 1))} className="w-9 h-9 rounded-xl border border-gray-200 flex items-center justify-center hover:bg-gray-100">−</button>
+                <input type="number" min="1" value={produtoModalQty} onChange={e => setProdutoModalQty(Math.max(1, parseInt(e.target.value) || 1))} className="w-20 text-center text-lg font-bold border border-gray-200 rounded-xl py-2 focus:outline-none focus:border-[#C9A227]" />
+                <button onClick={() => setProdutoModalQty(q => q + 1)} className="w-9 h-9 rounded-xl border border-gray-200 flex items-center justify-center hover:bg-gray-100">+</button>
+              </div>
+              <p className="text-xs text-gray-400 mt-1">Subtotal: <span className="font-semibold text-[#C9A227]">${(produtoModal.preco_venda * produtoModalQty).toFixed(2)}</span></p>
+            </div>
+            <div className="mb-5">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Observação do item <span className="text-gray-400 font-normal">(aparece na nota)</span></label>
+              <input type="text" value={produtoModalObs} onChange={e => setProdutoModalObs(e.target.value)} placeholder="Ex: Tamanho G, cor preta..." className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-gray-900 text-sm focus:outline-none focus:border-[#C9A227]" autoFocus />
+            </div>
+            <div className="flex gap-3">
+              <button onClick={() => setProdutoModal(null)} className="flex-1 py-3 rounded-xl border border-gray-200 text-gray-600 font-medium hover:bg-gray-50">Cancelar</button>
+              <button onClick={confirmProdutoModal} className="flex-[2] py-3 rounded-xl bg-[#C9A227] text-white font-bold hover:bg-[#b8911f]">Adicionar à Nota</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Barra de ações fixa na parte inferior */}
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-3 shadow-lg z-30">
