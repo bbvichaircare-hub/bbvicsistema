@@ -1,37 +1,43 @@
 // Script: Atualizar estoque com planilha PRECIFICACAO.xlsx
-// - Atualiza produtos existentes (nome, precos, categoria, estoque)
-// - Cria produtos novos que nao existem
-// - NAO toca em faturas, orcamentos, relatorios ja criados
-// - Produtos de faturas/orcamentos continuam com nome original salvo neles
+// Usa Firebase Admin SDK (ignora regras de segurança)
+// Requer: arquivo de chave de servico do Firebase
 
-import { initializeApp } from 'firebase/app';
-import { getFirestore, collection, getDocs, doc, updateDoc, addDoc, serverTimestamp } from 'firebase/firestore';
-import { readFileSync } from 'fs';
 import { createRequire } from 'module';
-
 const require = createRequire(import.meta.url);
+
+const admin = require('firebase-admin');
 const xlsx = require('xlsx');
+const fs = require('fs');
 
-// Firebase config - copiar do arquivo firebase.ts
-const firebaseConfig = {
-  apiKey: "AIzaSyC8bUzmGsfMCuBHIuONhW7qOTb5vqQQOP0",
-  authDomain: "bbvic-gestao-premium.firebaseapp.com",
-  projectId: "bbvic-gestao-premium",
-  storageBucket: "bbvic-gestao-premium.firebasestorage.app",
-  messagingSenderId: "214158661970",
-  appId: "1:214158661970:web:b7b9746296f5c35159c28b"
-};
+// Caminho para o arquivo de chave de servico (baixar no Firebase Console)
+const SERVICE_ACCOUNT_PATH = 'C:\\Users\\julie\\Downloads\\bbvic-gestao-premium-firebase-adminsdk-fbsvc-b1455c83b7.json';
 
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
+if (!fs.existsSync(SERVICE_ACCOUNT_PATH)) {
+  console.error('ERRO: Arquivo de chave de servico nao encontrado!');
+  console.error('Caminho esperado:', SERVICE_ACCOUNT_PATH);
+  console.error('\nPara gerar:');
+  console.error('1. Acesse https://console.firebase.google.com');
+  console.error('2. Selecione o projeto bbvic-gestao-premium');
+  console.error('3. Engrenagem -> Configuracoes do projeto -> Contas de servico');
+  console.error('4. Clique em "Gerar nova chave privada"');
+  console.error('5. Salve o arquivo como: C:\\Users\\julie\\Downloads\\bbvic-service-account.json');
+  process.exit(1);
+}
 
-// Normaliza nome para comparacao (remove espacos extras, uppercase)
+const serviceAccount = JSON.parse(fs.readFileSync(SERVICE_ACCOUNT_PATH, 'utf8'));
+
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount),
+  projectId: 'bbvic-gestao-premium',
+});
+
+const db = admin.firestore();
+
 function normalizarNome(nome) {
   if (!nome) return '';
   return nome.toString().trim().toUpperCase().replace(/\s+/g, ' ');
 }
 
-// Calcula margem markup (custo como base)
 function calcMargem(venda, custo) {
   if (!custo || custo <= 0) return 0;
   return Math.round(((venda - custo) / custo) * 10000) / 100;
@@ -44,24 +50,22 @@ async function main() {
   const workbook = xlsx.readFile('C:\\Users\\julie\\OneDrive\\Desktop\\FATURAS EM ABERTO\\PRECIFICACAO.xlsx');
   const sheet = workbook.Sheets['Estoque'];
   const rows = xlsx.utils.sheet_to_json(sheet);
-
   console.log(`Planilha lida: ${rows.length} produtos encontrados\n`);
 
   // 2. Buscar produtos existentes no Firebase
   console.log('Buscando produtos no Firebase...');
-  const produtosSnap = await getDocs(collection(db, 'produtos'));
+  const produtosSnap = await db.collection('produtos').get();
   const produtosExistentes = {};
   produtosSnap.forEach(docSnap => {
     const data = docSnap.data();
     const nomeNorm = normalizarNome(data.nome);
     produtosExistentes[nomeNorm] = { id: docSnap.id, ...data };
   });
-  console.log(`Produtos no Firebase: ${Object.keys(produtosExistentes).length}\n`);
+  console.log(`Produtos ja no Firebase: ${Object.keys(produtosExistentes).length}\n`);
 
   let atualizados = 0;
   let criados = 0;
   let erros = 0;
-  const log = [];
 
   // 3. Processar cada linha da planilha
   for (const row of rows) {
@@ -85,6 +89,8 @@ async function main() {
       preco_custo: precoCusto,
       margem_lucro: margem,
       estoque_atual: estoque,
+      estoque: estoque,
+      quantidade: estoque,
       estoque_minimo: estoqueMinimo,
       unidade: unidade,
       atualizado_em: new Date().toISOString(),
@@ -92,38 +98,31 @@ async function main() {
 
     try {
       if (produtosExistentes[nomeNorm]) {
-        // Produto existe: atualizar
         const produtoId = produtosExistentes[nomeNorm].id;
-        await updateDoc(doc(db, 'produtos', produtoId), dadosProduto);
+        await db.collection('produtos').doc(produtoId).update(dadosProduto);
         atualizados++;
-        log.push(`[ATUALIZADO] ${nome}`);
+        process.stdout.write('.');
       } else {
-        // Produto novo: criar
         dadosProduto.criado_em = new Date().toISOString();
-        await addDoc(collection(db, 'produtos'), dadosProduto);
+        await db.collection('produtos').add(dadosProduto);
         criados++;
-        log.push(`[CRIADO] ${nome}`);
+        process.stdout.write('+');
       }
     } catch (err) {
       erros++;
-      log.push(`[ERRO] ${nome}: ${err.message}`);
+      console.error(`\n[ERRO] ${nome}: ${err.message}`);
     }
   }
 
-  // 4. Resultado
-  console.log('\n=== RESULTADO ===');
+  console.log('\n\n=== RESULTADO ===');
   console.log(`Atualizados: ${atualizados}`);
   console.log(`Criados:     ${criados}`);
   console.log(`Erros:       ${erros}`);
-  console.log('\nDetalhes:');
-  log.forEach(l => console.log(l));
-  console.log('\nIMPORTANTE: Faturas e orcamentos existentes NAO foram alterados.');
-  console.log('Os produtos neles continuam com os nomes e valores originais.');
-
+  console.log('\nFaturas e orcamentos existentes NAO foram alterados.');
   process.exit(0);
 }
 
 main().catch(err => {
-  console.error('Erro fatal:', err);
+  console.error('Erro fatal:', err.message);
   process.exit(1);
 });

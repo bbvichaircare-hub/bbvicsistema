@@ -165,54 +165,43 @@ export function Compras() {
   }
 
   // Extrai linhas de produtos do texto do PDF
+  // Suporta formato: "NOME DO PRODUTO   138.00   3.73   514.74"
   const extrairProdutosDoPDF = (fullText: string): Array<{ nome: string; quantidade: number; preco: number }> => {
-    const linhas = fullText.split('\n').map(l => l.trim()).filter(l => l.length > 3)
+    const linhas = fullText.split('\n').map(l => l.trim()).filter(l => l.length > 2)
     const resultado: Array<{ nome: string; quantidade: number; preco: number }> = []
     const vistos = new Set<string>()
 
-    // Padrão 1: "NOME PRODUTO   QTD   $PRECO"
-    const padraoLinha = /^(.{5,60?}?)\s+(\d{1,4})\s+\$?\s*([\d,]+\.?\d{0,2})\s*$/
-    // Padrão 2: linha com nome seguida de linha com qty e preco
-    const padraoPreco = /\$\s*([\d,]+\.\d{2})/
+    // Padrão principal: "NOME   QTY.00   RATE   AMOUNT" - 3 números no final
+    const padraoFatura = /^(.+?)\s{2,}(\d+(?:\.\d{0,2})?)\s+([\d,]+\.\d{2})\s+([\d,]+\.\d{2})\s*$/
 
-    for (let i = 0; i < linhas.length; i++) {
-      const linha = linhas[i]
+    // Palavras que indicam linha de rodapé/cabeçalho (não produto)
+    const ignorar = /^(item|description|qty|rate|amount|sub.?total|total|tax|shipping|balance|due|payment|invoice|bill|terms|p\.o|enviado|page|\d+\s*$)/i
 
-      // Tenta padrão simples: nome + qty + preco na mesma linha
-      const m = linha.match(padraoLinha)
-      if (m) {
-        const nome = m[1].trim()
-        const qty = parseInt(m[2])
-        const preco = parseFloat(m[3].replace(/,/g, ''))
-        const key = nome.toUpperCase().substring(0, 20)
-        if (!vistos.has(key) && qty > 0 && qty < 500 && preco > 0 && preco < 10000) {
-          vistos.add(key)
-          resultado.push({ nome, quantidade: qty, preco })
-        }
-        continue
-      }
+    for (const linha of linhas) {
+      if (ignorar.test(linha)) continue
 
-      // Tenta identificar nome de produto (linha sem números grandes, sem $ sozinha)
-      const temPrecoNaLinha = linha.match(padraoPreco)
-      const pareceProduto = linha.length > 5 && linha.length < 80 &&
-        !linha.match(/^[\d\s$.,]+$/) &&
-        !linha.match(/^(total|subtotal|tax|shipping|balance|due|date|invoice|order|bill|page|amount|thank)/i)
+      const m = linha.match(padraoFatura)
+      if (!m) continue
 
-      if (pareceProduto && temPrecoNaLinha) {
-        // Linha tem nome e preço juntos, tenta extrair qty
-        const qtyMatch = linha.match(/\b(\d{1,3})\s*(?:x|pc|pcs|un|unid)?\b/i)
-        const qty = qtyMatch ? parseInt(qtyMatch[1]) : 1
-        const preco = parseFloat(temPrecoNaLinha[1].replace(/,/g, ''))
-        const nome = linha.replace(padraoPreco, '').replace(/\d+\s*x?\s*/i, '').replace(/[$,]/g, '').trim()
-        const key = nome.toUpperCase().substring(0, 20)
-        if (nome.length > 3 && !vistos.has(key) && preco > 0 && preco < 10000) {
-          vistos.add(key)
-          resultado.push({ nome, quantidade: qty, preco })
-        }
-      }
+      const nome = m[1].trim()
+        .replace(/\s*ENVIADO.*$/i, '')  // remove notas de envio inline
+        .replace(/\s+\d+ml.*$/i, '')    // remove tamanho inline
+        .trim()
+
+      if (nome.length < 3) continue
+
+      const qty = parseFloat(m[2])
+      const preco = parseFloat(m[3].replace(/,/g, ''))
+
+      const key = nome.toUpperCase().substring(0, 25)
+      if (vistos.has(key)) continue
+      if (qty <= 0 || qty > 10000 || preco <= 0 || preco > 100000) continue
+
+      vistos.add(key)
+      resultado.push({ nome, quantidade: Math.round(qty), preco })
     }
 
-    return resultado.slice(0, 50) // máximo 50 produtos
+    return resultado.slice(0, 60)
   }
 
   const aplicarMatches = () => {
