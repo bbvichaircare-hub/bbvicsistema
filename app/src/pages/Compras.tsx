@@ -317,6 +317,10 @@ export function Compras() {
 
       // Extrair produtos do PDF e fazer fuzzy matching
       const produtosPDF = extrairProdutosDoPDF(fullText)
+      console.log('=== DEBUG PDF ===')
+      console.log('Total linhas no texto:', fullText.split('\n').length)
+      console.log('Primeiras 20 linhas:', fullText.split('\n').slice(0, 20))
+      console.log('Produtos encontrados:', produtosPDF.length, produtosPDF)
       if (produtosPDF.length > 0) {
         const matches: ProdutoMatch[] = produtosPDF.map(p => {
           const { produto, score } = encontrarMelhorMatch(p.nome)
