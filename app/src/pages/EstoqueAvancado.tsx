@@ -49,7 +49,7 @@ const tipoLabel: Record<string, string> = {
 
 export function EstoqueAvancado() {
   const navigate = useNavigate();
-  const { isAdmin } = useAuth();
+  const { isAdmin, user } = useAuth();
   const [produtos, setProdutos] = useState<Produto[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -267,44 +267,80 @@ export function EstoqueAvancado() {
       try {
         const data = new Uint8Array(evt.target!.result as ArrayBuffer);
         const wb = XLSX.read(data, { type: 'array' });
-        const ws = wb.Sheets[wb.SheetNames[0]];
+        // tenta aba "Estoque" primeiro, senão usa a primeira aba
+        const sheetName = wb.SheetNames.includes('Estoque') ? 'Estoque' : wb.SheetNames[0];
+        const ws = wb.Sheets[sheetName];
         const rows: any[] = XLSX.utils.sheet_to_json(ws, { defval: '' });
-        if (rows.length === 0) { toast.error('Planilha vazia ou formato inv\u00e1lido'); return; }
-        let count = 0;
+        if (rows.length === 0) { toast.error('Planilha vazia ou formato inválido'); return; }
+
+        // Buscar produtos existentes para fazer upsert (update ou create)
+        const existSnap = await getDocs(query(collection(db, 'produtos'), where('admin_id', '==', user?.uid)));
+        const existingMap: Record<string, string> = {}; // nome_normalizado -> docId
+        existSnap.forEach(d => {
+          const n = (d.data().nome || '').toString().toUpperCase().trim().replace(/\s+/g, ' ');
+          existingMap[n] = d.id;
+        });
+
+        let atualizados = 0;
+        let criados = 0;
         let skipped = 0;
+
         for (const row of rows) {
           const nome = getCol(row, 'Nome', 'NOME', 'name', 'produto', 'product', 'descricao', 'description')
           if (!nome) { skipped++; continue; }
-          const custo = cleanNum(getCol(row, 'Preco Custo', 'Pre\u00e7o Custo ($)', 'Pre\u00e7o Custo', 'Preco Custo ($)', 'preco_custo', 'custo', 'cost'))
-          const venda = cleanNum(getCol(row, 'Preco Venda', 'Pre\u00e7o Venda ($)', 'Pre\u00e7o Venda', 'Preco Venda ($)', 'preco', 'preco_venda', 'venda', 'price'))
-          const estoque = Math.round(cleanNum(getCol(row, 'Estoque', 'estoque', 'qty', 'quantidade', 'stock')))
-          const estoqueMin = Math.round(cleanNum(getCol(row, 'Estoque Minimo', 'Estoque M\u00ednimo', 'estoque_minimo', 'minimo', 'min')))
+          const nomeStr = String(nome).trim();
+          const nomeNorm = nomeStr.toUpperCase().replace(/\s+/g, ' ');
+
+          // Suporta tanto "PreCo Venda ($)" quanto "Preço Venda ($)" e variações
+          const custo = cleanNum(getCol(row,
+            'PreCo Custo ($)', 'Preco Custo ($)', 'Preço Custo ($)', 'Preco Custo', 'Preço Custo',
+            'preco_custo', 'custo', 'cost', 'PRECO CUSTO', 'PRECO CUSTO ($)'))
+          const venda = cleanNum(getCol(row,
+            'PreCo Venda ($)', 'Preco Venda ($)', 'Preço Venda ($)', 'Preco Venda', 'Preço Venda',
+            'preco_venda', 'preco', 'venda', 'price', 'PRECO VENDA', 'PRECO VENDA ($)'))
+          const estoque = Math.round(cleanNum(getCol(row, 'Estoque', 'estoque', 'qty', 'quantidade', 'stock', 'ESTOQUE')))
+          const estoqueMin = Math.round(cleanNum(getCol(row,
+            'Estoque MInimo', 'Estoque Minimo', 'Estoque Mínimo', 'estoque_minimo', 'minimo', 'min', 'ESTOQUE MINIMO')))
+          const categoria = String(getCol(row, 'Categoria', 'categoria', 'category', 'CATEGORIA') || '').trim()
+          const unidade = String(getCol(row, 'Unidade', 'unidade', 'unit', 'UNIDADE') || 'un').trim()
           const margem = custo > 0 ? Math.round(((venda - custo) / custo) * 10000) / 100 : (venda > 0 ? 100 : 0)
-          await addDoc(collection(db, 'produtos'), {
-            nome: String(nome).trim(),
-            categoria: String(getCol(row, 'Categoria', 'categoria', 'category') || '').trim(),
+
+          const dadosProduto: any = {
+            nome: nomeStr,
+            categoria,
             preco: venda,
             preco_venda: venda,
             preco_custo: custo,
             margem_lucro: margem,
             estoque: isNaN(estoque) ? 0 : estoque,
             estoque_minimo: isNaN(estoqueMin) ? 0 : estoqueMin,
-            unidade: String(getCol(row, 'Unidade', 'unidade', 'unit') || 'un').trim(),
+            unidade,
             ativo: true,
-            created_at: Timestamp.now(),
             updated_at: Timestamp.now(),
-          });
-          count++;
+          };
+
+          if (existingMap[nomeNorm]) {
+            // Produto já existe: ATUALIZAR
+            await updateDoc(doc(db, 'produtos', existingMap[nomeNorm]), dadosProduto);
+            atualizados++;
+          } else {
+            // Produto novo: CRIAR
+            dadosProduto.admin_id = user?.uid;
+            dadosProduto.created_at = Timestamp.now();
+            await addDoc(collection(db, 'produtos'), dadosProduto);
+            criados++;
+          }
         }
-        if (count === 0) {
-          toast.error(`Nenhum produto importado. A planilha precisa ter a coluna "Nome". Linhas ignoradas: ${skipped}`)
+
+        if (criados === 0 && atualizados === 0) {
+          toast.error(`Nenhum produto importado. Verifique se a planilha tem a coluna "Nome". Linhas ignoradas: ${skipped}`)
         } else {
-          toast.success(`${count} produto(s) importado(s)!${skipped > 0 ? ` (${skipped} linha(s) ignorada(s))` : ''}`)
+          toast.success(`Importação concluída! ${atualizados} atualizado(s), ${criados} novo(s)${skipped > 0 ? `, ${skipped} ignorado(s)` : ''}`)
           fetchProdutos();
         }
       } catch(err) {
-        console.error('Erro importa\u00e7\u00e3o:', err)
-        toast.error('Erro ao ler planilha. Verifique se o arquivo \u00e9 .xlsx ou .csv v\u00e1lido.')
+        console.error('Erro importação:', err)
+        toast.error('Erro ao ler planilha. Verifique se o arquivo é .xlsx válido.')
       }
     };
     reader.readAsArrayBuffer(file);
