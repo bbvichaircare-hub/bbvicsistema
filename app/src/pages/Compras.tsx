@@ -238,7 +238,6 @@ export function Compras() {
     setPdfLoading(true)
     setPdfFile(file)
     try {
-      // @ts-ignore
       const pdfjsLib = await import('pdfjs-dist')
       pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.js'
       const arrayBuffer = await file.arrayBuffer()
@@ -247,8 +246,19 @@ export function Compras() {
       for (let i = 1; i <= pdf.numPages; i++) {
         const page = await pdf.getPage(i)
         const content = await page.getTextContent()
-        const pageText = content.items.map((item: any) => ('str' in item ? item.str : '')).join(' ')
-        fullText += pageText + '\n'
+        // Agrupar itens por posição Y para reconstruir linhas reais
+        const lineMap = new Map<number, string[]>()
+        for (const item of content.items) {
+          if (!('str' in item) || !item.str.trim()) continue
+          const y = Math.round((item as any).transform[5])
+          if (!lineMap.has(y)) lineMap.set(y, [])
+          lineMap.get(y)!.push(item.str)
+        }
+        // Ordenar por Y decrescente (topo para baixo) e juntar cada linha
+        const sortedYs = Array.from(lineMap.keys()).sort((a, b) => b - a)
+        for (const y of sortedYs) {
+          fullText += lineMap.get(y)!.join(' ') + '\n'
+        }
       }
 
       // Supplier
