@@ -37,8 +37,22 @@ export function InvoicePublic() {
         getDocs(query(collection(db, 'invoices'), where('public_token', '==', publicToken)))
       ])
       if (configSnap.exists()) setPagConfig(configSnap.data() as PagConfig)
-      if (invoicesSnap.empty) { setError('Fatura não encontrada'); return }
-      const d = invoicesSnap.docs[0]
+
+      let invoiceDoc: any = null
+      if (!invoicesSnap.empty) {
+        invoiceDoc = invoicesSnap.docs[0]
+      } else {
+        // Fallback: tenta buscar pelo ID do documento diretamente
+        const directSnap = await getDoc(doc(db, 'invoices', publicToken))
+        if (directSnap.exists()) {
+          invoiceDoc = directSnap
+        } else {
+          setError('Fatura não encontrada')
+          return
+        }
+      }
+
+      const d = invoiceDoc
       const invoiceData = { id: d.id, ...d.data() } as Invoice
       setInvoice(invoiceData)
       setInvoiceId(d.id)

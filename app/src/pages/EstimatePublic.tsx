@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { collection, query, where, getDocs, doc, updateDoc, addDoc, increment, Timestamp } from 'firebase/firestore'
+import { collection, query, where, getDocs, doc, getDoc, updateDoc, addDoc, increment, Timestamp } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { CheckCircle, Clock, XCircle, Loader2, Phone, Mail, MapPin, FileDown } from 'lucide-react'
 import { gerarPDFOrcamento } from '@/lib/pdfUtils'
@@ -37,36 +37,51 @@ export default function EstimatePublic() {
     try {
       const q = query(collection(db, 'estimates'), where('public_token', '==', token))
       const snap = await getDocs(q)
+
+      let docId = ''
+      let data: any = null
+
       if (!snap.empty) {
         const d = snap.docs[0]
-        const data: any = d.data()
-        setEstimate({ id: d.id, ...data })
-        if (data.status === 'aprovado') setApproved(true)
-        if (data.status === 'recusado') setRejected(true)
-
-        // Marca como visualizado e atualiza status para 'visualizado'
-        const updates: any = {
-          visualizado: true,
-          visualizado_count: increment(1),
-          visualizado_em: Timestamp.now(),
+        docId = d.id
+        data = d.data()
+      } else {
+        // Fallback: busca pelo ID do documento diretamente
+        const directSnap = await getDoc(doc(db, 'estimates', token!))
+        if (directSnap.exists()) {
+          docId = directSnap.id
+          data = directSnap.data()
+        } else {
+          setErrorMsg('Orçamento não encontrado')
+          return
         }
-        if (data.status === 'enviado') {
-          updates.status = 'visualizado'
-        }
-
-        await updateDoc(doc(db, 'estimates', d.id), updates).catch(() => {})
-
-        await addDoc(collection(db, 'notificacoes'), {
-          tipo: 'estimate_visualizado',
-          titulo: '👁️ Orçamento visualizado',
-          mensagem: `${data.cliente_nome} visualizou o orçamento ${data.numero}`,
-          estimate_id: d.id,
-          cliente_nome: data.cliente_nome,
-          usuario_id: data.vendedor_id || '',
-          lida: false,
-          created_at: Timestamp.now(),
-        }).catch(() => {})
       }
+
+      setEstimate({ id: docId, ...data })
+      if (data.status === 'aprovado') setApproved(true)
+      if (data.status === 'recusado') setRejected(true)
+
+      const updates: any = {
+        visualizado: true,
+        visualizado_count: increment(1),
+        visualizado_em: Timestamp.now(),
+      }
+      if (data.status === 'enviado') {
+        updates.status = 'visualizado'
+      }
+
+      await updateDoc(doc(db, 'estimates', docId), updates).catch(() => {})
+
+      await addDoc(collection(db, 'notificacoes'), {
+        tipo: 'estimate_visualizado',
+        titulo: '👁️ Orçamento visualizado',
+        mensagem: `${data.cliente_nome} visualizou o orçamento ${data.numero}`,
+        estimate_id: docId,
+        cliente_nome: data.cliente_nome,
+        usuario_id: data.vendedor_id || '',
+        lida: false,
+        created_at: Timestamp.now(),
+      }).catch(() => {})
     } catch (e) {
       console.error(e)
     } finally {

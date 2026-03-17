@@ -1,11 +1,11 @@
 import { useEffect, useState, useRef } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { doc, getDoc, addDoc, updateDoc, collection, getDocs, Timestamp, query, where } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { formatCurrency } from '@/lib/utils'
 import { useAuth } from '@/contexts/AuthContext'
 import { toast } from 'sonner'
-import { ArrowLeft, Search, Trash2, Send, Save, FileText, Loader2, Percent, TrendingUp, Plus, Minus, FileDown } from 'lucide-react'
+import { ArrowLeft, Search, Trash2, Send, Save, FileText, Loader2, Percent, TrendingUp, Plus, Minus, FileDown, UserPlus, X } from 'lucide-react'
 import { gerarPDFOrcamento } from '@/lib/pdfUtils'
 import { v4 as uuidv4 } from 'uuid'
 
@@ -38,6 +38,8 @@ function openWhatsApp(url: string) {
 
 export function EstimateForm() {
   const { id } = useParams()
+  const location = useLocation()
+  const urlParams = new URLSearchParams(location.search)
   const navigate = useNavigate()
   const { user, isAdmin, getVendedores } = useAuth()
   const isEditing = !!id
@@ -68,6 +70,26 @@ export function EstimateForm() {
   const [clientes, setClientes] = useState<Cliente[]>([])
   const [searchCliente, setSearchCliente] = useState('')
   const [showClienteDropdown, setShowClienteDropdown] = useState(false)
+  const [showNovoClienteModal, setShowNovoClienteModal] = useState(false)
+  const [novoClienteForm, setNovoClienteForm] = useState({ nome: '', telefone: '', email: '' })
+  const [savingNovoCliente, setSavingNovoCliente] = useState(false)
+
+  const handleCriarClienteRapido = async () => {
+    if (!novoClienteForm.nome.trim()) { toast.error('Nome é obrigatório'); return }
+    setSavingNovoCliente(true)
+    try {
+      const ref = await addDoc(collection(db, 'clientes'), {
+        nome: novoClienteForm.nome.trim(), telefone: novoClienteForm.telefone.trim(), email: novoClienteForm.email.trim(),
+        vendedor_id: user?.uid, ativo: true, created_at: Timestamp.now(), updated_at: Timestamp.now(),
+      })
+      const nc = { id: ref.id, nome: novoClienteForm.nome.trim(), telefone: novoClienteForm.telefone.trim(), email: novoClienteForm.email.trim() }
+      setClientes(prev => [...prev, nc])
+      setCliente(nc); setSearchCliente(nc.nome)
+      setShowNovoClienteModal(false); setNovoClienteForm({ nome: '', telefone: '', email: '' })
+      toast.success('Cliente criado e selecionado!')
+    } catch { toast.error('Erro ao criar cliente') }
+    finally { setSavingNovoCliente(false) }
+  }
   const clienteRef = useRef<HTMLDivElement>(null)
 
   const [produtos, setProdutos] = useState<Produto[]>([])
@@ -148,7 +170,17 @@ export function EstimateForm() {
         ? query(clientesRef, where('vendedor_id', '==', user?.uid))
         : clientesRef
       const snap = await getDocs(clientesQuery)
-      setClientes(snap.docs.map(d => ({ id: d.id, ...(d.data() as object) })) as Cliente[])
+      const lista = snap.docs.map(d => ({ id: d.id, ...(d.data() as object) })) as Cliente[]
+      setClientes(lista)
+      if (!id) {
+        const cliId = urlParams.get('cliente_id')
+        const cliNome = urlParams.get('cliente_nome')
+        if (cliId) {
+          const found = lista.find(c => c.id === cliId)
+          if (found) { setCliente(found); setSearchCliente(found.nome) }
+          else if (cliNome) { setCliente({ id: cliId, nome: decodeURIComponent(cliNome) } as any); setSearchCliente(decodeURIComponent(cliNome)) }
+        }
+      }
     } catch { console.error('Erro ao carregar clientes') }
   }
 
@@ -477,6 +509,7 @@ export function EstimateForm() {
   if (loading) return <div className="flex justify-center p-10"><Loader2 className="w-6 h-6 animate-spin text-[#C9A227]" /></div>
 
   return (
+    <>
     <div className="max-w-4xl mx-auto pb-32">
 
       {/* Header */}
@@ -515,6 +548,9 @@ export function EstimateForm() {
               </div>
             )}
           </div>
+          <button type="button" onClick={() => setShowNovoClienteModal(true)} className="mt-2 w-full flex items-center justify-center gap-2 py-2 rounded-xl border border-dashed border-[#C9A227] text-[#C9A227] text-sm font-medium hover:bg-[#C9A227]/5 transition-colors">
+            <UserPlus className="w-4 h-4" /> Cadastrar novo cliente
+          </button>
           {cliente && (
             <div className="mt-3 p-3 bg-gray-50 rounded-xl text-sm text-gray-600 flex flex-wrap gap-2">
               <span className="font-medium text-gray-900">{cliente.nome}</span>
@@ -798,5 +834,39 @@ export function EstimateForm() {
       </div>
 
     </div>
+
+    {/* Modal Novo Cliente Rápido */}
+    {showNovoClienteModal && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+        <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-sm mx-4 space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-bold text-gray-900">Novo Cliente Rápido</h3>
+            <button onClick={() => setShowNovoClienteModal(false)} className="p-1 text-gray-400 hover:text-gray-600"><X className="w-5 h-5"/></button>
+          </div>
+          <div className="space-y-3">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Nome *</label>
+              <input type="text" value={novoClienteForm.nome} onChange={e => setNovoClienteForm(p => ({...p, nome: e.target.value}))} placeholder="Nome completo" className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#C9A227]"/>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Telefone</label>
+              <input type="text" value={novoClienteForm.telefone} onChange={e => setNovoClienteForm(p => ({...p, telefone: e.target.value}))} placeholder="+1 (555) 000-0000" className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#C9A227]"/>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+              <input type="email" value={novoClienteForm.email} onChange={e => setNovoClienteForm(p => ({...p, email: e.target.value}))} placeholder="email@exemplo.com" className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#C9A227]"/>
+            </div>
+          </div>
+          <div className="flex gap-2 pt-1">
+            <button onClick={() => setShowNovoClienteModal(false)} className="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-700 text-sm font-medium hover:bg-gray-50">Cancelar</button>
+            <button onClick={handleCriarClienteRapido} disabled={savingNovoCliente} className="flex-[2] py-2.5 rounded-xl bg-[#C9A227] text-white text-sm font-bold hover:bg-[#9A7B1A] disabled:opacity-50 flex items-center justify-center gap-2">
+              {savingNovoCliente ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"/> : <UserPlus className="w-4 h-4"/>}
+              Criar e Selecionar
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   )
 }

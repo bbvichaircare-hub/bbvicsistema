@@ -22,6 +22,7 @@ export function ClienteForm() {
 
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [savedCliente, setSavedCliente] = useState<{id:string, nome:string} | null>(null);
 
   const [formData, setFormData] = useState<Partial<Cliente>>({
     nome: '',
@@ -107,11 +108,12 @@ export function ClienteForm() {
       if (isEditing && id) {
         await updateDoc(doc(db, 'clientes', id), clienteData);
         toast.success('Cliente atualizado!');
+        setSavedCliente({ id, nome: formData.nome! });
       } else {
-        await addDoc(collection(db, 'clientes'), { ...clienteData, created_at: Timestamp.now() });
+        const ref = await addDoc(collection(db, 'clientes'), { ...clienteData, created_at: Timestamp.now() });
         toast.success('Cliente criado!');
+        setSavedCliente({ id: ref.id, nome: formData.nome! });
       }
-      navigate('/clientes');
     } catch {
       toast.error('Erro ao salvar cliente');
     } finally {
@@ -319,23 +321,43 @@ export function ClienteForm() {
         </div>
 
         {/* Botões */}
-        <div className="flex gap-3">
-          <button
-            type="button"
-            onClick={() => navigate('/clientes')}
-            className="flex-1 px-4 py-3 rounded-xl border border-gray-200 text-gray-700 font-medium hover:bg-gray-50 transition-colors text-sm"
-          >
-            Cancelar
-          </button>
-          <button
-            type="submit"
-            disabled={saving}
-            className="flex-[2] px-4 py-3 rounded-xl bg-[#C9A227] text-white font-bold hover:bg-[#9A7B1A] flex items-center justify-center gap-2 transition-colors disabled:opacity-50 text-sm"
-          >
-            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-            {saving ? 'Salvando...' : 'Salvar Cliente'}
-          </button>
-        </div>
+        {savedCliente ? (
+          <div className="bg-green-50 border border-green-200 rounded-xl p-4 space-y-3">
+            <p className="text-green-800 font-medium text-sm">✓ Cliente <strong>{savedCliente.nome}</strong> salvo! O que deseja fazer?</p>
+            <div className="flex flex-wrap gap-2">
+              <button type="button" onClick={() => navigate(`/orcamentos/novo?cliente_id=${savedCliente.id}&cliente_nome=${encodeURIComponent(savedCliente.nome)}`)} className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700">
+                Criar Orçamento
+              </button>
+              <button type="button" onClick={() => navigate(`/faturas/nova?cliente_id=${savedCliente.id}&cliente_nome=${encodeURIComponent(savedCliente.nome)}`)} className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-green-600 text-white text-sm font-medium hover:bg-green-700">
+                Criar Fatura
+              </button>
+              <button type="button" onClick={() => navigate(`/clientes/${savedCliente.id}`)} className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[#C9A227] text-white text-sm font-medium hover:bg-[#9A7B1A]">
+                Ver Cliente
+              </button>
+              <button type="button" onClick={() => navigate('/clientes')} className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-gray-300 text-gray-700 text-sm font-medium hover:bg-gray-50">
+                Lista de Clientes
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={() => navigate('/clientes')}
+              className="flex-1 px-4 py-3 rounded-xl border border-gray-200 text-gray-700 font-medium hover:bg-gray-50 transition-colors text-sm"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              disabled={saving}
+              className="flex-[2] px-4 py-3 rounded-xl bg-[#C9A227] text-white font-bold hover:bg-[#9A7B1A] flex items-center justify-center gap-2 transition-colors disabled:opacity-50 text-sm"
+            >
+              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+              {saving ? 'Salvando...' : 'Salvar Cliente'}
+            </button>
+          </div>
+        )}
 
       </form>
     </div>

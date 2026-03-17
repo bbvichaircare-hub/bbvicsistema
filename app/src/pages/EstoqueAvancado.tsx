@@ -53,6 +53,7 @@ export function EstoqueAvancado() {
   const [produtos, setProdutos] = useState<Produto[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [sortAZ, setSortAZ] = useState(false);
   const [showBaixoEstoque, setShowBaixoEstoque] = useState(false);
   const [ajustando, setAjustando] = useState<string | null>(null);
   const [quantidadeAjuste, setQuantidadeAjuste] = useState('');
@@ -72,6 +73,9 @@ export function EstoqueAvancado() {
   const [deletingProd, setDeletingProd] = useState(false)
   const [deleteAllConfirm, setDeleteAllConfirm] = useState(false)
   const [deletingAll, setDeletingAll] = useState(false)
+  const [undoStack, setUndoStack] = useState<Produto[]>([])
+  const [showUndo, setShowUndo] = useState(false)
+  const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     if (!isAdmin) { navigate('/'); return; }
@@ -347,7 +351,9 @@ export function EstoqueAvancado() {
     e.target.value = '';
   };
 
-  const filtered = produtos.filter(p => p.nome.toLowerCase().includes(search.toLowerCase()) || p.categoria?.toLowerCase().includes(search.toLowerCase()));
+  const filtered = produtos
+    .filter(p => p.nome.toLowerCase().includes(search.toLowerCase()) || p.categoria?.toLowerCase().includes(search.toLowerCase()))
+    .sort((a, b) => sortAZ ? (a.nome || '').localeCompare(b.nome || '', 'pt-BR', { sensitivity: 'base' }) : 0);
   const baixoEstoque = filtered.filter(p => (p.estoque||0) <= (p.estoque_minimo||0));
 
   const movimentosFiltrados = movimentos.filter(m => {
@@ -368,12 +374,40 @@ export function EstoqueAvancado() {
 
   if (loading) return <div className="flex items-center justify-center h-96"><div className="w-8 h-8 border-2 border-[#C9A227] border-t-transparent rounded-full animate-spin"/></div>;
 
+  const triggerUndo = (deletados: Produto[]) => {
+    setUndoStack(deletados)
+    setShowUndo(true)
+    if (undoTimerRef.current) clearTimeout(undoTimerRef.current)
+    undoTimerRef.current = setTimeout(() => setShowUndo(false), 10000)
+  }
+
+  const handleUndo = async () => {
+    if (undoStack.length === 0) return
+    try {
+      const batch = writeBatch(db)
+      for (const p of undoStack) {
+        const { id, ...data } = p
+        const ref = doc(db, 'produtos', id!)
+        batch.set(ref, data)
+      }
+      await batch.commit()
+      setProdutos(prev => [...prev, ...undoStack])
+      setUndoStack([])
+      setShowUndo(false)
+      toast.success(`${undoStack.length} produto(s) restaurado(s)!`)
+    } catch (e) {
+      toast.error('Erro ao desfazer exclusão')
+    }
+  }
+
   const handleDeleteProd = async () => {
     if (!deleteConfirm) return
     setDeletingProd(true)
     try {
+      const produtoParaApagar = produtos.find(p => p.id === deleteConfirm.id)
       await deleteDoc(doc(db, 'produtos', deleteConfirm.id))
       setProdutos(prev => prev.filter(p => p.id !== deleteConfirm.id))
+      if (produtoParaApagar) triggerUndo([produtoParaApagar])
       toast.success(`Produto "${deleteConfirm.nome}" excluído!`)
       setDeleteConfirm(null)
     } catch (e) {
@@ -403,6 +437,40 @@ export function EstoqueAvancado() {
     }
   }
 
+  const handleRemoverDuplicatas = async () => {
+    const mapa = new Map<string, Produto[]>()
+    for (const p of produtos) {
+      const key = (p.nome || '').trim().toUpperCase().replace(/\s+/g, ' ')
+      if (!mapa.has(key)) mapa.set(key, [])
+      mapa.get(key)!.push(p)
+    }
+    const paraApagar: Produto[] = []
+    for (const [, lista] of mapa.entries()) {
+      if (lista.length <= 1) continue
+      lista.sort((a, b) => {
+        const va = parseFloat(String(a.preco_venda || (a as any).preco || 0))
+        const vb = parseFloat(String(b.preco_venda || (b as any).preco || 0))
+        return vb - va
+      })
+      paraApagar.push(...lista.slice(1))
+    }
+    if (paraApagar.length === 0) { toast.info('Nenhuma duplicata encontrada!'); return }
+    try {
+      const BATCH_SIZE = 400
+      for (let i = 0; i < paraApagar.length; i += BATCH_SIZE) {
+        const lote = paraApagar.slice(i, i + BATCH_SIZE)
+        const batch = writeBatch(db)
+        lote.forEach(p => batch.delete(doc(db, 'produtos', p.id!)))
+        await batch.commit()
+      }
+      const idsApagar = new Set(paraApagar.map(p => p.id))
+      setProdutos(prev => prev.filter(p => !idsApagar.has(p.id)))
+      triggerUndo(paraApagar)
+      toast.success(`${paraApagar.length} duplicata(s) removida(s)!`)
+    } catch (e) {
+      toast.error('Erro ao remover duplicatas')
+    }
+  }
   const handleRemoverZerados = async () => {
     const zerados = produtos.filter(p => {
       const venda = parseFloat(String(p.preco_venda || 0))
@@ -426,6 +494,7 @@ export function EstoqueAvancado() {
         const custo = parseFloat(String(p.preco_custo || 0))
         return !(venda === 0 && custo === 0)
       }))
+      triggerUndo(zerados)
       toast.success(`${zerados.length} produto(s) zerado(s) removido(s)!`)
     } catch (e) {
       toast.error('Erro ao remover produtos zerados')
@@ -452,11 +521,10 @@ export function EstoqueAvancado() {
                 <Upload className="w-4 h-4"/> Importar Excel
               </button>
               <input ref={importRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleImport}/>
-              <button
-                onClick={handleRemoverZerados}
-                className="flex items-center gap-2 px-3 py-2 rounded-xl border border-orange-200 text-orange-600 text-sm hover:bg-orange-50"
-                title="Remove todos produtos com preço de custo e venda iguais a zero"
-              >
+              <button onClick={handleRemoverDuplicatas} className="flex items-center gap-2 px-3 py-2 rounded-xl border border-blue-200 text-blue-600 text-sm hover:bg-blue-50" title="Remove produtos com nome duplicado, mantendo o com maior preço">
+                <Trash2 className="w-4 h-4"/> Remover Duplicatas
+              </button>
+              <button onClick={handleRemoverZerados} className="flex items-center gap-2 px-3 py-2 rounded-xl border border-orange-200 text-orange-600 text-sm hover:bg-orange-50" title="Remove todos produtos com preço de custo e venda iguais a zero">
                 <Trash2 className="w-4 h-4"/> Remover Zerados
               </button>
               <div className="flex gap-2">
@@ -565,9 +633,18 @@ export function EstoqueAvancado() {
             </div>
           )}
 
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400"/>
-            <input type="text" value={search} onChange={e=>setSearch(e.target.value)} placeholder="Buscar produto..." className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-gray-200 bg-white text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#C9A227]"/>
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400"/>
+              <input type="text" value={search} onChange={e=>setSearch(e.target.value)} placeholder="Buscar produto..." className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-gray-200 bg-white text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#C9A227]"/>
+            </div>
+            <button
+              onClick={() => setSortAZ(v => !v)}
+              title="Ordenar A-Z"
+              className={`flex items-center gap-1.5 px-3 py-2.5 rounded-xl border text-sm font-medium transition-all ${sortAZ ? 'bg-[#C9A227] border-[#C9A227] text-white' : 'bg-white border-gray-200 text-gray-600 hover:border-[#C9A227]'}`}
+            >
+              A↕Z
+            </button>
           </div>
 
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
@@ -613,7 +690,7 @@ export function EstoqueAvancado() {
                           {(() => {
                             const custo = (produto as any).preco_custo || 0;
                             const venda = (produto as any).preco || 0;
-                            const margem = venda > 0 ? ((venda - custo) / venda) * 100 : 0;
+                            const margem = custo > 0 ? ((venda - custo) / custo) * 100 : (venda > 0 ? 100 : 0);
                             return (
                               <span className={`text-sm font-bold ${margem >= 30 ? 'text-green-600' : margem >= 15 ? 'text-amber-600' : margem > 0 ? 'text-red-500' : 'text-gray-400'}`}>
                                 {margem > 0 ? `${margem.toFixed(1)}%` : '—'}
@@ -906,6 +983,16 @@ export function EstoqueAvancado() {
         </div>
       )}
       {/* Delete Single Product Modal */}
+      {showUndo && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-gray-900 text-white px-5 py-3 rounded-2xl shadow-2xl flex items-center gap-4 animate-in slide-in-from-bottom-4">
+          <span className="text-sm">{undoStack.length} produto(s) excluído(s)</span>
+          <button onClick={handleUndo} className="px-4 py-1.5 bg-[#C9A227] text-white text-sm font-semibold rounded-xl hover:bg-[#b8911f]">
+            Desfazer
+          </button>
+          <button onClick={() => setShowUndo(false)} className="text-gray-400 hover:text-white text-lg leading-none">✕</button>
+        </div>
+      )}
+
       {deleteConfirm && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setDeleteConfirm(null)}>
           <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-sm w-full" onClick={e => e.stopPropagation()}>

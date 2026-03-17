@@ -80,20 +80,30 @@ export function Dashboard() {
     const fimDate = new Date(fim + 'T23:59:59')
     const inRange = (v: any) => { try { const d = toDate(v); return d >= iniDate && d <= fimDate } catch { return false } }
     const rec = invoices
-      .filter((i: any) => ['pago','parcial'].includes(i.status) && inRange(i.data_emissao ?? i.created_at))
+      .filter((i: any) => {
+        if (!['pago','parcial'].includes(i.status)) return false
+        const dataPag = i.data_pagamento || i.updated_at || i.data_emissao
+        return inRange(dataPag)
+      })
       .reduce((s: number, i: any) => {
-        const base = (i.total || 0) - (i.desconto || 0)
-        const pago = (i as any).valor_pago
-        return s + (pago !== undefined && pago !== null ? pago : base)
+        if (i.status === 'parcial') return s + ((i as any).valor_pago || 0)
+        return s + ((i.total || 0) - (i.desconto || 0))
       }, 0)
     const desp = expenses
       .filter((e: any) => inRange(e.data ?? e.created_at))
       .reduce((s: number, e: any) => s + (e.valor || 0), 0)
-    setKpiRange(prev => ({
-      ...(prev || { receitas:0, despesas:0, lucro:0, clientesAtivos: kpi.clientesAtivos, faturasPendentesValor:kpi.faturasPendentesValor, faturasPendentesQtd:kpi.faturasPendentesQtd, receitasAnterior:0, despesasAnterior:0, faturasAtrasadasQtd:kpi.faturasAtrasadasQtd, faturasAtrasadasValor:kpi.faturasAtrasadasValor, orcamentosAbertosQtd:kpi.orcamentosAbertosQtd }),
+    setKpiRange(_prev => ({
       receitas: rec,
       despesas: desp,
       lucro: rec - desp,
+      clientesAtivos: kpi.clientesAtivos,
+      faturasPendentesValor: kpi.faturasPendentesValor,
+      faturasPendentesQtd: kpi.faturasPendentesQtd,
+      receitasAnterior: 0,
+      despesasAnterior: 0,
+      faturasAtrasadasQtd: kpi.faturasAtrasadasQtd,
+      faturasAtrasadasValor: kpi.faturasAtrasadasValor,
+      orcamentosAbertosQtd: kpi.orcamentosAbertosQtd,
     }))
   }
 
@@ -103,8 +113,9 @@ export function Dashboard() {
     const lucroMap = new Map<string, LucroProduto>()
     invoices
       .filter((inv: any) => {
-        if (inv.status !== 'pago') return false
-        const d = inv.data_emissao ? (inv.data_emissao?.toDate ? inv.data_emissao.toDate() : new Date(inv.data_emissao)) : (inv.created_at?.toDate ? inv.created_at.toDate() : new Date(inv.created_at))
+        if (!['pago','parcial'].includes(inv.status)) return false
+        const dataPag = inv.data_pagamento || inv.updated_at || inv.data_emissao
+        const d = dataPag?.toDate ? dataPag.toDate() : new Date(dataPag)
         return d >= iniDate && d <= fimDate
       })
       .forEach((inv: any) => {
@@ -112,24 +123,26 @@ export function Dashboard() {
         const subtotalBruto = items.reduce((s: number, it: any) => s + (it.preco_unitario || 0) * (it.quantidade || 1), 0)
         const desconto = inv.desconto || 0
         const descontoRatio = subtotalBruto > 0 ? desconto / subtotalBruto : 0
+        const pagoRatio = inv.status === 'parcial' && inv.total > 0 ? Math.min(1, (inv.valor_pago || 0) / inv.total) : 1
         items.forEach((item: any) => {
           const nomeKey = (item.produto_nome || '').toLowerCase().trim()
           const prodData = prodMap.get(item.produto_id) || prodMap.get(nomeKey)
           const custo = prodData?.preco_custo || prodData?.custo || 0
-          const qty = item.quantidade || 1
+          const qty = (item.quantidade || 1) * pagoRatio
           const preco = item.preco_unitario || 0
           const receita = qty * preco * (1 - descontoRatio)
           const custoTotal = qty * custo
           const lucro = receita - custoTotal
+          const margem = receita > 0 ? (lucro / receita) * 100 : 0
           const key = item.produto_nome || 'Produto'
           if (lucroMap.has(key)) {
             const prev = lucroMap.get(key)!
             const newReceita = prev.receita + receita
             const newLucro = prev.lucro + lucro
             const newCusto = prev.custo_total + custoTotal
-            lucroMap.set(key, { ...prev, qtd_vendida: prev.qtd_vendida + qty, receita: newReceita, custo_total: newCusto, lucro: newLucro, margem: newCusto > 0 ? (newLucro / newCusto) * 100 : (newLucro > 0 ? 100 : 0), sem_custo: (prev as any).sem_custo && custo === 0 } as any)
+            lucroMap.set(key, { ...prev, qtd_vendida: prev.qtd_vendida + qty, receita: newReceita, custo_total: newCusto, lucro: newLucro, margem: newReceita > 0 ? (newLucro / newReceita) * 100 : 0, sem_custo: (prev as any).sem_custo && custo === 0 } as any)
           } else {
-            lucroMap.set(key, { nome: item.produto_nome || 'Produto', qtd_vendida: qty, receita, custo_total: custoTotal, lucro, margem: custoTotal > 0 ? (lucro / custoTotal) * 100 : (lucro > 0 ? 100 : 0), sem_custo: custo === 0 } as any)
+            lucroMap.set(key, { nome: item.produto_nome || 'Produto', qtd_vendida: qty, receita, custo_total: custoTotal, lucro, margem, sem_custo: custo === 0 } as any)
           }
         })
       })
@@ -720,7 +733,7 @@ export function Dashboard() {
                   <div className="grid grid-cols-4 gap-2 text-center">
                     <div>
                       <p className="text-xs text-gray-400">Qtd</p>
-                      <p className="text-sm font-bold text-gray-700">{p.qtd_vendida}</p>
+                      <p className="text-sm font-bold text-gray-700">{Math.round(p.qtd_vendida * 100) / 100}</p>
                     </div>
                     <div>
                       <p className="text-xs text-gray-400">Receita</p>

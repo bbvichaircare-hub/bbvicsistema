@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   collection, getDocs, addDoc, doc, getDoc,
@@ -9,7 +9,7 @@ import { db } from '@/lib/firebase';
 import { formatCurrency } from '@/lib/utils';
 import { toast } from 'sonner';
 import { v4 as uuidv4 } from 'uuid';
-import { Trash2, Search, X, Send, Save, ArrowLeft, Plus, Minus, FileDown } from 'lucide-react';
+import { Trash2, Search, X, Send, Save, ArrowLeft, Plus, Minus, FileDown, UserPlus } from 'lucide-react';
 import { gerarPDFFatura } from '@/lib/pdfUtils';
 import type { Cliente, Produto, DocumentItem, Invoice } from '@/types';
 
@@ -64,6 +64,8 @@ async function registrarMovimentosVenda(items: any[]) {
 export function InvoiceForm() {
   const navigate = useNavigate();
   const { id } = useParams();
+  const location = useLocation();
+  const urlParams = new URLSearchParams(location.search);
   const { user, isAdmin, getVendedores } = useAuth();
   const isEditing = !!id;
 
@@ -73,6 +75,32 @@ export function InvoiceForm() {
   const [produtos, setProdutos] = useState<Produto[]>([]);
   const [vendedores, setVendedores] = useState<VendedorOpt[]>([]);
   const [searchCliente, setSearchCliente] = useState('');
+  const [showNovoClienteModal, setShowNovoClienteModal] = useState(false);
+  const [novoClienteForm, setNovoClienteForm] = useState({ nome: '', telefone: '', email: '' });
+  const [savingNovoCliente, setSavingNovoCliente] = useState(false);
+
+  const handleCriarClienteRapido = async () => {
+    if (!novoClienteForm.nome.trim()) { toast.error('Nome é obrigatório'); return; }
+    setSavingNovoCliente(true);
+    try {
+      const ref = await addDoc(collection(db, 'clientes'), {
+        nome: novoClienteForm.nome.trim(),
+        telefone: novoClienteForm.telefone.trim(),
+        email: novoClienteForm.email.trim(),
+        vendedor_id: user?.uid,
+        ativo: true,
+        created_at: Timestamp.now(),
+        updated_at: Timestamp.now(),
+      });
+      const novoCliente = { id: ref.id, nome: novoClienteForm.nome.trim(), telefone: novoClienteForm.telefone.trim(), email: novoClienteForm.email.trim() } as any;
+      setClientes(prev => [...prev, novoCliente]);
+      setCliente(novoCliente);
+      setShowNovoClienteModal(false);
+      setNovoClienteForm({ nome: '', telefone: '', email: '' });
+      toast.success('Cliente criado e selecionado!');
+    } catch { toast.error('Erro ao criar cliente'); }
+    finally { setSavingNovoCliente(false); }
+  };
   const [searchProduto, setSearchProduto] = useState('');
   const [showClienteDropdown, setShowClienteDropdown] = useState(false);
   const [showProdutoDropdown, setShowProdutoDropdown] = useState(false);
@@ -133,7 +161,18 @@ export function InvoiceForm() {
         ? query(clientesRef, where('vendedor_id', '==', user?.uid))
         : clientesRef;
       const snap = await getDocs(clientesQuery);
-      setClientes(snap.docs.map(d => ({ id: d.id, ...d.data() })) as Cliente[]);
+      const lista = snap.docs.map(d => ({ id: d.id, ...d.data() })) as Cliente[];
+      setClientes(lista);
+      // Pre-selecionar cliente se veio da página de clientes
+      if (!id) {
+        const cliId = urlParams.get('cliente_id');
+        const cliNome = urlParams.get('cliente_nome');
+        if (cliId) {
+          const found = lista.find(c => c.id === cliId);
+          if (found) setCliente(found);
+          else if (cliNome) setCliente({ id: cliId, nome: decodeURIComponent(cliNome) } as any);
+        }
+      }
     } catch { console.error('Erro clientes') }
   };
 
@@ -532,6 +571,7 @@ export function InvoiceForm() {
   };
 
   return (
+    <>
     <div className="max-w-4xl mx-auto pb-24">
 
       {/* Header */}
@@ -562,19 +602,24 @@ export function InvoiceForm() {
               </button>
             </div>
           ) : (
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <input type="text" value={searchCliente} onChange={e => { setSearchCliente(e.target.value); setShowClienteDropdown(true); }} placeholder="Buscar cliente..." className="w-full pl-9 pr-4 py-3 rounded-xl border border-gray-200 text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#C9A227]" />
-              {showClienteDropdown && searchCliente && (
-                <div className="absolute z-20 w-full mt-1 bg-white rounded-xl border border-gray-200 shadow-lg max-h-52 overflow-auto">
-                  {filteredClientes.length === 0 ? <p className="text-gray-400 text-sm p-4">Nenhum cliente encontrado</p> : filteredClientes.map(c => (
-                    <button key={c.id} onClick={() => { setCliente(c); setSearchCliente(''); setShowClienteDropdown(false); }} className="w-full px-4 py-3 text-left hover:bg-gray-50 border-b last:border-b-0">
-                      <p className="font-medium text-gray-900 text-sm">{c.nome}</p>
-                      <p className="text-gray-500 text-xs">{c.telefone}</p>
-                    </button>
-                  ))}
-                </div>
-              )}
+            <div className="space-y-2">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <input type="text" value={searchCliente} onChange={e => { setSearchCliente(e.target.value); setShowClienteDropdown(true); }} placeholder="Buscar cliente..." className="w-full pl-9 pr-4 py-3 rounded-xl border border-gray-200 text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#C9A227]" />
+                {showClienteDropdown && searchCliente && (
+                  <div className="absolute z-20 w-full mt-1 bg-white rounded-xl border border-gray-200 shadow-lg max-h-52 overflow-auto">
+                    {filteredClientes.length === 0 ? <p className="text-gray-400 text-sm p-4">Nenhum cliente encontrado</p> : filteredClientes.map(c => (
+                      <button key={c.id} onClick={() => { setCliente(c); setSearchCliente(''); setShowClienteDropdown(false); }} className="w-full px-4 py-3 text-left hover:bg-gray-50 border-b last:border-b-0">
+                        <p className="font-medium text-gray-900 text-sm">{c.nome}</p>
+                        <p className="text-gray-500 text-xs">{c.telefone}</p>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <button type="button" onClick={() => setShowNovoClienteModal(true)} className="w-full flex items-center justify-center gap-2 py-2 rounded-xl border border-dashed border-[#C9A227] text-[#C9A227] text-sm font-medium hover:bg-[#C9A227]/5 transition-colors">
+                <UserPlus className="w-4 h-4" /> Cadastrar novo cliente
+              </button>
             </div>
           )}
 
@@ -932,5 +977,39 @@ export function InvoiceForm() {
       </div>
 
     </div>
+
+    {/* Modal Novo Cliente Rápido */}
+    {showNovoClienteModal && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+        <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-sm mx-4 space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-bold text-gray-900">Novo Cliente Rápido</h3>
+            <button onClick={() => setShowNovoClienteModal(false)} className="p-1 text-gray-400 hover:text-gray-600"><X className="w-5 h-5"/></button>
+          </div>
+          <div className="space-y-3">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Nome *</label>
+              <input type="text" value={novoClienteForm.nome} onChange={e => setNovoClienteForm(p => ({...p, nome: e.target.value}))} placeholder="Nome completo" className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#C9A227]"/>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Telefone</label>
+              <input type="text" value={novoClienteForm.telefone} onChange={e => setNovoClienteForm(p => ({...p, telefone: e.target.value}))} placeholder="+1 (555) 000-0000" className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#C9A227]"/>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+              <input type="email" value={novoClienteForm.email} onChange={e => setNovoClienteForm(p => ({...p, email: e.target.value}))} placeholder="email@exemplo.com" className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#C9A227]"/>
+            </div>
+          </div>
+          <div className="flex gap-2 pt-1">
+            <button onClick={() => setShowNovoClienteModal(false)} className="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-700 text-sm font-medium hover:bg-gray-50">Cancelar</button>
+            <button onClick={handleCriarClienteRapido} disabled={savingNovoCliente} className="flex-[2] py-2.5 rounded-xl bg-[#C9A227] text-white text-sm font-bold hover:bg-[#9A7B1A] disabled:opacity-50 flex items-center justify-center gap-2">
+              {savingNovoCliente ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"/> : <UserPlus className="w-4 h-4"/>}
+              Criar e Selecionar
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 }

@@ -261,7 +261,11 @@ export function Invoices() {
     let matchDate = true
     if (filtroDataInicio || filtroDataFim) {
       try {
-        const invDate = (inv as any).data_emissao?.toDate ? (inv as any).data_emissao.toDate() : new Date((inv as any).data_emissao ?? (inv as any).created_at)
+        const isPaidOrPartial = ['pago','parcial'].includes(inv.status)
+        const dateSource = isPaidOrPartial
+          ? ((inv as any).data_pagamento || (inv as any).data_emissao || (inv as any).created_at)
+          : ((inv as any).data_emissao || (inv as any).created_at)
+        const invDate = dateSource?.toDate ? dateSource.toDate() : new Date(dateSource)
         if (filtroDataInicio) matchDate = matchDate && invDate >= new Date(filtroDataInicio + 'T00:00:00')
         if (filtroDataFim) matchDate = matchDate && invDate <= new Date(filtroDataFim + 'T23:59:59')
       } catch { matchDate = true }
@@ -270,7 +274,10 @@ export function Invoices() {
   })
 
   const totais = {
-    pago: filtered.filter(i => i.status === 'pago').reduce((s, i) => s + (i.total - (i.desconto || 0)), 0),
+    pago: filtered.filter(i => ['pago','parcial'].includes(i.status)).reduce((s, i) => {
+      if (i.status === 'pago') return s + (i.total - (i.desconto || 0))
+      return s + ((i as any).valor_pago || 0)
+    }, 0),
     pagoGeral: filtered.filter(i => i.status === 'pago').reduce((s, i) => s + i.total, 0),
     pendente: filtered.filter(i => ['enviado','aguardando_confirmacao','visualizado','rascunho','pendente'].includes(i.status) && !faturaAtrasada(i)).reduce((s, i) => s + i.total, 0),
     atrasado: filtered.filter(i => faturaAtrasada(i) || i.status === 'atrasado').reduce((s, i) => s + i.total, 0),
@@ -415,9 +422,9 @@ export function Invoices() {
           onClick={() => setActiveCard(activeCard === 'pago' ? null : 'pago')}
           className={`text-left rounded-xl p-4 border transition-all ${activeCard === 'pago' ? 'bg-green-100 border-green-400 ring-2 ring-green-300' : 'bg-green-50 border-green-100 hover:border-green-300'}`}
         >
-          <p className="text-xs text-green-700 font-medium mb-1">Pagas — {totais.mesLabel}</p>
+          <p className="text-xs text-green-700 font-medium mb-1">Receita — {totais.mesLabel}</p>
           <p className="text-xl font-bold text-green-700">{formatCurrency(totais.pago)}</p>
-          <p className="text-xs text-green-500 mt-0.5">Total geral: {formatCurrency(totais.pagoGeral)}</p>
+          <p className="text-xs text-green-500 mt-0.5">Pagas completo: {formatCurrency(totais.pagoGeral)}</p>
           {activeCard === 'pago' && <p className="text-xs text-green-600 mt-1">Clique para limpar filtro</p>}
         </button>
         <button

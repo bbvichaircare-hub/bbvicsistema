@@ -4,7 +4,7 @@ import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firesto
 import { db } from '@/lib/firebase';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { toast } from 'sonner';
-import { ArrowLeft, Edit, Phone, Mail, MapPin, FileText } from 'lucide-react';
+import { ArrowLeft, Edit, Phone, Mail, MapPin, FileText, FilePlus, Receipt } from 'lucide-react';
 import type { Cliente, Invoice, Estimate } from '@/types';
 
 export function ClienteDetail() {
@@ -54,9 +54,17 @@ export function ClienteDetail() {
             <p className="text-gray-500 text-sm">{cliente.tipo === 'empresa' ? 'Empresa' : 'Pessoa Física'}</p>
           </div>
         </div>
-        <button onClick={() => navigate(`/clientes/${cliente.id}/editar`)} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#C9A227] text-white hover:bg-[#9A7B1A] text-sm font-medium">
-          <Edit className="w-4 h-4"/> Editar
-        </button>
+        <div className="flex items-center gap-2 flex-wrap justify-end">
+          <button onClick={() => navigate(`/orcamentos/novo?cliente_id=${cliente.id}&cliente_nome=${encodeURIComponent(cliente.nome)}`)} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 text-white hover:bg-blue-700 text-sm font-medium">
+            <FilePlus className="w-4 h-4"/> Novo Orçamento
+          </button>
+          <button onClick={() => navigate(`/faturas/nova?cliente_id=${cliente.id}&cliente_nome=${encodeURIComponent(cliente.nome)}`)} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-green-600 text-white hover:bg-green-700 text-sm font-medium">
+            <Receipt className="w-4 h-4"/> Nova Fatura
+          </button>
+          <button onClick={() => navigate(`/clientes/${cliente.id}/editar`)} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#C9A227] text-white hover:bg-[#9A7B1A] text-sm font-medium">
+            <Edit className="w-4 h-4"/> Editar
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

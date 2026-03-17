@@ -56,6 +56,8 @@ export function Relatorios() {
   useEffect(() => { fetchAll() }, [dataInicio, dataFim, user, isAdmin])
   useEffect(() => { if (tab === 'auditoria') fetchAudit() }, [tab])
 
+  const [receitaFiltradaPorPagamento, setReceitaFiltradaPorPagamento] = useState(0)
+
   const fetchAll = async () => {
     try {
       setLoading(true)
@@ -64,13 +66,21 @@ export function Relatorios() {
       const tsIni = Timestamp.fromDate(inicio)
       const tsFim = Timestamp.fromDate(fim)
 
+      const dateInRange = (v: any) => {
+        try { const d = v?.toDate ? v.toDate() : new Date(v); return d >= inicio && d <= fim } catch { return false }
+      }
+
       const adminQ = (col: string, field: string) =>
         query(collection(db, col), where(field, '>=', tsIni), where(field, '<=', tsFim))
       const vendQ = (col: string, field: string) =>
         query(collection(db, col), where('vendedor_id', '==', user?.uid), where(field, '>=', tsIni), where(field, '<=', tsFim))
 
+      const allInvQ = isAdmin
+        ? query(collection(db, 'invoices'))
+        : query(collection(db, 'invoices'), where('vendedor_id', '==', user?.uid))
+
       const [invSnap, estSnap, expSnap, prodSnap, cliSnap, vendSnap, cpSnap] = await Promise.all([
-        getDocs(isAdmin ? adminQ('invoices','data_emissao') : vendQ('invoices','data_emissao')),
+        getDocs(allInvQ),
         getDocs(isAdmin ? adminQ('estimates','data_emissao') : vendQ('estimates','data_emissao')),
         getDocs(isAdmin ? adminQ('expenses','data') : vendQ('expenses','data')),
         getDocs(query(collection(db,'produtos'), where('ativo','==',true))),
@@ -79,13 +89,27 @@ export function Relatorios() {
         isAdmin ? getDocs(adminQ('contas_pagar','data_emissao')) : Promise.resolve({ docs: [] } as any),
       ])
 
-      setInvoices(invSnap.docs.map(d => ({ id:d.id,...d.data() })))
+      const allInvoices = invSnap.docs.map(d => ({ id:d.id,...d.data() })) as any[]
+      const invoicesFiltrados = allInvoices.filter((i: any) => dateInRange(i.data_emissao || i.created_at))
+      setInvoices(invoicesFiltrados)
       setEstimates(estSnap.docs.map(d => ({ id:d.id,...d.data() })))
       setExpenses(expSnap.docs.map(d => ({ id:d.id,...d.data() })))
       setProdutos(prodSnap.docs.map(d => ({ id:d.id,...d.data() })))
       setClientes(cliSnap.docs.map(d => ({ id:d.id,...d.data() })))
       setVendedores(vendSnap.docs.map((d:any) => ({ ...d.data(), id: d.id, uid: d.id })))
       setContasPagar(cpSnap.docs.map((d:any) => ({ id:d.id,...d.data() })))
+
+      const receitaPagoPorData = allInvoices
+        .filter((i: any) => {
+          if (!['pago','parcial'].includes(i.status)) return false
+          const dataPag = i.data_pagamento || i.updated_at || i.data_emissao
+          return dateInRange(dataPag)
+        })
+        .reduce((s: number, i: any) => {
+          if (i.status === 'pago') return s + ((i.total || 0) - (i.desconto || 0))
+          return s + (i.valor_pago || 0)
+        }, 0)
+      setReceitaFiltradaPorPagamento(receitaPagoPorData)
     } catch(err) { console.error(err); toast.error('Erro ao carregar relatórios') }
     finally { setLoading(false) }
   }
@@ -106,12 +130,7 @@ export function Relatorios() {
   }
 
   // ── COMPUTED ──────────────────────────────────────────────────────────────
-  const receitaFaturas = invoices.filter(i => ['pago','parcial'].includes(i.status)).reduce((s,i) => {
-    if (i.status === 'pago') {
-      return s + (i.total - (i.desconto || 0))
-    }
-    return s + (i.valor_pago || 0)
-  }, 0)
+  const receitaFaturas = receitaFiltradaPorPagamento
   const totalDespesas = expenses.reduce((s,e) => s + (e.valor || 0), 0)
   const totalContasPagar = contasPagar.reduce((s,c) => s + (c.valor || 0), 0)
   const lucroLiquido = receitaFaturas - totalDespesas
