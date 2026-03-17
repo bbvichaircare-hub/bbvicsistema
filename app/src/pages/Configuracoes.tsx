@@ -3,7 +3,7 @@ import { doc, getDoc, setDoc, Timestamp } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { useAuth } from '@/contexts/AuthContext'
 import { toast } from 'sonner'
-import { Save, Loader2, DollarSign, CreditCard, Smartphone, Banknote, MessageSquare, ChevronDown, ChevronUp } from 'lucide-react'
+import { Save, Loader2, DollarSign, CreditCard, Smartphone, Banknote, MessageSquare, ChevronDown, ChevronUp, FileText } from 'lucide-react'
 
 interface PagamentoConfig {
   venmo_username: string
@@ -73,6 +73,28 @@ const VARIAVEIS_COBRANCA = [
   { var: '{LINK}', desc: 'Link da fatura' },
 ]
 
+interface EmpresaConfig {
+  nome: string
+  endereco: string
+  cidade_estado: string
+  telefone: string
+  email: string
+  website: string
+  footer: string
+  logo_url: string
+}
+
+const DEFAULT_EMPRESA: EmpresaConfig = {
+  nome: 'BBVIC Hair Care',
+  endereco: '10 Howe St',
+  cidade_estado: 'Framingham MA',
+  telefone: '617 768 7191',
+  email: '',
+  website: '',
+  footer: 'Thank you for your business!',
+  logo_url: '',
+}
+
 function VarList({ vars }: { vars: { var: string; desc: string }[] }) {
   const [open, setOpen] = useState(false)
   return (
@@ -99,20 +121,24 @@ export function Configuracoes() {
   const { isAdmin } = useAuth()
   const [config, setConfig] = useState<PagamentoConfig>(DEFAULT_CONFIG)
   const [mensagens, setMensagens] = useState<MensagensConfig>(DEFAULT_MENSAGENS)
+  const [empresa, setEmpresa] = useState<EmpresaConfig>(DEFAULT_EMPRESA)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [savingMsg, setSavingMsg] = useState(false)
+  const [savingEmp, setSavingEmp] = useState(false)
 
   useEffect(() => { loadConfig() }, [])
 
   const loadConfig = async () => {
     try {
-      const [snapPag, snapMsg] = await Promise.all([
+      const [snapPag, snapMsg, snapEmp] = await Promise.all([
         getDoc(doc(db, 'configuracoes', 'pagamentos')),
         getDoc(doc(db, 'configuracoes', 'mensagens')),
+        getDoc(doc(db, 'configuracoes', 'empresa')),
       ])
       if (snapPag.exists()) setConfig({ ...DEFAULT_CONFIG, ...snapPag.data() } as PagamentoConfig)
       if (snapMsg.exists()) setMensagens({ ...DEFAULT_MENSAGENS, ...snapMsg.data() } as MensagensConfig)
+      if (snapEmp.exists()) setEmpresa({ ...DEFAULT_EMPRESA, ...snapEmp.data() } as EmpresaConfig)
     } catch { console.error('Erro ao carregar configurações') }
     finally { setLoading(false) }
   }
@@ -137,6 +163,16 @@ export function Configuracoes() {
     finally { setSavingMsg(false) }
   }
 
+  const handleSaveEmpresa = async () => {
+    if (!isAdmin) return
+    setSavingEmp(true)
+    try {
+      await setDoc(doc(db, 'configuracoes', 'empresa'), { ...empresa, updated_at: Timestamp.now() })
+      toast.success('Dados da empresa salvos! Os PDFs já usarão as novas informações.')
+    } catch { toast.error('Erro ao salvar dados da empresa') }
+    finally { setSavingEmp(false) }
+  }
+
   const toggle = (field: keyof PagamentoConfig) => setConfig(c => ({ ...c, [field]: !c[field] }))
 
   if (loading) return <div className="flex justify-center p-10"><Loader2 className="w-6 h-6 animate-spin text-[#C9A227]" /></div>
@@ -148,6 +184,71 @@ export function Configuracoes() {
         <div>
           <h1 className="text-2xl font-semibold text-gray-900">Configurações</h1>
           <p className="text-gray-500 text-sm mt-0.5">Métodos de pagamento e mensagens WhatsApp</p>
+        </div>
+      </div>
+
+      {/* ── CABEÇALHO DO PDF ── */}
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        <div className="flex items-center justify-between p-5 border-b border-gray-100">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-amber-50 flex items-center justify-center">
+              <FileText className="w-5 h-5 text-amber-600" />
+            </div>
+            <div>
+              <p className="font-semibold text-gray-900">Cabeçalho do PDF (Invoice / Estimate)</p>
+              <p className="text-xs text-gray-400">Dados da empresa que aparecem no topo de cada PDF</p>
+            </div>
+          </div>
+          <button onClick={handleSaveEmpresa} disabled={savingEmp} className="flex items-center gap-2 px-4 py-2 bg-amber-600 text-white rounded-xl text-sm font-medium hover:bg-amber-700 disabled:opacity-60">
+            {savingEmp ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Salvar
+          </button>
+        </div>
+        <div className="p-5 space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Nome da empresa</label>
+              <input value={empresa.nome} onChange={e => setEmpresa(m => ({ ...m, nome: e.target.value }))}
+                className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#C9A227]" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Telefone</label>
+              <input value={empresa.telefone} onChange={e => setEmpresa(m => ({ ...m, telefone: e.target.value }))}
+                className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#C9A227]" />
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Endereço</label>
+            <input value={empresa.endereco} onChange={e => setEmpresa(m => ({ ...m, endereco: e.target.value }))}
+              className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#C9A227]" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Cidade / Estado</label>
+            <input value={empresa.cidade_estado} onChange={e => setEmpresa(m => ({ ...m, cidade_estado: e.target.value }))}
+              placeholder="Ex: Framingham MA" className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#C9A227]" />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Email (opcional)</label>
+              <input value={empresa.email} onChange={e => setEmpresa(m => ({ ...m, email: e.target.value }))}
+                className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#C9A227]" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Website (opcional)</label>
+              <input value={empresa.website} onChange={e => setEmpresa(m => ({ ...m, website: e.target.value }))}
+                placeholder="https://..." className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#C9A227]" />
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Mensagem de rodapé do PDF</label>
+            <input value={empresa.footer} onChange={e => setEmpresa(m => ({ ...m, footer: e.target.value }))}
+              placeholder="Thank you for your business!" className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#C9A227]" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">URL da logo (opcional)</label>
+            <input value={empresa.logo_url} onChange={e => setEmpresa(m => ({ ...m, logo_url: e.target.value }))}
+              placeholder="https://... (deixe em branco para usar a logo padrão)" className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#C9A227]" />
+            <p className="text-xs text-gray-400 mt-1">Cole a URL direta de uma imagem hospedada online. Se deixar em branco, usa a logo /logo-bbvic.jpg do sistema.</p>
+          </div>
         </div>
       </div>
 
