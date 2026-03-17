@@ -9,7 +9,7 @@ import { db } from '@/lib/firebase';
 import { formatCurrency } from '@/lib/utils';
 import { toast } from 'sonner';
 import { v4 as uuidv4 } from 'uuid';
-import { Trash2, Search, X, Send, Save, ArrowLeft, Plus, Minus, FileDown, UserPlus } from 'lucide-react';
+import { Trash2, Search, X, Send, Save, ArrowLeft, Plus, Minus, FileDown, UserPlus, Truck, PackageCheck } from 'lucide-react';
 import { gerarPDFFatura } from '@/lib/pdfUtils';
 import type { Cliente, Produto, DocumentItem, Invoice } from '@/types';
 
@@ -139,6 +139,13 @@ export function InvoiceForm() {
   const [dataPagamento, setDataPagamento] = useState<Date | null>(null);
   const [formaPgtoRecebido, setFormaPgtoRecebido] = useState('');
 
+  const [showEnviadoModal, setShowEnviadoModal] = useState(false);
+  const [showEntregueModal, setShowEntregueModal] = useState(false);
+  const [tipoEntregaModal, setTipoEntregaModal] = useState<'pessoal' | 'ups' | ''>('');
+  const [trackingUrlModal, setTrackingUrlModal] = useState('');
+  const [statusEntregaAtual, setStatusEntregaAtual] = useState('');
+  const [salvandoEntrega, setSalvandoEntrega] = useState(false);
+
   useEffect(() => {
     fetchClientes();
     fetchProdutos();
@@ -227,6 +234,8 @@ export function InvoiceForm() {
         const dp = (data as any).data_pagamento;
         setDataPagamento(dp ? (dp?.toDate ? dp.toDate() : new Date(dp)) : null);
         setObservacaoInterna((data as any).observacao_interna || '');
+        setStatusEntregaAtual((data as any).status_entrega || '');
+        setTrackingUrlModal((data as any).tracking_url || '');
         if ((data as any).parcelas_ativo) {
           setParcelasAtivo(true);
           setNumParcelas((data as any).parcelas?.length || 2);
@@ -522,6 +531,59 @@ export function InvoiceForm() {
     finally { setSaving(false); }
   };
 
+  const handleConfirmarEnviado = async () => {
+    if (!tipoEntregaModal) { toast.error('Selecione o tipo de entrega'); return; }
+    if (!id) return;
+    setSalvandoEntrega(true);
+    try {
+      await updateDoc(doc(db, 'invoices', id), {
+        status_entrega: 'enviado',
+        tipo_entrega: tipoEntregaModal,
+        tracking_url: trackingUrlModal,
+        data_envio_entrega: Timestamp.now(),
+        updated_at: Timestamp.now(),
+      });
+      setStatusEntregaAtual('enviado');
+      if (cliente?.telefone) {
+        const phone = cliente.telefone.replace(/\D/g, '');
+        let msg = '';
+        if (tipoEntregaModal === 'ups') {
+          msg = `Olá ${cliente.nome}! 📦 Seu pedido foi enviado via UPS.${trackingUrlModal ? `\n\n🔍 Rastreio: ${trackingUrlModal}` : ''}\n\nQualquer dúvida, estamos à disposição!`;
+        } else {
+          msg = `Olá ${cliente.nome}! 🚗 Seu pedido saiu para entrega pessoal e logo chegará até você!\n\nQualquer dúvida, estamos à disposição!`;
+        }
+        openWhatsApp(`https://wa.me/1${phone}?text=${encodeURIComponent(msg)}`);
+      }
+      toast.success('Pedido marcado como enviado!');
+      setShowEnviadoModal(false);
+    } catch { toast.error('Erro ao salvar'); }
+    finally { setSalvandoEntrega(false); }
+  };
+
+  const handleConfirmarEntregue = async () => {
+    if (!tipoEntregaModal) { toast.error('Selecione o tipo de entrega'); return; }
+    if (!id) return;
+    setSalvandoEntrega(true);
+    try {
+      await updateDoc(doc(db, 'invoices', id), {
+        status_entrega: 'entregue',
+        tipo_entrega: tipoEntregaModal,
+        data_entregue: Timestamp.now(),
+        updated_at: Timestamp.now(),
+      });
+      setStatusEntregaAtual('entregue');
+      if (cliente?.telefone) {
+        const phone = cliente.telefone.replace(/\D/g, '');
+        const tipoStr = tipoEntregaModal === 'ups' ? 'via UPS' : 'por entrega pessoal';
+        const msg = `Olá ${cliente.nome}! ✅ Confirmamos que seu pedido foi entregue ${tipoStr}.\n\nObrigada pela preferência! 💛`;
+        openWhatsApp(`https://wa.me/1${phone}?text=${encodeURIComponent(msg)}`);
+      }
+      toast.success('Pedido marcado como entregue!');
+      setShowEntregueModal(false);
+    } catch { toast.error('Erro ao salvar'); }
+    finally { setSalvandoEntrega(false); }
+  };
+
   if (loading) return (
     <div className="flex items-center justify-center h-96">
       <div className="w-8 h-8 border-2 border-[#C9A227] border-t-transparent rounded-full animate-spin" />
@@ -582,6 +644,12 @@ export function InvoiceForm() {
         <div className="flex-1 min-w-0">
           <h1 className="text-xl font-semibold text-gray-900">{isEditing ? 'Editar Fatura' : 'Nova Fatura'}</h1>
           <p className="text-gray-500 text-xs font-mono">{numero}</p>
+          {isEditing && statusEntregaAtual && (
+            <span className={`inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded-full text-xs font-medium ${statusEntregaAtual === 'entregue' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>
+              {statusEntregaAtual === 'entregue' ? <PackageCheck className="w-3 h-3" /> : <Truck className="w-3 h-3" />}
+              {statusEntregaAtual === 'entregue' ? 'Entregue' : 'Enviado'}
+            </span>
+          )}
         </div>
       </div>
 
@@ -969,6 +1037,24 @@ export function InvoiceForm() {
             <span className="hidden sm:inline">Baixar PDF</span>
             <span className="sm:hidden">PDF</span>
           </button>
+          {isEditing && statusEntregaAtual !== 'entregue' && (
+            <button
+              onClick={() => { setTipoEntregaModal(''); setShowEnviadoModal(true); }}
+              className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl border border-blue-400 text-blue-600 text-sm font-medium hover:bg-blue-50 bg-white"
+            >
+              <Truck className="w-4 h-4" />
+              <span className="hidden sm:inline">{statusEntregaAtual === 'enviado' ? 'Re-Enviado' : 'Enviado'}</span>
+            </button>
+          )}
+          {isEditing && statusEntregaAtual !== 'entregue' && (
+            <button
+              onClick={() => { setTipoEntregaModal(''); setShowEntregueModal(true); }}
+              className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl border border-green-500 text-green-600 text-sm font-medium hover:bg-green-50 bg-white"
+            >
+              <PackageCheck className="w-4 h-4" />
+              <span className="hidden sm:inline">Entregue</span>
+            </button>
+          )}
           <button onClick={handleSend} disabled={saving} className="flex-[2] flex items-center justify-center gap-2 py-3 rounded-xl bg-[#C9A227] text-white text-sm font-bold hover:bg-[#b8911f] disabled:opacity-60 shadow">
             {saving ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <Send className="w-4 h-4" />}
             Enviar WhatsApp
@@ -1005,6 +1091,87 @@ export function InvoiceForm() {
             <button onClick={handleCriarClienteRapido} disabled={savingNovoCliente} className="flex-[2] py-2.5 rounded-xl bg-[#C9A227] text-white text-sm font-bold hover:bg-[#9A7B1A] disabled:opacity-50 flex items-center justify-center gap-2">
               {savingNovoCliente ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"/> : <UserPlus className="w-4 h-4"/>}
               Criar e Selecionar
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+    {/* Modal Enviado */}
+    {showEnviadoModal && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+        <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-sm mx-4 space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2"><Truck className="w-5 h-5 text-blue-500" /> Marcar como Enviado</h3>
+            <button onClick={() => setShowEnviadoModal(false)} className="p-1 text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
+          </div>
+          <p className="text-sm text-gray-500">Como o pedido foi enviado?</p>
+          <div className="flex gap-3">
+            <button
+              onClick={() => setTipoEntregaModal('pessoal')}
+              className={`flex-1 flex flex-col items-center gap-2 py-4 rounded-xl border-2 font-medium text-sm transition-colors ${tipoEntregaModal === 'pessoal' ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600 hover:border-blue-300'}`}
+            >
+              🚗 <span>Entrega Pessoal</span>
+            </button>
+            <button
+              onClick={() => setTipoEntregaModal('ups')}
+              className={`flex-1 flex flex-col items-center gap-2 py-4 rounded-xl border-2 font-medium text-sm transition-colors ${tipoEntregaModal === 'ups' ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600 hover:border-blue-300'}`}
+            >
+              📦 <span>Via UPS</span>
+            </button>
+          </div>
+          {tipoEntregaModal === 'ups' && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Link de rastreio UPS (opcional)</label>
+              <input
+                type="url"
+                value={trackingUrlModal}
+                onChange={e => setTrackingUrlModal(e.target.value)}
+                placeholder="https://www.ups.com/track?tracknum=..."
+                className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-blue-400"
+              />
+            </div>
+          )}
+          {!cliente?.telefone && <p className="text-xs text-orange-500">⚠️ Cliente sem telefone — o WhatsApp não será aberto.</p>}
+          <div className="flex gap-2 pt-1">
+            <button onClick={() => setShowEnviadoModal(false)} className="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-700 text-sm font-medium hover:bg-gray-50">Cancelar</button>
+            <button onClick={handleConfirmarEnviado} disabled={salvandoEntrega || !tipoEntregaModal} className="flex-[2] py-2.5 rounded-xl bg-blue-600 text-white text-sm font-bold hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center gap-2">
+              {salvandoEntrega ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <Truck className="w-4 h-4" />}
+              Confirmar e Notificar
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {/* Modal Entregue */}
+    {showEntregueModal && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+        <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-sm mx-4 space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2"><PackageCheck className="w-5 h-5 text-green-500" /> Marcar como Entregue</h3>
+            <button onClick={() => setShowEntregueModal(false)} className="p-1 text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
+          </div>
+          <p className="text-sm text-gray-500">Como o pedido foi entregue?</p>
+          <div className="flex gap-3">
+            <button
+              onClick={() => setTipoEntregaModal('pessoal')}
+              className={`flex-1 flex flex-col items-center gap-2 py-4 rounded-xl border-2 font-medium text-sm transition-colors ${tipoEntregaModal === 'pessoal' ? 'border-green-500 bg-green-50 text-green-700' : 'border-gray-200 text-gray-600 hover:border-green-300'}`}
+            >
+              🚗 <span>Entrega Pessoal</span>
+            </button>
+            <button
+              onClick={() => setTipoEntregaModal('ups')}
+              className={`flex-1 flex flex-col items-center gap-2 py-4 rounded-xl border-2 font-medium text-sm transition-colors ${tipoEntregaModal === 'ups' ? 'border-green-500 bg-green-50 text-green-700' : 'border-gray-200 text-gray-600 hover:border-green-300'}`}
+            >
+              📦 <span>Via UPS</span>
+            </button>
+          </div>
+          {!cliente?.telefone && <p className="text-xs text-orange-500">⚠️ Cliente sem telefone — o WhatsApp não será aberto.</p>}
+          <div className="flex gap-2 pt-1">
+            <button onClick={() => setShowEntregueModal(false)} className="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-700 text-sm font-medium hover:bg-gray-50">Cancelar</button>
+            <button onClick={handleConfirmarEntregue} disabled={salvandoEntrega || !tipoEntregaModal} className="flex-[2] py-2.5 rounded-xl bg-green-600 text-white text-sm font-bold hover:bg-green-700 disabled:opacity-50 flex items-center justify-center gap-2">
+              {salvandoEntrega ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <PackageCheck className="w-4 h-4" />}
+              Confirmar e Notificar
             </button>
           </div>
         </div>
