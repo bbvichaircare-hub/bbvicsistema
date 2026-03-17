@@ -325,10 +325,10 @@ export function ClienteForm() {
           <div className="bg-green-50 border border-green-200 rounded-xl p-4 space-y-3">
             <p className="text-green-800 font-medium text-sm">✓ Cliente <strong>{savedCliente.nome}</strong> salvo! O que deseja fazer?</p>
             <div className="flex flex-wrap gap-2">
-              <button type="button" onClick={() => navigate(`/orcamentos/novo?cliente_id=${savedCliente.id}&cliente_nome=${encodeURIComponent(savedCliente.nome)}`)} className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700">
+              <button type="button" onClick={() => navigate(`/estimates/novo?cliente_id=${savedCliente.id}&cliente_nome=${encodeURIComponent(savedCliente.nome)}`)} className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700">
                 Criar Orçamento
               </button>
-              <button type="button" onClick={() => navigate(`/faturas/nova?cliente_id=${savedCliente.id}&cliente_nome=${encodeURIComponent(savedCliente.nome)}`)} className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-green-600 text-white text-sm font-medium hover:bg-green-700">
+              <button type="button" onClick={() => navigate(`/invoices/novo?cliente_id=${savedCliente.id}&cliente_nome=${encodeURIComponent(savedCliente.nome)}`)} className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-green-600 text-white text-sm font-medium hover:bg-green-700">
                 Criar Fatura
               </button>
               <button type="button" onClick={() => navigate(`/clientes/${savedCliente.id}`)} className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[#C9A227] text-white text-sm font-medium hover:bg-[#9A7B1A]">
