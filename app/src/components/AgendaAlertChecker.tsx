@@ -50,13 +50,11 @@ export function AgendaAlertChecker() {
 
         const diffMin = (dataEvento.getTime() - agora.getTime()) / 60000
 
-        // Alerta: 30 minutos antes (janela -2 a +2 min para não perder)
         const key30 = `${a.id}_30min_${dataEvento.toISOString().split('T')[0]}`
         if (diffMin >= -2 && diffMin <= 32 && !alertadosRef.current.has(key30)) {
           novosAlertas.push({ id: key30, cliente_nome: a.cliente_nome, servico: a.servico, hora: a.hora, data: dataEvento, tipo: '30min' })
         }
 
-        // Alerta: na hora do agendamento (janela -2 a +5 min)
         const keyNow = `${a.id}_agora_${dataEvento.toISOString().split('T')[0]}`
         if (diffMin >= -2 && diffMin <= 5 && !alertadosRef.current.has(keyNow)) {
           novosAlertas.push({ id: keyNow, cliente_nome: a.cliente_nome, servico: a.servico, hora: a.hora, data: dataEvento, tipo: 'agora' })
@@ -69,8 +67,8 @@ export function AgendaAlertChecker() {
           const reais = novosAlertas.filter(a => !existingIds.has(a.id))
           return reais.length > 0 ? [...prev, ...reais] : prev
         })
-        // Notificação do navegador se permitido
-        if (Notification.permission === 'granted' && novosAlertas.length > 0) {
+        // iOS Safari não suporta Notification API — verificar antes de usar
+        if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
           novosAlertas.forEach(a => {
             new Notification(`📅 Agendamento ${a.tipo === '30min' ? 'em 30 min' : 'AGORA'}`, {
               body: `${a.servico} — ${a.cliente_nome} às ${a.hora}`,
@@ -84,11 +82,10 @@ export function AgendaAlertChecker() {
 
   useEffect(() => {
     if (!user) return
-    // Pedir permissão de notificação do navegador
-    if (Notification.permission === 'default') {
+    // iOS Safari não tem Notification API — verificar antes de usar
+    if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
       Notification.requestPermission()
     }
-    // Verificar imediatamente e depois a cada minuto
     checarAgendamentos()
     const interval = setInterval(checarAgendamentos, 60000)
     return () => clearInterval(interval)
