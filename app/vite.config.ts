@@ -10,4 +10,13 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  build: {
+    // Compatível com Safari 12+ (iOS) e outros browsers modernos
+    target: ['es2015', 'safari12', 'chrome75', 'firefox78', 'edge88'],
+    cssTarget: ['safari12'],
+  },
+  esbuild: {
+    // Garante sintaxe compatível com Safari mais antigo
+    target: 'safari12',
+  },
 })
