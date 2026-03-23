@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { collection, query, where, onSnapshot, orderBy, updateDoc, doc, writeBatch } from 'firebase/firestore';
+import { collection, query, onSnapshot, orderBy, updateDoc, doc, writeBatch } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -22,12 +22,20 @@ export function useNotifications() {
   useEffect(() => {
     if (!user?.uid) return;
 
-    const q = isAdmin
-      ? query(collection(db, 'notificacoes'), orderBy('created_at', 'desc'))
-      : query(collection(db, 'notificacoes'), where('usuario_id', '==', user.uid), orderBy('created_at', 'desc'));
+    // Para admin: busca todas. Para vendedor: busca todas e filtra client-side
+    // (evita erro de índice composto no Firebase)
+    const q = query(collection(db, 'notificacoes'), orderBy('created_at', 'desc'));
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const data = snapshot.docs.map(d => ({ id: d.id, ...d.data() })) as Notificacao[];
+      let data = snapshot.docs.map(d => ({ id: d.id, ...d.data() })) as Notificacao[];
+
+      if (!isAdmin) {
+        // Mostra notificações destinadas ao vendedor OU sem usuario_id (globais)
+        data = data.filter(n =>
+          !n.usuario_id || n.usuario_id === user.uid
+        );
+      }
+
       setNotifications(data);
       setUnreadCount(data.filter(n => !n.lida).length);
       setLoading(false);
