@@ -90,18 +90,33 @@ export function Invoices() {
     if (!user && !isAdmin) return
     try {
       setLoading(true)
-      let snap
+      let list: Invoice[] = []
+
       if (isAdmin) {
-        snap = await getDocs(query(collection(db, 'invoices'), orderBy('created_at', 'desc')))
+        const snap = await getDocs(query(collection(db, 'invoices'), orderBy('created_at', 'desc')))
+        list = snap.docs.map(d => ({ id: d.id, ...d.data() })) as Invoice[]
       } else {
-        snap = await getDocs(query(collection(db, 'invoices'), where('vendedor_id', '==', user!.uid)))
+        const snap1 = await getDocs(query(collection(db, 'invoices'), where('vendedor_id', '==', user!.uid)))
+        const docsComId = snap1.docs.map(d => ({ id: d.id, ...d.data() })) as Invoice[]
+
+        const nome = (user as any)?.nome || ''
+        let docsOrfaos: Invoice[] = []
+        if (nome) {
+          const snap2 = await getDocs(query(collection(db, 'invoices'), where('vendedor_nome', '==', nome), where('vendedor_id', '==', '')))
+          docsOrfaos = snap2.docs.map(d => ({ id: d.id, ...d.data() })) as Invoice[]
+          for (const inv of docsOrfaos) {
+            updateDoc(doc(db, 'invoices', inv.id!), { vendedor_id: user!.uid }).catch(() => {})
+          }
+        }
+
+        list = [...docsComId, ...docsOrfaos]
+        list.sort((a, b) => {
+          const ta = (a as any).created_at?.toDate?.() ?? new Date(0)
+          const tb = (b as any).created_at?.toDate?.() ?? new Date(0)
+          return tb.getTime() - ta.getTime()
+        })
       }
-      const list = snap.docs.map(d => ({ id: d.id, ...d.data() })) as Invoice[]
-      if (!isAdmin) list.sort((a, b) => {
-        const ta = (a as any).created_at?.toDate?.() ?? new Date(0)
-        const tb = (b as any).created_at?.toDate?.() ?? new Date(0)
-        return tb.getTime() - ta.getTime()
-      })
+
       setInvoices(list)
     } catch (err) { console.error('fetchInvoices error:', err) }
     finally { setLoading(false) }

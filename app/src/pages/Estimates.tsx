@@ -13,6 +13,7 @@ import {
   orderBy,
   deleteDoc,
   doc,
+  updateDoc,
   getDoc
 } from "firebase/firestore"
 
@@ -48,18 +49,36 @@ export function Estimates() {
     if (!user && !isAdmin) return
     try {
       setLoading(true)
-      let snapshot
+      let list: Estimate[] = []
+
       if (isAdmin) {
-        snapshot = await getDocs(query(collection(db, "estimates"), orderBy("created_at", "desc")))
+        const snap = await getDocs(query(collection(db, "estimates"), orderBy("created_at", "desc")))
+        list = snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Estimate[]
       } else {
-        snapshot = await getDocs(query(collection(db, "estimates"), where("vendedor_id", "==", user!.uid)))
+        // Busca por vendedor_id correto
+        const snap1 = await getDocs(query(collection(db, "estimates"), where("vendedor_id", "==", user!.uid)))
+        const docsComId = snap1.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Estimate[]
+
+        // Busca documentos antigos que foram salvos sem vendedor_id (por nome)
+        const nome = (user as any)?.nome || ''
+        let docsOrfaos: Estimate[] = []
+        if (nome) {
+          const snap2 = await getDocs(query(collection(db, "estimates"), where("vendedor_nome", "==", nome), where("vendedor_id", "==", "")))
+          docsOrfaos = snap2.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Estimate[]
+          // Auto-corrigir: atualiza os documentos órfãos com o UID correto
+          for (const est of docsOrfaos) {
+            updateDoc(doc(db, "estimates", est.id!), { vendedor_id: user!.uid }).catch(() => {})
+          }
+        }
+
+        list = [...docsComId, ...docsOrfaos]
+        list.sort((a, b) => {
+          const ta = (a as any).created_at?.toDate?.() ?? new Date(0)
+          const tb = (b as any).created_at?.toDate?.() ?? new Date(0)
+          return tb.getTime() - ta.getTime()
+        })
       }
-      const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Estimate[]
-      if (!isAdmin) list.sort((a, b) => {
-        const ta = (a as any).created_at?.toDate?.() ?? new Date(0)
-        const tb = (b as any).created_at?.toDate?.() ?? new Date(0)
-        return tb.getTime() - ta.getTime()
-      })
+
       setEstimates(list)
     } catch (error) {
       console.error("Erro ao buscar orçamentos:", error)
