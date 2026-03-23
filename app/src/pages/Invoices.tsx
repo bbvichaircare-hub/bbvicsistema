@@ -78,6 +78,11 @@ export function Invoices() {
   const [salvandoBaixa, setSalvandoBaixa] = useState(false)
   const [parcialFormaPgto, setParcialFormaPgto] = useState('')
   const [parcialData, setParcialData] = useState(() => new Date().toISOString().split('T')[0])
+  const [parcelarSaldoAtivo, setParcelarSaldoAtivo] = useState(false)
+  const [numParcelasSaldo, setNumParcelasSaldo] = useState(2)
+  const [primeiraDataSaldo, setPrimeiraDataSaldo] = useState(() => {
+    const d = new Date(); d.setMonth(d.getMonth() + 1); return d.toISOString().split('T')[0]
+  })
 
   useEffect(() => { fetchInvoices() }, [user, isAdmin])
 
@@ -177,15 +182,35 @@ export function Invoices() {
     const totalPagoAntes = (modalParcial as any).valor_pago || 0
     const novoTotalPago = totalPagoAntes + valor
     const restante = modalParcial.total - novoTotalPago
-    const novoStatus = restante <= 0.01 ? 'pago' : 'parcial'
+    const novoStatus = restante <= 0.01 ? 'pago' : (parcelarSaldoAtivo ? 'parcial' : 'parcial')
     setSalvandoParcial(true)
     try {
       const dataParcial = parcialData ? Timestamp.fromDate(new Date(parcialData + 'T12:00:00')) : Timestamp.now()
+
+      let novasParcelas: any[] = (modalParcial as any).parcelas || []
+      let parcelasAtivaNova = (modalParcial as any).parcelas_ativo || false
+
+      if (parcelarSaldoAtivo && restante > 0.01 && numParcelasSaldo >= 1) {
+        parcelasAtivaNova = true
+        const valorParcela = Math.round((restante / numParcelasSaldo) * 100) / 100
+        const baseDate = new Date(primeiraDataSaldo + 'T12:00:00')
+        novasParcelas = Array.from({ length: numParcelasSaldo }, (_, i) => {
+          const d = new Date(baseDate)
+          d.setMonth(d.getMonth() + i)
+          const vp = i === numParcelasSaldo - 1
+            ? Math.round((restante - valorParcela * (numParcelasSaldo - 1)) * 100) / 100
+            : valorParcela
+          return { numero: i + 1, valor: vp, data: d.toISOString().split('T')[0], status: 'pendente' }
+        })
+      }
+
       await updateDoc(doc(db, 'invoices', modalParcial.id), {
         valor_pago: novoTotalPago,
         status: novoStatus,
         data_pagamento: novoStatus === 'pago' ? dataParcial : null,
         forma_pagamento_recebido: parcialFormaPgto || undefined,
+        parcelas_ativo: parcelasAtivaNova,
+        parcelas: novasParcelas,
         updated_at: Timestamp.now(),
       })
       // Registrar receita do mês
@@ -225,6 +250,10 @@ export function Invoices() {
       setValorParcial('')
       setParcialFormaPgto('')
       setParcialData(new Date().toISOString().split('T')[0])
+      setParcelarSaldoAtivo(false)
+      setNumParcelasSaldo(2)
+      const nextMonth = new Date(); nextMonth.setMonth(nextMonth.getMonth() + 1)
+      setPrimeiraDataSaldo(nextMonth.toISOString().split('T')[0])
     } catch (e) { console.error(e); alert('Erro ao registrar pagamento') }
     finally { setSalvandoParcial(false) }
   }
@@ -811,8 +840,8 @@ export function Invoices() {
       )}
       {/* Modal Registrar Pagamento Parcial */}
       {modalParcial && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setModalParcial(null)}>
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 space-y-4" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => { setModalParcial(null); setParcelarSaldoAtivo(false) }}>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 space-y-4 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <div>
               <h3 className="text-lg font-bold text-gray-900">Registrar Pagamento</h3>
               <p className="text-sm text-gray-500">{modalParcial.cliente_nome} — {modalParcial.numero}</p>
@@ -869,9 +898,60 @@ export function Invoices() {
               <input type="date" value={parcialData} onChange={e => setParcialData(e.target.value)}
                 className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-gray-900 text-sm focus:outline-none focus:border-[#C9A227]" />
             </div>
+
+            {/* Opção de parcelar saldo restante */}
+            {(() => {
+              const valorAtual = parseFloat(valorParcial) || 0
+              const jaRecebido = (modalParcial as any).valor_pago || 0
+              const saldoAposEste = modalParcial.total - jaRecebido - valorAtual
+              return saldoAposEste > 0.01 ? (
+                <div className="border border-dashed border-[#C9A227] rounded-xl overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => setParcelarSaldoAtivo(v => !v)}
+                    className={`w-full flex items-center justify-between px-4 py-3 text-sm font-medium transition ${parcelarSaldoAtivo ? 'bg-[#C9A227] text-white' : 'bg-[#C9A227]/5 text-[#C9A227] hover:bg-[#C9A227]/10'}`}
+                  >
+                    <span>📋 Parcelar saldo restante ({formatCurrency(saldoAposEste)})</span>
+                    <span>{parcelarSaldoAtivo ? '▲' : '▼'}</span>
+                  </button>
+                  {parcelarSaldoAtivo && (
+                    <div className="p-4 space-y-3 bg-amber-50">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">Número de parcelas</label>
+                        <div className="flex gap-2">
+                          {[2, 3, 4, 6].map(n => (
+                            <button key={n} type="button" onClick={() => setNumParcelasSaldo(n)}
+                              className={`flex-1 py-2 rounded-lg border text-xs font-semibold transition ${numParcelasSaldo === n ? 'bg-[#C9A227] text-white border-[#C9A227]' : 'bg-white text-gray-600 border-gray-200 hover:border-[#C9A227]'}`}>
+                              {n}x
+                            </button>
+                          ))}
+                          <input type="number" min={2} max={24} value={numParcelasSaldo} onChange={e => setNumParcelasSaldo(Math.max(2, parseInt(e.target.value) || 2))}
+                            className="w-14 px-2 py-2 rounded-lg border border-gray-200 text-xs text-center focus:outline-none focus:border-[#C9A227]" />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">Data da 1ª parcela</label>
+                        <input type="date" value={primeiraDataSaldo} onChange={e => setPrimeiraDataSaldo(e.target.value)}
+                          className="w-full px-3 py-2 rounded-lg border border-gray-200 text-xs focus:outline-none focus:border-[#C9A227]" />
+                      </div>
+                      <div className="text-xs text-gray-500 bg-white rounded-lg p-2">
+                        {Array.from({ length: Math.min(numParcelasSaldo, 6) }, (_, i) => {
+                          const valorP = Math.round((saldoAposEste / numParcelasSaldo) * 100) / 100
+                          const d = new Date(primeiraDataSaldo + 'T12:00:00')
+                          d.setMonth(d.getMonth() + i)
+                          return <div key={i}>Parcela {i+1}: {formatCurrency(i === numParcelasSaldo - 1 ? Math.round((saldoAposEste - valorP * (numParcelasSaldo - 1)) * 100) / 100 : valorP)} — {d.toLocaleDateString('pt-BR')}</div>
+                        })}
+                        {numParcelasSaldo > 6 && <div className="text-gray-400">...e mais {numParcelasSaldo - 6} parcelas</div>}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : null
+            })()}
+
             <div className="flex gap-3">
               <button
-                onClick={() => setModalParcial(null)}
+                onClick={() => { setModalParcial(null); setParcelarSaldoAtivo(false) }}
                 className="flex-1 py-3 rounded-xl border border-gray-200 text-gray-700 font-medium hover:bg-gray-50 text-sm"
               >
                 Cancelar
