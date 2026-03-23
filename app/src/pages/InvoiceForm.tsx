@@ -107,6 +107,7 @@ export function InvoiceForm() {
   const [produtoModal, setProdutoModal] = useState<Produto | null>(null);
   const [produtoModalQty, setProdutoModalQty] = useState(1);
   const [produtoModalObs, setProdutoModalObs] = useState('');
+  const [produtoModalPreco, setProdutoModalPreco] = useState(0);
 
   const [numero, setNumero] = useState('');
   const [cliente, setCliente] = useState<Cliente | null>(null);
@@ -144,6 +145,8 @@ export function InvoiceForm() {
   const [tipoEntregaModal, setTipoEntregaModal] = useState<'pessoal' | 'ups' | ''>('');
   const [trackingUrlModal, setTrackingUrlModal] = useState('');
   const [statusEntregaAtual, setStatusEntregaAtual] = useState('');
+  const [tipoEntregaAtual, setTipoEntregaAtual] = useState('');
+  const [trackingAtual, setTrackingAtual] = useState('');
   const [salvandoEntrega, setSalvandoEntrega] = useState(false);
 
   useEffect(() => {
@@ -235,6 +238,8 @@ export function InvoiceForm() {
         setDataPagamento(dp ? (dp?.toDate ? dp.toDate() : new Date(dp)) : null);
         setObservacaoInterna((data as any).observacao_interna || '');
         setStatusEntregaAtual((data as any).status_entrega || '');
+        setTipoEntregaAtual((data as any).tipo_entrega || '');
+        setTrackingAtual((data as any).tracking_url || '');
         setTrackingUrlModal((data as any).tracking_url || '');
         if ((data as any).parcelas_ativo) {
           setParcelasAtivo(true);
@@ -288,8 +293,9 @@ export function InvoiceForm() {
     setSubtotal(sub); setDesconto(desc); setTaxa(tx); setTotal(sub - desc + tx + envio);
   };
 
-  const addItem = (produto: Produto, qty = 1, obs = '') => {
-    setItems(prev => [...prev, { tempId: uuidv4(), produto_id: produto.id!, produto_nome: produto.nome, descricao: obs || produto.descricao || '', quantidade: qty, preco_unitario: produto.preco_venda, desconto: 0, subtotal: qty * produto.preco_venda }]);
+  const addItem = (produto: Produto, qty = 1, obs = '', precoCustom?: number) => {
+    const preco = precoCustom !== undefined ? precoCustom : produto.preco_venda;
+    setItems(prev => [{ tempId: uuidv4(), produto_id: produto.id!, produto_nome: produto.nome, descricao: obs || produto.descricao || '', quantidade: qty, preco_unitario: preco, desconto: 0, subtotal: qty * preco }, ...prev]);
     setSearchProduto(''); setShowProdutoDropdown(false);
   };
 
@@ -297,13 +303,14 @@ export function InvoiceForm() {
     setProdutoModal(produto);
     setProdutoModalQty(1);
     setProdutoModalObs('');
+    setProdutoModalPreco(produto.preco_venda);
     setShowProdutoDropdown(false);
     setSearchProduto('');
   };
 
   const confirmProdutoModal = () => {
     if (!produtoModal) return;
-    addItem(produtoModal, produtoModalQty, produtoModalObs);
+    addItem(produtoModal, produtoModalQty, produtoModalObs, produtoModalPreco);
     setProdutoModal(null);
   };
 
@@ -442,6 +449,7 @@ export function InvoiceForm() {
     setSaving(true);
     try {
       const token = originalToken || uuidv4();
+      let invoiceDocId = id || '';
       if (isEditing && id) {
         const updateData: any = {
           numero, cliente_id: cliente!.id!, cliente_nome: cliente!.nome,
@@ -471,13 +479,15 @@ export function InvoiceForm() {
           updated_at: Timestamp.now(),
         };
         await updateDoc(doc(db, 'invoices', id), updateData);
+        invoiceDocId = id;
       } else {
         const data = { ...buildInvoiceData('enviado'), public_token: token };
         const ref = await addDoc(collection(db, 'invoices'), data);
+        invoiceDocId = ref.id;
         await criarContaReceber(data, ref.id, numero);
         await registrarMovimentosVenda(items);
       }
-      const invoiceUrl = `${window.location.origin}/invoice/${token}`;
+      const invoiceUrl = `${window.location.origin}/invoice/${invoiceDocId}`;
       const dataEnvio = new Date().toLocaleDateString('pt-BR');
       const dataVenc = dataVencimento ? new Date(dataVencimento + 'T12:00:00').toLocaleDateString('pt-BR') : '';
       const squareMsg = squareLink ? `\n\n💳 Pague agora: ${squareLink}` : '';
@@ -500,9 +510,9 @@ export function InvoiceForm() {
         const dpStr = dataPagamento ? dataPagamento.toLocaleDateString('pt-BR') : '';
         const fpStr = formaPgtoRecebido ? ` via ${formaPgtoRecebido}` : '';
         const saldo = Math.max(0, total - valorPago);
-        totalMsgVar = `Total: ${formatCurrency(total)}\n✅ Já pago: ${formatCurrency(valorPago)}${dpStr ? ` em ${dpStr}` : ''}${fpStr}\n💰 Saldo restante: ${formatCurrency(saldo)}\n📅 Vencimento do saldo: ${dataVenc}`;
+        totalMsgVar = `Total: ${formatCurrency(total)}\n✅ Já pago: ${formatCurrency(valorPago)}${dpStr ? ` em ${dpStr}` : ''}${fpStr}\n💰 Saldo restante: ${formatCurrency(saldo)}${dataVenc ? `\n📅 Vencimento do saldo: ${dataVenc}` : ''}`;
       } else {
-        totalMsgVar = `Total: ${formatCurrency(total)}\n📅 Vencimento: ${dataVenc}`;
+        totalMsgVar = `Total: ${formatCurrency(total)}${dataVenc ? `\n📅 Vencimento: ${dataVenc}` : ''}`;
       }
 
       let msgTemplate = `Olá {NOME}!\n\nSegue sua fatura da BBVIC Hair Care:\n{LINK}\n\n{TOTAL_MSG}\nEmitido em: {DATA_ENVIO}`;
@@ -518,7 +528,7 @@ export function InvoiceForm() {
         .replace(/{TOTAL_MSG}/g, totalMsgVar)
         .replace(/{JA_PAGO}/g, valorPago > 0 ? formatCurrency(valorPago) : '')
         .replace(/{SALDO}/g, valorPago > 0 ? formatCurrency(Math.max(0, total - valorPago)) : formatCurrency(total))
-        .replace(/{VENCIMENTO}/g, dataVenc)
+        .replace(/{VENCIMENTO}/g, '')
         .replace(/{DATA_ENVIO}/g, dataEnvio)
         .replace(/{LINK}/g, invoiceUrl)
         .replace(/{CONSULTOR}/g, vendedorNome || '')
@@ -544,6 +554,8 @@ export function InvoiceForm() {
         updated_at: Timestamp.now(),
       });
       setStatusEntregaAtual('enviado');
+      setTipoEntregaAtual(tipoEntregaModal);
+      setTrackingAtual(trackingUrlModal);
       if (cliente?.telefone) {
         const phone = cliente.telefone.replace(/\D/g, '');
         let msg = '';
@@ -572,6 +584,7 @@ export function InvoiceForm() {
         updated_at: Timestamp.now(),
       });
       setStatusEntregaAtual('entregue');
+      setTipoEntregaAtual(tipoEntregaModal);
       if (cliente?.telefone) {
         const phone = cliente.telefone.replace(/\D/g, '');
         const tipoStr = tipoEntregaModal === 'ups' ? 'via UPS' : 'por entrega pessoal';
@@ -993,6 +1006,76 @@ export function InvoiceForm() {
 
       </div>
 
+      {/* ── CARD STATUS DE ENTREGA ── */}
+      {isEditing && (
+        <div className={`rounded-xl border p-4 shadow-sm ${
+          statusEntregaAtual === 'entregue'
+            ? 'bg-green-50 border-green-200'
+            : statusEntregaAtual === 'enviado'
+              ? 'bg-blue-50 border-blue-200'
+              : 'bg-gray-50 border-gray-200'
+        }`}>
+          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-3">Status de Entrega</p>
+          <div className="flex items-center gap-3">
+            {/* Passo 1: Preparando */}
+            <div className="flex flex-col items-center gap-1">
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
+                statusEntregaAtual ? 'bg-[#C9A227] text-white' : 'bg-gray-200 text-gray-500'
+              }`}>✓</div>
+              <span className="text-xs text-gray-500 text-center leading-tight">Fatura<br/>Criada</span>
+            </div>
+            <div className={`flex-1 h-1 rounded-full ${statusEntregaAtual === 'enviado' || statusEntregaAtual === 'entregue' ? 'bg-blue-400' : 'bg-gray-200'}`} />
+            {/* Passo 2: Enviado */}
+            <div className="flex flex-col items-center gap-1">
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                statusEntregaAtual === 'enviado' || statusEntregaAtual === 'entregue'
+                  ? 'bg-blue-500 text-white'
+                  : 'bg-gray-200 text-gray-400'
+              }`}>
+                <Truck className="w-4 h-4" />
+              </div>
+              <span className="text-xs text-center leading-tight font-medium" style={{ color: statusEntregaAtual === 'enviado' || statusEntregaAtual === 'entregue' ? '#3b82f6' : '#9ca3af' }}>Enviado</span>
+            </div>
+            <div className={`flex-1 h-1 rounded-full ${statusEntregaAtual === 'entregue' ? 'bg-green-400' : 'bg-gray-200'}`} />
+            {/* Passo 3: Entregue */}
+            <div className="flex flex-col items-center gap-1">
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                statusEntregaAtual === 'entregue'
+                  ? 'bg-green-500 text-white'
+                  : 'bg-gray-200 text-gray-400'
+              }`}>
+                <PackageCheck className="w-4 h-4" />
+              </div>
+              <span className="text-xs text-center leading-tight font-medium" style={{ color: statusEntregaAtual === 'entregue' ? '#16a34a' : '#9ca3af' }}>Entregue</span>
+            </div>
+          </div>
+
+          {/* Detalhes do status atual */}
+          {statusEntregaAtual === 'enviado' && (
+            <div className="mt-3 pt-3 border-t border-blue-200 space-y-1">
+              <p className="text-sm text-blue-700 font-medium">
+                📦 Pedido enviado via {tipoEntregaAtual === 'ups' ? 'UPS' : tipoEntregaAtual === 'pessoal' ? 'Entrega Pessoal' : '—'}
+              </p>
+              {trackingAtual && (
+                <a href={trackingAtual} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 underline break-all">
+                  🔍 Rastrear pedido: {trackingAtual}
+                </a>
+              )}
+            </div>
+          )}
+          {statusEntregaAtual === 'entregue' && (
+            <div className="mt-3 pt-3 border-t border-green-200">
+              <p className="text-sm text-green-700 font-medium">
+                ✅ Pedido entregue via {tipoEntregaAtual === 'ups' ? 'UPS' : tipoEntregaAtual === 'pessoal' ? 'Entrega Pessoal' : '—'}
+              </p>
+            </div>
+          )}
+          {!statusEntregaAtual && (
+            <p className="mt-3 text-xs text-gray-400">Use os botões <strong>Enviado</strong> ou <strong>Entregue</strong> na barra abaixo para atualizar o status.</p>
+          )}
+        </div>
+      )}
+
       {/* Modal de seleção de produto */}
       {produtoModal && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setProdutoModal(null)}>
@@ -1000,9 +1083,32 @@ export function InvoiceForm() {
             <div className="flex items-center justify-between mb-4">
               <div>
                 <h3 className="font-bold text-gray-900">{produtoModal.nome}</h3>
-                <p className="text-sm text-[#C9A227] font-semibold">{formatCurrency(produtoModal.preco_venda)}</p>
+                <p className="text-xs text-gray-400">Preço padrão: {formatCurrency(produtoModal.preco_venda)}</p>
               </div>
               <button onClick={() => setProdutoModal(null)} className="p-2 hover:bg-gray-100 rounded-xl"><X className="w-4 h-4" /></button>
+            </div>
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Preço unitário</label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-medium">$</span>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={produtoModalPreco}
+                  onChange={e => setProdutoModalPreco(parseFloat(e.target.value) || 0)}
+                  className="w-full pl-7 pr-4 py-2.5 rounded-xl border border-gray-200 text-gray-900 text-lg font-semibold focus:outline-none focus:border-[#C9A227]"
+                />
+              </div>
+              {produtoModalPreco !== produtoModal.preco_venda && (
+                <button
+                  type="button"
+                  onClick={() => setProdutoModalPreco(produtoModal.preco_venda)}
+                  className="text-xs text-[#C9A227] mt-1 hover:underline"
+                >
+                  Restaurar preço padrão ({formatCurrency(produtoModal.preco_venda)})
+                </button>
+              )}
             </div>
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 mb-1">Quantidade</label>
@@ -1011,7 +1117,7 @@ export function InvoiceForm() {
                 <input type="number" min="1" value={produtoModalQty} onChange={e => setProdutoModalQty(Math.max(1, parseInt(e.target.value) || 1))} className="w-20 text-center text-lg font-bold border border-gray-200 rounded-xl py-2 focus:outline-none focus:border-[#C9A227]" />
                 <button onClick={() => setProdutoModalQty(q => q + 1)} className="w-9 h-9 rounded-xl border border-gray-200 flex items-center justify-center hover:bg-gray-100"><Plus className="w-4 h-4" /></button>
               </div>
-              <p className="text-xs text-gray-400 mt-1">Subtotal: <span className="font-semibold text-[#C9A227]">{formatCurrency(produtoModal.preco_venda * produtoModalQty)}</span></p>
+              <p className="text-xs text-gray-400 mt-1">Subtotal: <span className="font-semibold text-[#C9A227]">{formatCurrency(produtoModalPreco * produtoModalQty)}</span></p>
             </div>
             <div className="mb-5">
               <label className="block text-sm font-medium text-gray-700 mb-1">Observação do item <span className="text-gray-400 font-normal">(aparece na nota)</span></label>
@@ -1061,10 +1167,9 @@ export function InvoiceForm() {
           </button>
         </div>
       </div>
-
     </div>
 
-    {/* Modal Novo Cliente Rápido */}
+      {/* Modal Novo Cliente Rápido */}
     {showNovoClienteModal && (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
         <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-sm mx-4 space-y-4">
