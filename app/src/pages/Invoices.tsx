@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
-import { collection, query, where, getDocs, orderBy, updateDoc, doc, addDoc, Timestamp, getDoc, deleteDoc } from 'firebase/firestore'
+import { collection, query, where, getDocs, orderBy, updateDoc, doc, addDoc, Timestamp, getDoc, deleteDoc, deleteField } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { isAtrasada } from '@/lib/kpiUtils'
 import { formatCurrency } from '@/lib/utils'
@@ -208,7 +208,7 @@ export function Invoices() {
         valor_pago: novoTotalPago,
         status: novoStatus,
         data_pagamento: novoStatus === 'pago' ? dataParcial : null,
-        forma_pagamento_recebido: parcialFormaPgto || undefined,
+        forma_pagamento_recebido: parcialFormaPgto || '',
         parcelas_ativo: parcelasAtivaNova,
         parcelas: novasParcelas,
         updated_at: Timestamp.now(),
@@ -341,7 +341,7 @@ export function Invoices() {
         valor_pago: novoTotalPago,
         status: novoStatus,
         data_pagamento: novoStatus === 'pago' ? dataPgto : null,
-        forma_pagamento_recebido: novoStatus === 'pago' ? parcelaForma : undefined,
+        ...(novoStatus === 'pago' ? { forma_pagamento_recebido: parcelaForma } : { forma_pagamento_recebido: deleteField() }),
         updated_at: Timestamp.now(),
       })
       const agora = parcelaDataPgto ? new Date(parcelaDataPgto + 'T12:00:00') : new Date()
