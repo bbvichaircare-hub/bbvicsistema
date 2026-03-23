@@ -8,7 +8,6 @@ import { useAuth } from "@/contexts/AuthContext"
 import {
   collection,
   query,
-  where,
   getDocs,
   orderBy,
   deleteDoc,
@@ -46,32 +45,28 @@ export function Estimates() {
   }, [user, isAdmin])
 
   const fetchEstimates = async () => {
-    if (!user && !isAdmin) return
+    if (!user) return
     try {
       setLoading(true)
-      let list: Estimate[] = []
+      const snapshot = await getDocs(isAdmin
+        ? query(collection(db, "estimates"), orderBy("created_at", "desc"))
+        : collection(db, "estimates")
+      )
+      let list = snapshot.docs.map(d => ({ id: d.id, ...d.data() })) as Estimate[]
 
-      if (isAdmin) {
-        const snap = await getDocs(query(collection(db, "estimates"), orderBy("created_at", "desc")))
-        list = snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Estimate[]
-      } else {
-        // Busca por vendedor_id correto
-        const snap1 = await getDocs(query(collection(db, "estimates"), where("vendedor_id", "==", user!.uid)))
-        const docsComId = snap1.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Estimate[]
-
-        // Busca documentos antigos que foram salvos sem vendedor_id (por nome)
-        const nome = (user as any)?.nome || ''
-        let docsOrfaos: Estimate[] = []
-        if (nome) {
-          const snap2 = await getDocs(query(collection(db, "estimates"), where("vendedor_nome", "==", nome), where("vendedor_id", "==", "")))
-          docsOrfaos = snap2.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Estimate[]
-          // Auto-corrigir: atualiza os documentos órfãos com o UID correto
-          for (const est of docsOrfaos) {
-            updateDoc(doc(db, "estimates", est.id!), { vendedor_id: user!.uid }).catch(() => {})
+      if (!isAdmin) {
+        const uid = user.uid
+        const nome = ((user as any)?.nome || '').toLowerCase().trim()
+        list = list.filter(est => {
+          const estVendId = ((est as any).vendedor_id || '').trim()
+          const estVendNome = ((est as any).vendedor_nome || '').toLowerCase().trim()
+          return estVendId === uid || (nome && estVendNome === nome)
+        })
+        list.forEach(est => {
+          if ((est as any).vendedor_id !== uid) {
+            updateDoc(doc(db, "estimates", est.id!), { vendedor_id: uid }).catch(() => {})
           }
-        }
-
-        list = [...docsComId, ...docsOrfaos]
+        })
         list.sort((a, b) => {
           const ta = (a as any).created_at?.toDate?.() ?? new Date(0)
           const tb = (b as any).created_at?.toDate?.() ?? new Date(0)

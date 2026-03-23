@@ -87,29 +87,29 @@ export function Invoices() {
   useEffect(() => { fetchInvoices() }, [user, isAdmin])
 
   const fetchInvoices = async () => {
-    if (!user && !isAdmin) return
+    if (!user) return
     try {
       setLoading(true)
-      let list: Invoice[] = []
+      const snap = await getDocs(isAdmin
+        ? query(collection(db, 'invoices'), orderBy('created_at', 'desc'))
+        : collection(db, 'invoices')
+      )
+      let list = snap.docs.map(d => ({ id: d.id, ...d.data() })) as Invoice[]
 
-      if (isAdmin) {
-        const snap = await getDocs(query(collection(db, 'invoices'), orderBy('created_at', 'desc')))
-        list = snap.docs.map(d => ({ id: d.id, ...d.data() })) as Invoice[]
-      } else {
-        const snap1 = await getDocs(query(collection(db, 'invoices'), where('vendedor_id', '==', user!.uid)))
-        const docsComId = snap1.docs.map(d => ({ id: d.id, ...d.data() })) as Invoice[]
-
-        const nome = (user as any)?.nome || ''
-        let docsOrfaos: Invoice[] = []
-        if (nome) {
-          const snap2 = await getDocs(query(collection(db, 'invoices'), where('vendedor_nome', '==', nome), where('vendedor_id', '==', '')))
-          docsOrfaos = snap2.docs.map(d => ({ id: d.id, ...d.data() })) as Invoice[]
-          for (const inv of docsOrfaos) {
-            updateDoc(doc(db, 'invoices', inv.id!), { vendedor_id: user!.uid }).catch(() => {})
+      if (!isAdmin) {
+        const uid = user.uid
+        const nome = ((user as any)?.nome || '').toLowerCase().trim()
+        list = list.filter(inv => {
+          const invVendId = ((inv as any).vendedor_id || '').trim()
+          const invVendNome = ((inv as any).vendedor_nome || '').toLowerCase().trim()
+          return invVendId === uid || (nome && invVendNome === nome)
+        })
+        // Auto-corrigir documentos com vendedor_id errado/vazio
+        list.forEach(inv => {
+          if ((inv as any).vendedor_id !== uid) {
+            updateDoc(doc(db, 'invoices', inv.id!), { vendedor_id: uid }).catch(() => {})
           }
-        }
-
-        list = [...docsComId, ...docsOrfaos]
+        })
         list.sort((a, b) => {
           const ta = (a as any).created_at?.toDate?.() ?? new Date(0)
           const tb = (b as any).created_at?.toDate?.() ?? new Date(0)
