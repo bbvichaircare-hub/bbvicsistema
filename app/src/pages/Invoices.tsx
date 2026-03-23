@@ -89,11 +89,19 @@ export function Invoices() {
   const fetchInvoices = async () => {
     try {
       setLoading(true)
-      const q = isAdmin
-        ? query(collection(db, 'invoices'), orderBy('created_at', 'desc'))
-        : query(collection(db, 'invoices'), where('vendedor_id', '==', user?.uid), orderBy('created_at', 'desc'))
-      const snap = await getDocs(q)
-      setInvoices(snap.docs.map(d => ({ id: d.id, ...d.data() })) as Invoice[])
+      let snap
+      if (isAdmin) {
+        snap = await getDocs(query(collection(db, 'invoices'), orderBy('created_at', 'desc')))
+      } else {
+        snap = await getDocs(query(collection(db, 'invoices'), where('vendedor_id', '==', user?.uid)))
+      }
+      const list = snap.docs.map(d => ({ id: d.id, ...d.data() })) as Invoice[]
+      if (!isAdmin) list.sort((a, b) => {
+        const ta = (a as any).created_at?.toDate?.() ?? new Date(0)
+        const tb = (b as any).created_at?.toDate?.() ?? new Date(0)
+        return tb.getTime() - ta.getTime()
+      })
+      setInvoices(list)
     } catch (err) { console.error(err) }
     finally { setLoading(false) }
   }
