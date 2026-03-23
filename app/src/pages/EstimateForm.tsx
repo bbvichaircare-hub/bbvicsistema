@@ -98,6 +98,7 @@ export function EstimateForm() {
   const [produtoModal, setProdutoModal] = useState<any | null>(null);
   const [produtoModalQty, setProdutoModalQty] = useState(1);
   const [produtoModalObs, setProdutoModalObs] = useState('');
+  const [produtoModalPreco, setProdutoModalPreco] = useState(0);
 
   const subtotal = items.reduce((a, i) => a + i.subtotal, 0)
   const desconto = descontoTipo === 'valor'
@@ -255,16 +256,17 @@ export function EstimateForm() {
     return terms.every(t => haystack.includes(t));
   });
 
-  const addItem = (produto: Produto, qty = 1, obs = '') => {
-    setItems([...items, {
+  const addItem = (produto: Produto, qty = 1, obs = '', precoCustom?: number) => {
+    const preco = precoCustom !== undefined ? precoCustom : produto.preco_venda;
+    setItems([{
       tempId: uuidv4(),
       produto_id: produto.id!,
       produto_nome: produto.nome,
       descricao: obs || produto.descricao || '',
       quantidade: qty,
-      preco_unitario: produto.preco_venda,
-      subtotal: qty * produto.preco_venda,
-    }])
+      preco_unitario: preco,
+      subtotal: qty * preco,
+    }, ...items])
     setSearchProduto(''); setShowProdutoDropdown(false)
   }
 
@@ -272,13 +274,14 @@ export function EstimateForm() {
     setProdutoModal(produto);
     setProdutoModalQty(1);
     setProdutoModalObs('');
+    setProdutoModalPreco(produto.preco_venda);
     setShowProdutoDropdown(false);
     setSearchProduto('');
   };
 
   const confirmProdutoModal = () => {
     if (!produtoModal) return;
-    addItem(produtoModal, produtoModalQty, produtoModalObs);
+    addItem(produtoModal, produtoModalQty, produtoModalObs, produtoModalPreco);
     setProdutoModal(null);
   };
 
@@ -389,6 +392,7 @@ export function EstimateForm() {
     setSaving(true)
     try {
       const token = originalToken || uuidv4()
+      let estimateDocId = id || ''
       if (isEditing) {
         const updateData: any = {
           numero,
@@ -418,11 +422,13 @@ export function EstimateForm() {
           updated_at: Timestamp.now(),
         }
         await updateDoc(doc(db, 'estimates', id!), updateData)
+        estimateDocId = id!
       } else {
         const data = buildData('enviado', token)
-        await addDoc(collection(db, 'estimates'), data)
+        const ref = await addDoc(collection(db, 'estimates'), data)
+        estimateDocId = ref.id
       }
-      const estimateUrl = `${window.location.origin}/estimate/${token}`
+      const estimateUrl = `${window.location.origin}/estimate/${estimateDocId}`
       const dataEnvio = new Date().toLocaleDateString('pt-BR')
       const dataVal = dataValidade ? new Date(dataValidade + 'T12:00:00').toLocaleDateString('pt-BR') : ''
 
@@ -782,9 +788,32 @@ export function EstimateForm() {
             <div className="flex items-center justify-between mb-4">
               <div>
                 <h3 className="font-bold text-gray-900">{produtoModal.nome}</h3>
-                <p className="text-sm text-[#C9A227] font-semibold">${(produtoModal.preco_venda || 0).toFixed(2)}</p>
+                <p className="text-xs text-gray-400">Preço padrão: ${(produtoModal.preco_venda || 0).toFixed(2)}</p>
               </div>
               <button onClick={() => setProdutoModal(null)} className="p-2 hover:bg-gray-100 rounded-xl">✕</button>
+            </div>
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Preço unitário</label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-medium">$</span>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={produtoModalPreco}
+                  onChange={e => setProdutoModalPreco(parseFloat(e.target.value) || 0)}
+                  className="w-full pl-7 pr-4 py-2.5 rounded-xl border border-gray-200 text-gray-900 text-lg font-semibold focus:outline-none focus:border-[#C9A227]"
+                />
+              </div>
+              {produtoModalPreco !== produtoModal.preco_venda && (
+                <button
+                  type="button"
+                  onClick={() => setProdutoModalPreco(produtoModal.preco_venda)}
+                  className="text-xs text-[#C9A227] mt-1 hover:underline"
+                >
+                  Restaurar preço padrão (${(produtoModal.preco_venda || 0).toFixed(2)})
+                </button>
+              )}
             </div>
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 mb-1">Quantidade</label>
@@ -793,7 +822,7 @@ export function EstimateForm() {
                 <input type="number" min="1" value={produtoModalQty} onChange={e => setProdutoModalQty(Math.max(1, parseInt(e.target.value) || 1))} className="w-20 text-center text-lg font-bold border border-gray-200 rounded-xl py-2 focus:outline-none focus:border-[#C9A227]" />
                 <button onClick={() => setProdutoModalQty(q => q + 1)} className="w-9 h-9 rounded-xl border border-gray-200 flex items-center justify-center hover:bg-gray-100">+</button>
               </div>
-              <p className="text-xs text-gray-400 mt-1">Subtotal: <span className="font-semibold text-[#C9A227]">${(produtoModal.preco_venda * produtoModalQty).toFixed(2)}</span></p>
+              <p className="text-xs text-gray-400 mt-1">Subtotal: <span className="font-semibold text-[#C9A227]">${(produtoModalPreco * produtoModalQty).toFixed(2)}</span></p>
             </div>
             <div className="mb-5">
               <label className="block text-sm font-medium text-gray-700 mb-1">Observação do item <span className="text-gray-400 font-normal">(aparece na nota)</span></label>
@@ -870,3 +899,5 @@ export function EstimateForm() {
     </>
   )
 }
+
+
