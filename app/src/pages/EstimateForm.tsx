@@ -143,9 +143,6 @@ export function EstimateForm() {
     loadProdutos()
     if (isAdmin) {
       getVendedores().then(vs => setVendedores(vs as VendedorOpt[]))
-    } else {
-      setVendedorId(user?.uid || '')
-      setVendedorNome((user as any)?.nome || '')
     }
     if (!isEditing) {
       const now = new Date()
@@ -155,6 +152,13 @@ export function EstimateForm() {
       loadEstimate()
     }
   }, [id])
+
+  useEffect(() => {
+    if (!isAdmin && user?.uid) {
+      setVendedorId(user.uid)
+      setVendedorNome((user as any)?.nome || '')
+    }
+  }, [user, isAdmin])
 
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {

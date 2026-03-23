@@ -32,20 +32,21 @@ export function InvoicePublic() {
   const fetchAll = async (publicToken: string) => {
     try {
       setLoading(true)
-      const [configSnap, invoicesSnap] = await Promise.all([
+      // Busca direta pelo ID do documento (mais confiável para usuários não autenticados)
+      const [configSnap, directSnap] = await Promise.all([
         getDoc(doc(db, 'configuracoes', 'pagamentos')),
-        getDocs(query(collection(db, 'invoices'), where('public_token', '==', publicToken)))
+        getDoc(doc(db, 'invoices', publicToken))
       ])
       if (configSnap.exists()) setPagConfig(configSnap.data() as PagConfig)
 
       let invoiceDoc: any = null
-      if (!invoicesSnap.empty) {
-        invoiceDoc = invoicesSnap.docs[0]
+      if (directSnap.exists()) {
+        invoiceDoc = directSnap
       } else {
-        // Fallback: tenta buscar pelo ID do documento diretamente
-        const directSnap = await getDoc(doc(db, 'invoices', publicToken))
-        if (directSnap.exists()) {
-          invoiceDoc = directSnap
+        // Fallback: busca pelo campo public_token (links antigos)
+        const invoicesSnap = await getDocs(query(collection(db, 'invoices'), where('public_token', '==', publicToken)))
+        if (!invoicesSnap.empty) {
+          invoiceDoc = invoicesSnap.docs[0]
         } else {
           setError('Fatura não encontrada')
           return
@@ -61,12 +62,16 @@ export function InvoicePublic() {
         setMetodoSelecionado('square')
         setInstrucoesPagamento(true)
       }
-      await updateDoc(doc(db, 'invoices', d.id), { visualizado: true, visualizado_count: increment(1), visualizado_em: Timestamp.now() })
-      await addDoc(collection(db, 'notificacoes'), {
-        tipo: 'invoice_visualizado', titulo: '👁️ Fatura visualizada',
-        mensagem: `${invoiceData.cliente_nome} visualizou a fatura ${invoiceData.numero}`,
-        invoice_id: d.id, cliente_nome: invoiceData.cliente_nome,
-        usuario_id: (invoiceData as any).vendedor_id || '', lida: false, created_at: Timestamp.now(),
+      // Tracking separado — não bloqueia exibição da fatura se falhar
+      updateDoc(doc(db, 'invoices', d.id), {
+        visualizado: true, visualizado_count: increment(1), visualizado_em: Timestamp.now()
+      }).then(() => {
+        addDoc(collection(db, 'notificacoes'), {
+          tipo: 'invoice_visualizado', titulo: '👁️ Fatura visualizada',
+          mensagem: `${invoiceData.cliente_nome} visualizou a fatura ${invoiceData.numero}`,
+          invoice_id: d.id, cliente_nome: invoiceData.cliente_nome,
+          usuario_id: (invoiceData as any).vendedor_id || '', lida: false, created_at: Timestamp.now(),
+        }).catch(() => {})
       }).catch(() => {})
     } catch { setError('Erro ao carregar fatura') }
     finally { setLoading(false) }
@@ -76,19 +81,23 @@ export function InvoicePublic() {
     if (!invoice) return
     setConfirmando(true)
     try {
-      await updateDoc(doc(db, 'invoices', invoiceId), {
+      // Atualiza Firestore — não-bloqueante para não travar a UI se falhar permissão
+      updateDoc(doc(db, 'invoices', invoiceId), {
         metodo_pagamento_escolhido: metodo,
         metodo_pagamento_em: Timestamp.now(),
         status: metodo === 'square' ? invoice.status : 'aguardando_confirmacao',
-      })
-      await addDoc(collection(db, 'notificacoes'), {
+      }).catch(() => {})
+
+      // Notificação — sempre não-bloqueante
+      addDoc(collection(db, 'notificacoes'), {
         tipo: 'pagamento_escolhido',
         titulo: metodo === 'cash' ? '💵 Pagamento em Cash' : metodo === 'square' ? '💳 Pagando via Square' : `📲 Pagando via ${METODO_LABEL[metodo]}`,
         mensagem: `${invoice.cliente_nome} escolheu pagar a fatura ${invoice.numero} via ${METODO_LABEL[metodo]}. Valor: ${formatCurrency(invoice.total)}`,
         invoice_id: invoiceId, cliente_nome: invoice.cliente_nome,
         metodo_pagamento: metodo, valor: invoice.total,
         usuario_id: (invoice as any).vendedor_id || '', lida: false, created_at: Timestamp.now(),
-      })
+      }).catch(() => {})
+
       if (metodo === 'square') {
         const squareUrl = (invoice as any).square_link || pagConfig.square_link_padrao
         if (squareUrl) {
@@ -99,29 +108,24 @@ export function InvoicePublic() {
         setMetodoSelecionado('square')
         setInstrucoesPagamento(true)
       } else {
-        // Venmo / Zelle / Cash: apenas mostra instruções, NÃO confirma pagamento
         setMetodoSelecionado(metodo)
         setInstrucoesPagamento(true)
 
-        // Venmo: abre app com valor pré-preenchido
         if (metodo === 'venmo' && pagConfig.venmo_username) {
           const amount = (balanceDue > 0 ? balanceDue : invoice.total).toFixed(2)
           const note = encodeURIComponent(`Fatura ${invoice.numero} - BBVIC`)
           const username = pagConfig.venmo_username.replace('@', '')
-          // tenta app nativo primeiro, cai no web
           const deepLink = `venmo://paycharge?txn=pay&recipients=${username}&amount=${amount}&note=${note}`
           const webLink = `https://venmo.com/${username}?txn=pay&amount=${amount}&note=${note}`
           const a = document.createElement('a')
           a.href = deepLink; document.body.appendChild(a); a.click()
           setTimeout(() => { document.body.removeChild(a) }, 100)
-          // fallback web após 1.5s se app não abrir
           setTimeout(() => {
             const b = document.createElement('a'); b.href = webLink; b.target = '_blank'; b.rel = 'noopener noreferrer'
             document.body.appendChild(b); b.click(); setTimeout(() => document.body.removeChild(b), 100)
           }, 1500)
         }
 
-        // Zelle: abre zellepay.com
         if (metodo === 'zelle' && pagConfig.zelle_info) {
           const a = document.createElement('a')
           a.href = 'https://www.zellepay.com'; a.target = '_blank'; a.rel = 'noopener noreferrer'

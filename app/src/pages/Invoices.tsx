@@ -87,13 +87,14 @@ export function Invoices() {
   useEffect(() => { fetchInvoices() }, [user, isAdmin])
 
   const fetchInvoices = async () => {
+    if (!user && !isAdmin) return
     try {
       setLoading(true)
       let snap
       if (isAdmin) {
         snap = await getDocs(query(collection(db, 'invoices'), orderBy('created_at', 'desc')))
       } else {
-        snap = await getDocs(query(collection(db, 'invoices'), where('vendedor_id', '==', user?.uid)))
+        snap = await getDocs(query(collection(db, 'invoices'), where('vendedor_id', '==', user!.uid)))
       }
       const list = snap.docs.map(d => ({ id: d.id, ...d.data() })) as Invoice[]
       if (!isAdmin) list.sort((a, b) => {
@@ -102,7 +103,7 @@ export function Invoices() {
         return tb.getTime() - ta.getTime()
       })
       setInvoices(list)
-    } catch (err) { console.error(err) }
+    } catch (err) { console.error('fetchInvoices error:', err) }
     finally { setLoading(false) }
   }
 

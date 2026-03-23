@@ -35,22 +35,23 @@ export default function EstimatePublic() {
 
   const loadEstimate = async () => {
     try {
-      const q = query(collection(db, 'estimates'), where('public_token', '==', token))
-      const snap = await getDocs(q)
+      // Busca direta pelo ID do documento (mais confiável para usuários não autenticados)
+      const directSnap = await getDoc(doc(db, 'estimates', token!))
 
       let docId = ''
       let data: any = null
 
-      if (!snap.empty) {
-        const d = snap.docs[0]
-        docId = d.id
-        data = d.data()
+      if (directSnap.exists()) {
+        docId = directSnap.id
+        data = directSnap.data()
       } else {
-        // Fallback: busca pelo ID do documento diretamente
-        const directSnap = await getDoc(doc(db, 'estimates', token!))
-        if (directSnap.exists()) {
-          docId = directSnap.id
-          data = directSnap.data()
+        // Fallback: busca pelo campo public_token (links antigos)
+        const q = query(collection(db, 'estimates'), where('public_token', '==', token))
+        const snap = await getDocs(q)
+        if (!snap.empty) {
+          const d = snap.docs[0]
+          docId = d.id
+          data = d.data()
         } else {
           setErrorMsg('Orçamento não encontrado')
           return

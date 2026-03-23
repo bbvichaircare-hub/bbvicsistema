@@ -154,12 +154,16 @@ export function InvoiceForm() {
     fetchProdutos();
     if (isAdmin) {
       getVendedores().then(vs => setVendedores(vs as VendedorOpt[]));
-    } else {
-      setVendedorId(user?.uid || '');
-      setVendedorNome((user as any)?.nome || '');
     }
     if (!isEditing) { generateInvoiceNumber(); applyPaymentTerms('Net 7 dias'); }
   }, []);
+
+  useEffect(() => {
+    if (!isAdmin && user?.uid) {
+      setVendedorId(user.uid);
+      setVendedorNome((user as any)?.nome || '');
+    }
+  }, [user, isAdmin]);
 
   useEffect(() => { if (isEditing && id) fetchInvoice(id); }, [id]);
   useEffect(() => { calcularTotais(); }, [items, descontoInput, taxaInput, taxaEnvioInput, descontoTipo]);

@@ -45,13 +45,14 @@ export function Estimates() {
   }, [user, isAdmin])
 
   const fetchEstimates = async () => {
+    if (!user && !isAdmin) return
     try {
       setLoading(true)
       let snapshot
       if (isAdmin) {
         snapshot = await getDocs(query(collection(db, "estimates"), orderBy("created_at", "desc")))
       } else {
-        snapshot = await getDocs(query(collection(db, "estimates"), where("vendedor_id", "==", user?.uid)))
+        snapshot = await getDocs(query(collection(db, "estimates"), where("vendedor_id", "==", user!.uid)))
       }
       const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Estimate[]
       if (!isAdmin) list.sort((a, b) => {
@@ -63,11 +64,8 @@ export function Estimates() {
     } catch (error) {
       console.error("Erro ao buscar orçamentos:", error)
     } finally {
-
       setLoading(false)
-
     }
-
   }
 
   const handleDelete = async () => {
