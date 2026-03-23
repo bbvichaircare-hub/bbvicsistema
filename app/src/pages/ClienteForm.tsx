@@ -7,6 +7,8 @@ import { toast } from 'sonner';
 import { Save, Loader2, ArrowLeft, User, Building2 } from 'lucide-react';
 import type { Cliente } from '@/types';
 
+interface VendedorOpt { uid: string; nome: string }
+
 const US_STATES = [
   'AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA',
   'KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ',
@@ -17,12 +19,14 @@ const US_STATES = [
 export function ClienteForm() {
   const navigate = useNavigate();
   const { id } = useParams();
-  const { user } = useAuth();
+  const { user, isAdmin, getVendedores } = useAuth();
   const isEditing = !!id;
 
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [savedCliente, setSavedCliente] = useState<{id:string, nome:string} | null>(null);
+  const [vendedores, setVendedores] = useState<VendedorOpt[]>([]);
+  const [vendedorIdSelecionado, setVendedorIdSelecionado] = useState('');
 
   const [formData, setFormData] = useState<Partial<Cliente>>({
     nome: '',
@@ -40,13 +44,20 @@ export function ClienteForm() {
 
   useEffect(() => {
     if (isEditing && id) fetchCliente(id);
+    if (isAdmin) {
+      getVendedores().then(vs => setVendedores(vs as VendedorOpt[]));
+    }
   }, [id]);
 
   const fetchCliente = async (clienteId: string) => {
     try {
       setLoading(true);
       const docSnap = await getDoc(doc(db, 'clientes', clienteId));
-      if (docSnap.exists()) setFormData(docSnap.data() as Cliente);
+      if (docSnap.exists()) {
+        const data = docSnap.data() as any;
+        setFormData(data as Cliente);
+        if (data.vendedor_id) setVendedorIdSelecionado(data.vendedor_id);
+      }
     } catch {
       toast.error('Erro ao carregar cliente');
     } finally {
@@ -98,10 +109,17 @@ export function ClienteForm() {
         return
       }
 
+      const vendedorFinal = isAdmin && vendedorIdSelecionado
+        ? vendedorIdSelecionado
+        : user?.uid;
+      const vendedorNomeFinal = isAdmin && vendedorIdSelecionado
+        ? (vendedores.find(v => v.uid === vendedorIdSelecionado)?.nome || '')
+        : (user as any)?.nome;
+
       const clienteData = {
         ...formData,
-        vendedor_id: user?.uid,
-        vendedor_nome: (user as any)?.nome,
+        vendedor_id: vendedorFinal,
+        vendedor_nome: vendedorNomeFinal,
         updated_at: Timestamp.now(),
       };
 
@@ -187,6 +205,36 @@ export function ClienteForm() {
             </button>
           </div>
         </div>
+
+        {/* Vendedor (admin only) */}
+        {isAdmin && vendedores.length > 0 && (
+          <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm space-y-3">
+            <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Vendedor Responsável</h2>
+            <p className="text-xs text-gray-400">Selecione o vendedor deste cliente. Ele verá este cliente em sua lista.</p>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              <button
+                type="button"
+                onClick={() => setVendedorIdSelecionado('')}
+                className={`py-2 px-3 rounded-xl border text-xs font-medium transition ${!vendedorIdSelecionado ? 'bg-[#C9A227] text-white border-[#C9A227]' : 'bg-white text-gray-600 border-gray-200 hover:border-[#C9A227]'}`}
+              >
+                Sem vendedor
+              </button>
+              {vendedores.map(v => (
+                <button
+                  key={v.uid}
+                  type="button"
+                  onClick={() => setVendedorIdSelecionado(v.uid)}
+                  className={`py-2 px-3 rounded-xl border text-xs font-medium transition truncate ${vendedorIdSelecionado === v.uid ? 'bg-[#C9A227] text-white border-[#C9A227]' : 'bg-white text-gray-600 border-gray-200 hover:border-[#C9A227]'}`}
+                >
+                  {v.nome}
+                </button>
+              ))}
+            </div>
+            {vendedorIdSelecionado && (
+              <p className="text-xs text-green-600">✓ Cliente atribuído para: <strong>{vendedores.find(v => v.uid === vendedorIdSelecionado)?.nome}</strong></p>
+            )}
+          </div>
+        )}
 
         {/* Informações Pessoais */}
         <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm space-y-4">
