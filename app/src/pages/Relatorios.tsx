@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { collection, query, where, getDocs, Timestamp, limit } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
@@ -2064,8 +2064,6 @@ export function Relatorios() {
               </div>
             )
           })()}
-            </div>
-          )}
           {tab==='porproduto' && (() => {
             const todosItens: any[] = []
             invoices.forEach((f:any) => {
@@ -2192,8 +2190,6 @@ export function Relatorios() {
               </div>
             )
           })()}
-          })()}
-          )}
 
         </>
       )}

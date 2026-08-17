@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import {
@@ -32,10 +32,32 @@ function openWhatsApp(url: string) {
   setTimeout(() => document.body.removeChild(a), 100);
 }
 
+async function baixarEstoqueProduto(deps: any, produtoId: string, qtd: number, obsExtra?: string) {
+  const { collection: col, addDoc: add, doc: d, updateDoc: up, Timestamp: T, getDoc: gdc, database } = deps;
+  const prodSnap = await gdc(d(database, 'produtos', produtoId));
+  if (!prodSnap.exists()) return;
+  const prod = prodSnap.data();
+  const estoque_antes = prod.estoque || 0;
+  // Permite estoque negativo: a venda sempre e registrada, o admin resolve depois com uma entrada
+  const estoque_depois = estoque_antes - qtd;
+  await up(d(database, 'produtos', produtoId), { estoque: estoque_depois });
+  await add(col(database, 'movimentos_estoque'), {
+    produto_id: produtoId,
+    produto_nome: prod.nome,
+    tipo: 'venda',
+    quantidade: qtd,
+    estoque_antes,
+    estoque_depois,
+    observacao: obsExtra || `Venda via fatura`,
+    created_at: T.now(),
+  });
+}
+
 async function registrarMovimentosVenda(items: any[]) {
   try {
     const { collection: col, addDoc: add, doc: d, updateDoc: up, Timestamp: T, getDoc: gdc } = await import('firebase/firestore');
     const { db: database } = await import('@/lib/firebase');
+    const deps = { collection: col, addDoc: add, doc: d, updateDoc: up, Timestamp: T, getDoc: gdc, database };
     for (const item of items) {
       if (!item.produto_id) continue;
       try {
@@ -43,19 +65,15 @@ async function registrarMovimentosVenda(items: any[]) {
         if (!prodSnap.exists()) continue;
         const prod = prodSnap.data();
         const qtd = item.quantidade || 1;
-        const estoque_antes = prod.estoque || 0;
-        const estoque_depois = Math.max(0, estoque_antes - qtd);
-        await up(d(database, 'produtos', item.produto_id), { estoque: estoque_depois });
-        await add(col(database, 'movimentos_estoque'), {
-          produto_id: item.produto_id,
-          produto_nome: item.produto_nome || prod.nome,
-          tipo: 'venda',
-          quantidade: qtd,
-          estoque_antes,
-          estoque_depois,
-          observacao: `Venda via fatura`,
-          created_at: T.now(),
-        });
+        if (prod.eh_kit && Array.isArray(prod.kit_itens) && prod.kit_itens.length > 0) {
+          for (const componente of prod.kit_itens) {
+            if (!componente.produto_id) continue;
+            const qtdComponente = qtd * (componente.quantidade || 1);
+            await baixarEstoqueProduto(deps, componente.produto_id, qtdComponente, `Venda via fatura (kit: ${prod.nome})`);
+          }
+        } else {
+          await baixarEstoqueProduto(deps, item.produto_id, qtd);
+        }
       } catch(e) { console.error('Erro movimento venda:', e); }
     }
   } catch(e) { console.error('Erro registrar movimentos:', e); }
@@ -1186,6 +1204,16 @@ export function InvoiceForm() {
               </div>
               <button onClick={() => setProdutoModal(null)} className="p-2 hover:bg-gray-100 rounded-xl"><X className="w-4 h-4" /></button>
             </div>
+            {produtoModal.eh_kit && Array.isArray(produtoModal.kit_itens) && produtoModal.kit_itens.length > 0 && (
+              <div className="mb-3 p-2 rounded-lg bg-blue-50 border border-blue-200 text-xs text-blue-700">
+                Kit: baixa automática de {produtoModal.kit_itens.map((k: any) => `${k.quantidade}x ${k.produto_nome}`).join(', ')}
+              </div>
+            )}
+            {(produtoModal.estoque !== undefined && produtoModal.estoque <= 0) && (
+              <div className="mb-3 p-2 rounded-lg bg-red-50 border border-red-200 text-xs text-red-700 font-medium">
+                ⚠️ Estoque zerado{produtoModal.estoque < 0 ? ` (negativo: ${produtoModal.estoque})` : ''}! Avise o administrador. Você ainda pode adicionar este item.
+              </div>
+            )}
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 mb-1">Preço unitário</label>
               <div className="relative">

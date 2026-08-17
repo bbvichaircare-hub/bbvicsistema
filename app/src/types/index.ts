@@ -1,4 +1,4 @@
-﻿// ============================================
+// ============================================
 // BBVIC GESTÃO - TIPOS
 // ============================================
 
@@ -116,6 +116,8 @@ export interface Produto {
   quantidade_minima?: number;
   estoque?: number;
   estoque_minimo?: number;
+  eh_kit?: boolean;
+  kit_itens?: { produto_id: string; produto_nome: string; quantidade: number }[];
   unidade?: 'un' | 'kg' | 'g' | 'ml' | 'l' | 'hr' | 'session' | 'pacote';
   categoria?: 'produto' | 'servico' | 'pacote' | string;
   foto_url?: string;

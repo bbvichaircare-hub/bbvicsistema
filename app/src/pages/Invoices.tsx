@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
 import { collection, query, where, getDocs, orderBy, updateDoc, doc, addDoc, Timestamp, getDoc, deleteDoc, deleteField } from 'firebase/firestore'
@@ -1131,6 +1131,7 @@ export function Invoices() {
             <div className="bg-gray-50 rounded-xl p-3 text-sm flex justify-between">
               <span className="text-gray-500">Valor total</span>
               <span className="font-bold text-gray-900">{formatCurrency(modalBaixa.total)}</span>
+              </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">Forma de Pagamento</label>
               <div className="grid grid-cols-2 gap-2">
@@ -1199,8 +1200,6 @@ export function Invoices() {
               <input type="text" value={baixaObservacao} onChange={e => setBaixaObservacao(e.target.value)}
                 placeholder="Ex: transferido dia 5, ref: pedido 123..."
                 className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-gray-900 text-sm focus:outline-none focus:border-[#C9A227]" />
-            </div>
-              </div>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">Data do Pagamento</label>

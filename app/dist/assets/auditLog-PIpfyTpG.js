@@ -1,0 +1,1 @@
+import{g as r,a as e,c as s,d,T as l}from"./index-DCw0WkZC.js";async function u(o,i,c="geral"){try{const a=r().currentUser;await e(s(d,"audit_log"),{acao:o,detalhes:i,tipo:c,usuario_id:(a==null?void 0:a.uid)||"sistema",usuario_email:(a==null?void 0:a.email)||"",created_at:l.now()})}catch(t){console.error("Audit log error:",t)}}export{u as logActivity};

@@ -18,6 +18,8 @@ interface ProdutoForm {
   estoque_minimo: string
   unidade: string
   comissao_percentual: string
+  eh_kit: boolean
+  kit_itens: { produto_id: string; produto_nome: string; quantidade: number }[]
 }
 
 interface Movimento {
@@ -32,7 +34,7 @@ interface Movimento {
   created_at: any
 }
 
-const emptyForm: ProdutoForm = { nome:'', categoria:'', preco:'', preco_custo:'', estoque:'0', estoque_minimo:'0', unidade:'un', comissao_percentual:'' }
+const emptyForm: ProdutoForm = { nome:'', categoria:'', preco:'', preco_custo:'', estoque:'0', estoque_minimo:'0', unidade:'un', comissao_percentual:'', eh_kit:false, kit_itens:[] }
 
 const tipoCls: Record<string, string> = {
   entrada: 'bg-green-100 text-green-700',
@@ -149,6 +151,8 @@ export function EstoqueAvancado() {
       estoque_minimo: String(p.estoque_minimo || 0),
       unidade: (p as any).unidade || 'un',
       comissao_percentual: String((p as any).comissao_percentual || ''),
+      eh_kit: !!(p as any).eh_kit,
+      kit_itens: Array.isArray((p as any).kit_itens) ? (p as any).kit_itens : [],
     });
     setEditingId(p.id!);
     setShowModal(true);
@@ -172,6 +176,8 @@ export function EstoqueAvancado() {
         margem_lucro: calcMargem(custo, venda),
         estoque: novoEstoque,
         estoque_minimo: parseInt(form.estoque_minimo) || 0,
+        eh_kit: !!form.eh_kit,
+        kit_itens: form.eh_kit ? (form.kit_itens||[]).filter(k=>k.produto_id) : [],
         unidade: form.unidade || 'un',
         comissao_percentual: parseFloat(form.comissao_percentual) || 0,
         ativo: true,
@@ -971,6 +977,49 @@ export function EstoqueAvancado() {
                   <label className={labelCls}>Estoque M\u00ednimo</label>
                   <input type="number" min="0" value={form.estoque_minimo} onChange={e=>setForm(f=>({...f,estoque_minimo:e.target.value}))} className={inputCls}/>
                 </div>
+              </div>
+              <div className="border-t border-gray-100 pt-3">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" checked={!!form.eh_kit} onChange={e=>setForm(f=>({...f, eh_kit: e.target.checked}))} className="w-4 h-4 rounded accent-[#C9A227]"/>
+                  <span className="text-sm font-medium text-gray-700">Este produto é um Kit (baixa vários produtos ao ser vendido)</span>
+                </label>
+                {form.eh_kit && (
+                  <div className="mt-3 space-y-2 bg-amber-50 rounded-xl p-3">
+                    <p className="text-xs text-gray-500">Ao vender este kit, o sistema baixa automaticamente cada item abaixo do estoque.</p>
+                    {(form.kit_itens||[]).map((item, idx) => (
+                      <div key={idx} className="flex items-center gap-2">
+                        <select
+                          value={item.produto_id}
+                          onChange={e => {
+                            const prod = produtos.find(p => p.id === e.target.value);
+                            setForm(f => ({ ...f, kit_itens: f.kit_itens.map((it,i)=> i===idx ? { ...it, produto_id: e.target.value, produto_nome: prod?.nome || '' } : it) }));
+                          }}
+                          className="flex-1 px-3 py-2 rounded-lg border border-gray-200 text-sm"
+                        >
+                          <option value="">Selecione o produto...</option>
+                          {produtos.filter(p => !p.eh_kit).map(p => (
+                            <option key={p.id} value={p.id}>{p.nome}</option>
+                          ))}
+                        </select>
+                        <input
+                          type="number" min="1" value={item.quantidade}
+                          onChange={e => setForm(f => ({ ...f, kit_itens: f.kit_itens.map((it,i)=> i===idx ? { ...it, quantidade: parseInt(e.target.value)||1 } : it) }))}
+                          className="w-16 px-2 py-2 rounded-lg border border-gray-200 text-sm text-center"
+                        />
+                        <button type="button" onClick={()=> setForm(f => ({ ...f, kit_itens: f.kit_itens.filter((_,i)=>i!==idx) }))} className="p-2 rounded-lg hover:bg-red-50 text-red-500">
+                          <X className="w-4 h-4"/>
+                        </button>
+                      </div>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => setForm(f => ({ ...f, kit_itens: [...(f.kit_itens||[]), { produto_id:'', produto_nome:'', quantidade:1 }] }))}
+                      className="text-sm font-medium text-[#9A7B1A] hover:underline"
+                    >
+                      + Adicionar item ao kit
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
             <div className="px-5 py-4 border-t border-gray-100 flex gap-3">
