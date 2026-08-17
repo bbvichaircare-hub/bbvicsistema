@@ -3,111 +3,110 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     // === REGRAS PARA USUARIOS AUTENTICADOS ===
-    // Acesso completo para usuarios logados no sistema
     match /{document=**} {
       allow read, write: if request.auth != null;
     }
 
     // === ACESSO PUBLICO CONTROLADO ===
-    // Necessario para paginas publicas de orcamento e fatura (link enviado ao cliente)
 
-    // Configuracoes - apenas leitura publica (cliente precisa ver dados da empresa)
+    // Configuracoes - leitura publica
     match /configuracoes/{docId} {
       allow read: if true;
     }
 
-    // Orcamentos - leitura publica para o cliente ver pelo link
-    // Update permitido apenas para campos especificos (aprovacao pelo cliente)
+    // Orcamentos - leitura publica + update para aprovacao/recusa pelo cliente
     match /estimates/{estimateId} {
       allow read: if true;
       allow update: if request.auth != null ||
         (request.resource.data.diff(resource.data).affectedKeys()
-          .hasOnly(['status', 'aprovado_em', 'visualizado_em', 'cliente_assinou']));
+          .hasOnly(['status', 'aprovado_em', 'visualizado_em', 'cliente_assinou',
+                    'invoice_gerada_id', 'recusado_em']));
     }
 
-    // Faturas - leitura publica para o cliente ver pelo link
-    // Update limitado a campos de confirmacao do cliente
+    // Faturas - leitura publica + criacao publica (aprovacao de orcamento pelo cliente)
     match /invoices/{invoiceId} {
       allow read: if true;
-      allow create: if request.auth != null;
+      allow create: if true;
       allow update: if request.auth != null ||
         (request.resource.data.diff(resource.data).affectedKeys()
-          .hasOnly(['status', 'visualizado_em', 'cliente_confirmou', 'pago_em']));
+          .hasOnly(['status', 'visualizado_em', 'cliente_confirmou', 'pago_em',
+                    'visualizado', 'visualizado_count', 'metodo_pagamento_escolhido',
+                    'metodo_pagamento_em', 'aprovado_em']));
     }
 
-    // Notificacoes - criacao publica (cliente aprovando/visualizando)
+    // Notificacoes - criacao publica
     match /notificacoes/{notifId} {
       allow create: if true;
       allow read, update, delete: if request.auth != null;
     }
 
-    // Contas a receber - criacao controlada
+    // Contas a receber - criacao publica (aprovacao de orcamento pelo cliente)
     match /contas_receber/{docId} {
-      allow create: if request.auth != null;
+      allow create: if true;
       allow read, update, delete: if request.auth != null;
     }
 
-    // Clientes - apenas usuarios autenticados
+    // Clientes
     match /clientes/{docId} {
       allow read, write: if request.auth != null;
     }
 
-    // Produtos / Estoque - apenas usuarios autenticados
+    // Produtos / Estoque
     match /produtos/{docId} {
       allow read, write: if request.auth != null;
     }
 
-    // Vendedores - apenas usuarios autenticados
+    // Vendedores
     match /vendedores/{docId} {
       allow read, write: if request.auth != null;
     }
 
-    // Despesas - apenas usuarios autenticados
+    // Despesas
     match /despesas/{docId} {
       allow read, write: if request.auth != null;
     }
 
-    // Compras - apenas usuarios autenticados
+    // Compras
     match /compras/{docId} {
       allow read, write: if request.auth != null;
     }
 
-    // Caixa - apenas usuarios autenticados
+    // Caixa
     match /caixa/{docId} {
       allow read, write: if request.auth != null;
     }
 
-    // Contas a pagar - apenas usuarios autenticados
+    // Contas a pagar
     match /contas_pagar/{docId} {
       allow read, write: if request.auth != null;
     }
 
-    // Agenda - apenas usuarios autenticados
+    // Agenda
     match /agenda/{docId} {
       allow read, write: if request.auth != null;
     }
 
-    // Projetos - apenas usuarios autenticados
+    // Projetos
     match /projetos/{docId} {
       allow read, write: if request.auth != null;
     }
 
-    // Quilometragem - apenas usuarios autenticados
+    // Quilometragem
     match /quilometragem/{docId} {
       allow read, write: if request.auth != null;
     }
 
-    // Comissoes - apenas usuarios autenticados
+    // Comissoes
     match /comissoes/{docId} {
       allow read, write: if request.auth != null;
     }
 
-    // Logs de auditoria - apenas usuarios autenticados
+    // Logs de auditoria
     match /audit_logs/{docId} {
       allow read, write: if request.auth != null;
     }
 
-    // Usuarios do sistema - apenas usuarios autenticados
+    // Usuarios do sistema
     match /usuarios/{docId} {
       allow read, write: if request.auth != null;
     }

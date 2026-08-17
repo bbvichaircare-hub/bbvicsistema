@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react'
+﻿import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { collection, query, where, getDocs, updateDoc, doc, increment, Timestamp, addDoc, getDoc } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { formatCurrency } from '@/lib/utils'
-import { CheckCircle, Clock, AlertCircle, Phone, Mail, CreditCard, Smartphone, DollarSign, Banknote, Copy, Loader2, Check } from 'lucide-react'
+import { CheckCircle, Clock, AlertCircle, Phone, Mail, MapPin, CreditCard, Smartphone, DollarSign, Banknote, Copy, Loader2, Check } from 'lucide-react'
 import type { Invoice } from '@/types'
 
 interface PagConfig {
@@ -337,6 +337,15 @@ export function InvoicePublic() {
                 <Mail className="w-3.5 h-3.5" /><span>{invoice.cliente_email}</span>
               </a>
             )}
+            {((invoice as any).cliente_endereco || (invoice as any).cliente_cidade || (invoice as any).cliente_zip) && (
+              <p className="flex items-start gap-2 text-sm text-gray-500">
+                <MapPin className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+                <span>
+                  {(invoice as any).cliente_endereco && <>{(invoice as any).cliente_endereco}<br /></>}
+                  {[(invoice as any).cliente_cidade, (invoice as any).cliente_zip].filter(Boolean).join(', ')}
+                </span>
+              </p>
+            )}
           </div>
         </div>
 
@@ -362,6 +371,7 @@ export function InvoicePublic() {
             <div className="flex justify-between text-gray-500"><span>Subtotal</span><span>{formatCurrency(invoice.subtotal)}</span></div>
             {invoice.desconto > 0 && <div className="flex justify-between text-gray-500"><span>Desconto</span><span className="text-red-500">-{formatCurrency(invoice.desconto)}</span></div>}
             {invoice.taxa > 0 && <div className="flex justify-between text-gray-500"><span>Tax</span><span>+{formatCurrency(invoice.taxa)}</span></div>}
+            {(invoice as any).taxa_envio > 0 && <div className="flex justify-between text-gray-500"><span>Shipping</span><span>+{formatCurrency((invoice as any).taxa_envio)}</span></div>}
             <div className="border-t border-gray-100 pt-3">
               <div className="flex justify-between">
                 <span className="text-lg font-bold text-gray-900">Total</span>

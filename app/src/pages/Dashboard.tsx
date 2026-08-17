@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom"
 import { useAuth } from "@/contexts/AuthContext"
 import { collection, query, where, getDocs, doc, updateDoc } from "firebase/firestore"
 import { db } from "@/lib/firebase"
-import { calcularReceitaMes, calcularAReceber, calcularAReceberQtd, calcularAtrasadas, toDateSafe } from '@/lib/kpiUtils'
+import { calcularReceitaMes, calcularAReceber, calcularAReceberQtd } from '@/lib/kpiUtils'
 import { formatCurrency } from "@/lib/utils"
 import {
   TrendingUp, TrendingDown, DollarSign, Users, Clock,
@@ -59,6 +59,8 @@ export function Dashboard() {
   const [lembretesModal, setLembretesModal] = useState(false)
   const [atrasadosParaLembrete, setAtrasadosParaLembrete] = useState<any[]>([])
   const [lembreteIdx, setLembreteIdx] = useState(0)
+  const [selecionadosLembrete, setSelecionadosLembrete] = useState<Set<string>>(new Set())
+  const [enviandoLembretes, setEnviandoLembretes] = useState(false)
 
   useEffect(() => { fetchDados() }, [user, isAdmin])
   useEffect(() => {
@@ -73,7 +75,60 @@ export function Dashboard() {
     }
   }, [dataInicioKPI, dataFimKPI, allInvoicesCache, allExpensesCache])
 
-  const toDate = (v: any) => { try { return v?.toDate ? v.toDate() : new Date(v) } catch { return new Date(0) } }
+  const toDate = (v: any) => { try { return v?.toDate ? v.toDate() : (typeof v === 'object' && typeof v?.seconds === 'number' ? new Date(v.seconds * 1000) : new Date(v)) } catch { return new Date(0) } }
+
+  // Função local e agressiva de detecção de fatura atrasada
+  const ehAtrasada = (inv: any): boolean => {
+    if (inv.status === 'pago') return false
+    if (inv.status === 'cancelado') return false
+
+    const hoje = new Date(); hoje.setHours(0, 0, 0, 0)
+
+    const parseQ = (v: any): Date | null => {
+      if (!v) return null
+      try {
+        if (typeof v?.toDate === 'function') return v.toDate()
+        if (typeof v === 'object' && typeof v.seconds === 'number') return new Date(v.seconds * 1000)
+        if (v instanceof Date) return isNaN(v.getTime()) ? null : v
+        const s = String(v).trim()
+        const dm = s.match(/^(\d{2})\/(\d{2})\/(\d{4})/)
+        if (dm) return new Date(`${dm[3]}-${dm[2]}-${dm[1]}T12:00:00`)
+        const ym = s.match(/^(\d{4})-(\d{2})-(\d{2})/)
+        if (ym) return new Date(`${ym[1]}-${ym[2]}-${ym[3]}T12:00:00`)
+        const d = new Date(s); return isNaN(d.getTime()) ? null : d
+      } catch { return null }
+    }
+
+    const vencida = (d: Date | null) => !!d && (() => { const v = new Date(d); v.setHours(23,59,59,999); return v < hoje })()
+
+    // Para faturas PARCELADAS: verificar SOMENTE as datas das parcelas pendentes
+    if (Array.isArray(inv.parcelas) && inv.parcelas.length > 0) {
+      const pendentes = inv.parcelas.filter((p: any) => p.status !== 'pago')
+      if (pendentes.length === 0) return false // todas pagas
+      for (const p of pendentes) {
+        const d = parseQ(p.data_vencimento ?? p.data ?? p.vencimento ?? p.due_date)
+        if (d && vencida(d)) return true
+      }
+      return false // parcelas pendentes ainda não venceram
+    }
+
+    // Para faturas NÃO parceladas: verificar data geral de vencimento
+    if (inv.status === 'atrasado') return true
+    const campos = ['data_vencimento','vencimento','due_date','dataVencimento','data_venc','dueDate','data']
+    for (const c of campos) {
+      const d = parseQ(inv[c])
+      if (d) return vencida(d)
+    }
+
+    // Fallback: criação + 15 dias
+    for (const c of ['data_emissao','created_at','createdAt','data_criacao']) {
+      const d = parseQ(inv[c])
+      if (d) { const l = new Date(d); l.setDate(l.getDate() + 15); return l < hoje }
+    }
+
+    // 4. Sem nenhuma data: se status indica não pago, é atrasado
+    return ['enviado','parcial','visualizado','aguardando_confirmacao','pendente'].includes(inv.status)
+  }
 
   const calcularKPIRange = (invoices: any[], expenses: any[], inicio: string, fim: string) => {
     const iniDate = new Date(inicio + 'T00:00:00')
@@ -184,17 +239,13 @@ export function Dashboard() {
       const desp    = allExpenses.filter((e: any) => inRange(e.data || e.created_at, iniMes, fimMes)).reduce((s: number, e: any) => s + (e.valor || 0), 0)
       const despAnt = allExpenses.filter((e: any) => inRange(e.data || e.created_at, iniAnt, fimAnt)).reduce((s: number, e: any) => s + (e.valor || 0), 0)
 
-      // A RECEBER e EM ATRASO: usa kpiUtils (mesma lógica do Faturas)
-      const { qtd: qtdAtrasados, valor: valorAtrasados } = calcularAtrasadas(allInvoices)
-      const atrasados = allInvoices.filter((i: any) => {
-        if (['pago', 'cancelado'].includes(i.status)) return false
-        if (!i.data_vencimento) return false
-        try {
-          const venc = toDateSafe(i.data_vencimento)
-          venc.setHours(23, 59, 59, 999)
-          return venc < hojeInicio
-        } catch { return false }
-      })
+      // A RECEBER e EM ATRASO: usa ehAtrasada local (mais agressiva) para tudo
+      const atrasados = allInvoices.filter((i: any) => ehAtrasada(i))
+      const qtdAtrasados = atrasados.length
+      const valorAtrasados = atrasados.reduce((s: number, i: any) => {
+        if (i.status === 'parcial') return s + Math.max(0, (i.total || 0) - ((i as any).valor_pago || 0))
+        return s + (i.total || 0)
+      }, 0)
 
       setKpi({
         receitas: rec,
@@ -255,18 +306,65 @@ export function Dashboard() {
         calcularLucroProdutos(allInvoices, prodMap, iniMes2, fimMes2)
       } catch(e) { console.error('Erro lucro produtos:', e) }
 
-      // Auto-lembretes: verificar faturas em atraso sem lembrete hoje
+      // Auto-lembretes: TODAS as faturas em atraso, enriquece com telefone do cliente se necessário
       if (atrasados.length > 0) {
         const hoje_str = new Date().toISOString().split('T')[0]
-        const semLembrete = atrasados.filter((i: any) => i.lembrete_enviado !== hoje_str && (i as any).cliente_telefone)
+
+        // Buscar telefones dos clientes que estão faltando na fatura (para TODOS os atrasados)
+        const semTelefone = atrasados.filter((i: any) => !i.cliente_telefone && i.cliente_id)
+        let clienteMap: Record<string, string> = {}
+        if (semTelefone.length > 0) {
+          try {
+            const ids = [...new Set(semTelefone.map((i: any) => i.cliente_id as string))]
+            const cliSnap2 = await getDocs(query(collection(db, 'clientes'), where('__name__', 'in', ids.slice(0, 30))))
+            cliSnap2.docs.forEach(d => { clienteMap[d.id] = (d.data() as any).telefone || '' })
+          } catch { /* ok */ }
+        }
+
+        // Enriquecer TODOS com telefone (sem filtrar por telefone — mostra mesmo sem telefone)
+        const todosEnriquecidos = atrasados.map((i: any) => ({
+          ...i,
+          cliente_telefone: i.cliente_telefone || clienteMap[i.cliente_id] || ''
+        }))
+        // Ordena: mais antigos primeiro
+        todosEnriquecidos.sort((a: any, b: any) => toDate(a.data_vencimento).getTime() - toDate(b.data_vencimento).getTime())
+
+        // Salva TODOS no estado para o modal manual (botão "Ver todos em atraso")
+        setAtrasadosParaLembrete(todosEnriquecidos)
+        setSelecionadosLembrete(new Set(todosEnriquecidos.map((i: any) => i.id)))
+
+        // Auto-abre modal SOMENTE para os que não receberam lembrete hoje E têm telefone
+        const semLembrete = todosEnriquecidos.filter((i: any) => i.lembrete_enviado !== hoje_str && i.cliente_telefone)
         if (semLembrete.length > 0) {
-          setAtrasadosParaLembrete(semLembrete)
+          setSelecionadosLembrete(new Set(semLembrete.map((i: any) => i.id)))
           setLembretesModal(true)
         }
       }
 
     } catch (err) { console.error(err) }
     finally { setLoading(false) }
+  }
+
+  // Calcula só o valor que o cliente REALMENTE DEVE (desconta pagamentos e parcelas pagas)
+  const calcSaldoDevido = (inv: any): number => {
+    // Se parcelado: soma só as parcelas ATRASADAS e NÃO PAGAS
+    if (Array.isArray(inv.parcelas) && inv.parcelas.length > 0) {
+      const hoje = new Date(); hoje.setHours(0, 0, 0, 0)
+      const atrasadas = inv.parcelas.filter((p: any) => {
+        if (p.status === 'pago') return false
+        try {
+          const rawDate = (p as any).data_vencimento || (p as any).data
+          const venc = rawDate?.toDate ? rawDate.toDate() : new Date(rawDate)
+          return venc < hoje
+        } catch { return false }
+      })
+      if (atrasadas.length > 0) {
+        return atrasadas.reduce((s: number, p: any) => s + (p.valor || 0), 0)
+      }
+    }
+    // Fatura simples: total menos o que já foi pago
+    const pago = inv.valor_pago || 0
+    return Math.max(0, (inv.total || 0) - pago)
   }
 
   const sendLembreteWA = async (inv: any) => {
@@ -278,26 +376,16 @@ export function Dashboard() {
       const msgSnap = await import('firebase/firestore').then(({ doc: d, getDoc: gd }) => gd(d(db, 'configuracoes', 'mensagens')))
       if (msgSnap.exists() && msgSnap.data().cobranca) template = msgSnap.data().cobranca
     } catch { /* usa padrão */ }
+    const saldo = calcSaldoDevido(inv)
     const msg = template
       .replace(/{NOME}/g, inv.cliente_nome || '')
       .replace(/{NUMERO}/g, inv.numero || '')
-      .replace(/{TOTAL}/g, formatCurrency(inv.total))
+      .replace(/{TOTAL}/g, formatCurrency(saldo))
       .replace(/{VENCIMENTO}/g, venc)
       .replace(/{LINK}/g, `${window.location.origin}/invoice/${inv.public_token || ''}`)
     const url = `https://wa.me/1${phone}?text=${encodeURIComponent(msg)}`
     const a = document.createElement('a'); a.href = url; a.target = '_blank'; a.rel = 'noopener noreferrer'
     document.body.appendChild(a); a.click(); setTimeout(() => document.body.removeChild(a), 100)
-  }
-
-  const handleEnviarProximoLembrete = async () => {
-    if (lembreteIdx >= atrasadosParaLembrete.length) { setLembretesModal(false); return }
-    const inv = atrasadosParaLembrete[lembreteIdx]
-    sendLembreteWA(inv)
-    // Marcar lembrete enviado hoje no Firestore
-    try {
-      await updateDoc(doc(db, 'invoices', inv.id), { lembrete_enviado: new Date().toISOString().split('T')[0] })
-    } catch { /* silently fail */ }
-    setLembreteIdx(prev => prev + 1)
   }
 
   const trendPct = (atual: number, anterior: number) => anterior === 0 ? null : ((atual - anterior) / anterior) * 100
@@ -381,31 +469,76 @@ export function Dashboard() {
                 <AlertTriangle className="w-6 h-6 text-red-600" />
               </div>
               <h3 className="text-lg font-bold text-gray-900">Faturas em Atraso</h3>
-              <p className="text-sm text-gray-500 mt-1">{atrasadosParaLembrete.length} cliente(s) precisam ser notificados</p>
+              <p className="text-sm text-gray-500 mt-1">Selecione os clientes que deseja notificar</p>
             </div>
-            <div className="bg-gray-50 rounded-xl p-3 max-h-36 overflow-y-auto space-y-1">
-              {atrasadosParaLembrete.map((inv: any, i: number) => (
-                <div key={inv.id} className={`flex justify-between text-sm p-1.5 rounded-lg ${i === lembreteIdx ? 'bg-[#C9A227]/10 font-medium' : ''}`}>
-                  <span className={i < lembreteIdx ? 'line-through text-gray-400' : 'text-gray-700'}>{inv.cliente_nome}</span>
-                  <span className="text-gray-500">{formatCurrency(inv.total)}</span>
-                </div>
-              ))}
-            </div>
-            {lembreteIdx < atrasadosParaLembrete.length ? (
-              <div className="space-y-2">
-                <p className="text-xs text-center text-gray-500">Enviando lembrete {lembreteIdx + 1} de {atrasadosParaLembrete.length}</p>
-                <button onClick={handleEnviarProximoLembrete} className="w-full py-3 rounded-xl bg-green-600 text-white font-bold hover:bg-green-700 text-sm">
-                  Enviar WhatsApp para {atrasadosParaLembrete[lembreteIdx]?.cliente_nome}
-                </button>
-                <button onClick={() => setLembretesModal(false)} className="w-full py-2 rounded-xl border border-gray-200 text-gray-600 text-sm hover:bg-gray-50">
-                  Agora não
-                </button>
+
+            {/* Lista com checkboxes */}
+            <div className="bg-gray-50 rounded-xl p-3 max-h-52 overflow-y-auto space-y-1">
+              {/* Selecionar todos */}
+              <div className="flex items-center justify-between pb-2 border-b border-gray-200 mb-1">
+                <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-gray-600">
+                  <input
+                    type="checkbox"
+                    className="w-4 h-4 accent-[#C9A227]"
+                    checked={selecionadosLembrete.size === atrasadosParaLembrete.length}
+                    onChange={e => setSelecionadosLembrete(e.target.checked ? new Set(atrasadosParaLembrete.map((i: any) => i.id)) : new Set())}
+                  />
+                  Selecionar todos
+                </label>
+                <span className="text-xs text-gray-400">{selecionadosLembrete.size} selecionado(s)</span>
               </div>
-            ) : (
-              <button onClick={() => setLembretesModal(false)} className="w-full py-3 rounded-xl bg-[#C9A227] text-white font-bold text-sm">
-                ✅ Todos os lembretes enviados!
+              {atrasadosParaLembrete.map((inv: any) => {
+                const saldo = calcSaldoDevido(inv)
+                const checked = selecionadosLembrete.has(inv.id)
+                return (
+                  <label key={inv.id} className={`flex items-center gap-2 p-1.5 rounded-lg cursor-pointer hover:bg-gray-100 ${checked ? 'bg-[#C9A227]/10' : ''}`}>
+                    <input
+                      type="checkbox"
+                      className="w-4 h-4 accent-[#C9A227] flex-shrink-0"
+                      checked={checked}
+                      onChange={e => {
+                        const novo = new Set(selecionadosLembrete)
+                        if (e.target.checked) novo.add(inv.id); else novo.delete(inv.id)
+                        setSelecionadosLembrete(novo)
+                      }}
+                    />
+                    <span className="flex-1 text-sm text-gray-700 truncate">{inv.cliente_nome}</span>
+                    <span className="text-sm font-medium text-red-600 flex-shrink-0">{formatCurrency(saldo)}</span>
+                  </label>
+                )
+              })}
+            </div>
+
+            <div className="space-y-2">
+              {enviandoLembretes ? (
+                <p className="text-xs text-center text-gray-500">Enviando lembrete {lembreteIdx + 1} de {selecionadosLembrete.size}...</p>
+              ) : (
+                <p className="text-xs text-center text-gray-400">{selecionadosLembrete.size} cliente(s) receberão o lembrete via WhatsApp</p>
+              )}
+              <button
+                disabled={selecionadosLembrete.size === 0 || enviandoLembretes}
+                onClick={async () => {
+                  const selecionados = atrasadosParaLembrete.filter((i: any) => selecionadosLembrete.has(i.id))
+                  setEnviandoLembretes(true)
+                  setLembreteIdx(0)
+                  for (let idx = 0; idx < selecionados.length; idx++) {
+                    const inv = selecionados[idx]
+                    setLembreteIdx(idx + 1)
+                    await sendLembreteWA(inv)
+                    try { await updateDoc(doc(db, 'invoices', inv.id), { lembrete_enviado: new Date().toISOString().split('T')[0] }) } catch { /* ok */ }
+                    if (idx < selecionados.length - 1) await new Promise(r => setTimeout(r, 800))
+                  }
+                  setEnviandoLembretes(false)
+                  setLembretesModal(false)
+                }}
+                className="w-full py-3 rounded-xl bg-green-600 text-white font-bold hover:bg-green-700 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {enviandoLembretes ? `Enviando ${lembreteIdx} de ${selecionadosLembrete.size}...` : `Enviar WhatsApp para ${selecionadosLembrete.size} cliente(s)`}
               </button>
-            )}
+              <button onClick={() => setLembretesModal(false)} className="w-full py-2 rounded-xl border border-gray-200 text-gray-600 text-sm hover:bg-gray-50">
+                Agora não
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -546,6 +679,14 @@ export function Dashboard() {
           <p className={`text-xs mt-2 ${kpi.faturasAtrasadasQtd > 0 ? "text-red-500 font-medium" : "text-gray-400"}`}>
             {kpi.faturasAtrasadasQtd > 0 ? `${kpi.faturasAtrasadasQtd} fatura(s) vencida(s)` : "Nenhuma fatura em atraso"}
           </p>
+          {kpi.faturasAtrasadasQtd > 0 && (
+            <button
+              onClick={e => { e.stopPropagation(); setSelecionadosLembrete(new Set(atrasadosParaLembrete.map((i: any) => i.id))); setLembretesModal(true) }}
+              className="mt-2 w-full text-xs bg-red-600 text-white rounded-lg py-1 font-semibold hover:bg-red-700 transition"
+            >
+              Ver todos e notificar
+            </button>
+          )}
         </div>
       </div>
 
@@ -570,7 +711,8 @@ export function Dashboard() {
           </p>
         </div>
 
-        {/* Lucro por Produto */}
+        {/* Lucro por Produto — apenas admin */}
+        {isAdmin && (
         <div
           onClick={() => setShowLucroModal(true)}
           className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm hover:shadow-lg hover:border-[#C9A227]/40 cursor-pointer transition-all group"
@@ -588,6 +730,7 @@ export function Dashboard() {
             {lucrosProdutos.length} produto(s) vendido(s) este mês
           </p>
         </div>
+        )}
       </div>
 
       {/* Modal Faturas Parceladas */}

@@ -1,4 +1,4 @@
-// ============================================
+﻿// ============================================
 // BBVIC GESTÃO - CLIENTES (LAYOUT LISTA PREMIUM)
 // ============================================
 
@@ -47,7 +47,9 @@ export function Clientes() {
 
       let q
 
-      if (isAdmin) {
+      // Admin ou vendedor com acesso total ve todos os clientes
+      const verTodos = isAdmin || user?.ver_todos_clientes === true
+      if (verTodos) {
         q = query(
           collection(db, "clientes"),
           orderBy("nome")

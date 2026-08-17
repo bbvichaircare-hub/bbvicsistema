@@ -1,4 +1,4 @@
-// ============================================
+﻿// ============================================
 // BBVIC GESTÃO - AUTH CONTEXT
 // ============================================
 
@@ -25,7 +25,7 @@ import {
 import { auth, db } from '@/lib/firebase';
 import { initializeApp, getApps } from 'firebase/app';
 import { getAuth, sendPasswordResetEmail } from 'firebase/auth';
-import type { User, CreateUserData } from '@/types';
+import type { User, CreateUserData, Permissao } from '@/types';
 import { toast } from 'sonner';
 
 // ----------------------------------------
@@ -49,6 +49,7 @@ interface AuthContextType {
   getVendedores: () => Promise<User[]>;
   getUserById: (uid: string) => Promise<User | null>;
   refreshUser: () => Promise<void>;
+  temPermissao: (p: Permissao) => boolean;
 }
 
 // ----------------------------------------
@@ -69,6 +70,8 @@ const convertToUser = (firebaseUser: FirebaseUser, userData: any): User => {
     foto_url: userData.foto_url || '',
     avatar_url: userData.foto_url || userData.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(userData.nome || '')}&background=random`,
     comissao_percentual: userData.comissao_percentual || 10,
+    permissoes: userData.permissoes || null,
+    ver_todos_clientes: userData.ver_todos_clientes === true,
     created_at: userData.created_at?.toDate() || new Date(),
     updated_at: userData.updated_at?.toDate(),
     created_by: userData.created_by,
@@ -192,10 +195,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         uid: userCredential.user.uid,
         email: data.email,
         nome: data.nome,
-        role: 'vendedor',
+        role: data.role || 'vendedor',
         ativo: true,
         telefone: data.telefone,
         comissao_percentual: data.comissao_percentual || 10,
+        permissoes: data.permissoes || null,
         avatar_url: `https://ui-avatars.com/api/?name=${encodeURIComponent(data.nome)}&background=22c55e&color=fff`,
         created_at: new Date(),
         created_by: user.uid,
@@ -203,6 +207,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       await setDoc(doc(db, 'users', newUser.uid), {
         ...newUser,
+        senha_configurada: data.password,
+        role: data.role || 'vendedor',
+        permissoes: data.permissoes || null,
         created_at: Timestamp.now()
       });
       
@@ -210,7 +217,41 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return newUser;
     } catch (error: any) {
       if (error.code === 'auth/email-already-in-use') {
-        throw new Error('Email já está em uso');
+        // Email existe no Auth mas pode nao ter doc no Firestore - tenta recuperar
+        try {
+          const sec = getSecondaryAuth()
+          const recovered = await signInWithEmailAndPassword(sec, data.email, data.password)
+          await signOut(sec)
+          const existing = await getDoc(doc(db, 'users', recovered.user.uid))
+          if (existing.exists()) {
+            throw new Error('Este email ja esta cadastrado no sistema')
+          }
+          const recoveredUser: User = {
+            uid: recovered.user.uid,
+            email: data.email,
+            nome: data.nome,
+            role: data.role || 'vendedor',
+            ativo: true,
+            telefone: data.telefone,
+            comissao_percentual: data.comissao_percentual || 10,
+            permissoes: data.permissoes || null,
+            avatar_url: `https://ui-avatars.com/api/?name=${encodeURIComponent(data.nome)}&background=22c55e&color=fff`,
+            created_at: new Date(),
+            created_by: user.uid,
+          }
+          await setDoc(doc(db, 'users', recoveredUser.uid), {
+            ...recoveredUser,
+            senha_configurada: data.password,
+            role: data.role || 'vendedor',
+            permissoes: data.permissoes || null,
+            created_at: Timestamp.now()
+          })
+          toast.success(`Vendedor ${data.nome} criado com sucesso!`)
+          return recoveredUser
+        } catch (recoverErr: any) {
+          if (recoverErr.message?.includes('cadastrado no sistema')) throw recoverErr
+          throw new Error('Este email ja esta em uso por outra conta. Use um email diferente.')
+        }
       }
       throw new Error(error.message || 'Erro ao criar vendedor');
     }
@@ -296,6 +337,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   // ----------------------------------------
+  // PERMISSÕES
+  // ----------------------------------------
+
+  const temPermissao = (p: Permissao): boolean => {
+    if (!user) return false
+    if (user.role === 'admin') return true
+    if (user.permissoes) return user.permissoes.includes(p)
+    // default vendedor permissions
+    return ['dashboard', 'clientes', 'faturas', 'orcamentos', 'agenda'].includes(p)
+  }
+
+  // ----------------------------------------
   // CONSULTAS
   // ----------------------------------------
 
@@ -358,6 +411,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     getVendedores,
     getUserById,
     refreshUser,
+    temPermissao,
   };
 
   return (

@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react'
+﻿import { useEffect, useState, useRef } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { doc, getDoc, addDoc, updateDoc, collection, getDocs, Timestamp, query, where } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
@@ -45,6 +45,7 @@ export function EstimateForm() {
   const isEditing = !!id
 
   const [numero, setNumero] = useState('')
+  const [dataEmissao, setDataEmissao] = useState<any>(null)
   const [cliente, setCliente] = useState<Cliente | null>(null)
   const [items, setItems] = useState<ItemEstimate[]>([])
   const [observacoes, setObservacoes] = useState('')
@@ -118,7 +119,7 @@ export function EstimateForm() {
       cliente_cidade: (cliente as any)?.cidade,
       cliente_estado: (cliente as any)?.estado,
       cliente_cep: (cliente as any)?.cep,
-      data_emissao: new Date(),
+      data_emissao: dataEmissao || new Date(),
       data_validade: dataValidade ? new Date(dataValidade + 'T12:00:00') : undefined,
       items: items.map(i => ({
         produto_nome: i.produto_nome,
@@ -171,7 +172,8 @@ export function EstimateForm() {
   const loadClientes = async () => {
     try {
       const clientesRef = collection(db, 'clientes')
-      const clientesQuery = !isAdmin
+      const verTodos = isAdmin || user?.ver_todos_clientes === true
+      const clientesQuery = !verTodos
         ? query(clientesRef, where('vendedor_id', '==', user?.uid))
         : clientesRef
       const snap = await getDocs(clientesQuery)
@@ -202,6 +204,7 @@ export function EstimateForm() {
       if (snap.exists()) {
         const data: any = snap.data()
         setNumero(data.numero || '')
+        setDataEmissao((data as any).data_emissao || (data as any).created_at || null)
         if (data.cliente_id) {
           const cliSnap = await getDoc(doc(db, 'clientes', data.cliente_id))
           if (cliSnap.exists()) {
@@ -337,7 +340,7 @@ export function EstimateForm() {
     observacao_interna: observacaoInterna,
     taxa_envio: parseFloat(taxaEnvioInput) || 0,
     validade_dias: parseInt(validadeDias) || 30,
-    data_validade: Timestamp.fromDate(new Date(dataValidade)),
+    data_validade: Timestamp.fromDate(new Date(dataValidade + 'T12:00:00')),
     status,
     public_token: token || uuidv4(),
     vendedor_id: vendedorId || user?.uid || '',
@@ -372,7 +375,7 @@ export function EstimateForm() {
           observacao_interna: observacaoInterna,
           taxa_envio: parseFloat(taxaEnvioInput) || 0,
           validade_dias: parseInt(validadeDias) || 30,
-          data_validade: Timestamp.fromDate(new Date(dataValidade)),
+          data_validade: Timestamp.fromDate(new Date(dataValidade + 'T12:00:00')),
           vendedor_id: vendedorId || user?.uid || '',
           vendedor_nome: vendedorNome || (user as any)?.nome || '',
           updated_at: Timestamp.now(),
@@ -418,7 +421,7 @@ export function EstimateForm() {
           observacao_interna: observacaoInterna,
           taxa_envio: parseFloat(taxaEnvioInput) || 0,
           validade_dias: parseInt(validadeDias) || 30,
-          data_validade: Timestamp.fromDate(new Date(dataValidade)),
+          data_validade: Timestamp.fromDate(new Date(dataValidade + 'T12:00:00')),
           status: 'enviado',
           public_token: token,
           vendedor_id: vendedorId || user?.uid || '',
@@ -472,6 +475,7 @@ export function EstimateForm() {
         cliente_telefone: cliente.telefone || '',
         items: items.map(({ tempId, ...i }) => i),
         subtotal, desconto, taxa, total,
+        taxa_envio: parseFloat(taxaEnvioInput) || 0,
         deposit: 0, payment_terms: 'Net 30', status: 'rascunho',
         observacoes,
         data_emissao: Timestamp.now(),
@@ -778,7 +782,7 @@ export function EstimateForm() {
                 <div className="flex justify-between text-gray-900 font-bold text-lg"><span>Total</span><span className="text-[#C9A227]">{formatCurrency(total)}</span></div>
               </div>
               <div className="pt-2 border-t border-gray-100">
-                <p className="text-xs text-gray-400">Válido até: <span className="font-medium text-gray-600">{new Date(dataValidade).toLocaleDateString('pt-BR')}</span></p>
+                <p className="text-xs text-gray-400">Válido até: <span className="font-medium text-gray-600">{new Date(dataValidade + 'T12:00:00').toLocaleDateString('pt-BR')}</span></p>
               </div>
             </div>
           </div>

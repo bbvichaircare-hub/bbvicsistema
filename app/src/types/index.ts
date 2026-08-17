@@ -1,6 +1,45 @@
-// ============================================
+﻿// ============================================
 // BBVIC GESTÃO - TIPOS
 // ============================================
+
+// ----------------------------------------
+// PERMISSÕES
+// ----------------------------------------
+
+export type Permissao = 
+  | 'dashboard' | 'clientes' | 'faturas' | 'orcamentos' 
+  | 'agenda' | 'estoque' | 'compras' | 'despesas' 
+  | 'contas_pagar' | 'contas_receber' | 'relatorios' 
+  | 'comissoes' | 'vendedores' | 'configuracoes' | 'caixa'
+  | 'quilometragem' | 'projetos'
+
+export const TODAS_PERMISSOES: Permissao[] = [
+  'dashboard', 'clientes', 'faturas', 'orcamentos',
+  'agenda', 'estoque', 'compras', 'despesas',
+  'contas_pagar', 'contas_receber', 'relatorios',
+  'comissoes', 'vendedores', 'configuracoes', 'caixa',
+  'quilometragem', 'projetos'
+]
+
+export const LABEL_PERMISSOES: Record<Permissao, string> = {
+  dashboard: 'Dashboard',
+  clientes: 'Clientes',
+  faturas: 'Faturas',
+  orcamentos: 'Orçamentos',
+  agenda: 'Agenda',
+  estoque: 'Estoque',
+  compras: 'Compras',
+  despesas: 'Despesas',
+  contas_pagar: 'Contas a Pagar',
+  contas_receber: 'Contas a Receber',
+  relatorios: 'Relatórios',
+  comissoes: 'Comissões',
+  vendedores: 'Usuários',
+  configuracoes: 'Configurações',
+  caixa: 'Caixa',
+  quilometragem: 'Quilometragem',
+  projetos: 'Projetos'
+}
 
 // ----------------------------------------
 // USUÁRIO
@@ -10,12 +49,14 @@ export interface User {
   uid: string;
   email: string;
   nome: string;
-  role: 'admin' | 'vendedor';
+  role: 'admin' | 'vendedor' | 'personalizado';
   ativo: boolean;
   telefone?: string;
   foto_url?: string;
   avatar_url?: string;
   comissao_percentual?: number;
+  ver_todos_clientes?: boolean;
+  permissoes?: Permissao[];
   created_at?: Date;
   updated_at?: Date;
   created_by?: string;
@@ -28,6 +69,8 @@ export interface CreateUserData {
   nome: string;
   telefone?: string;
   comissao_percentual?: number;
+  role?: 'vendedor' | 'personalizado';
+  permissoes?: Permissao[];
 }
 
 // ----------------------------------------
@@ -95,6 +138,7 @@ export interface DocumentItem {
   descricao?: string;
   quantidade: number;
   preco_unitario: number;
+  preco_original?: number;
   desconto?: number;
   subtotal: number;
   // Comissão aplicada neste item (para controle)

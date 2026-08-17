@@ -4,13 +4,22 @@ import autoTable from 'jspdf-autotable'
 function fmt(v: number) {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(v)
 }
+
 function fmtDate(v: any) {
   if (!v) return ''
   try {
-    const d = v?.toDate ? v.toDate() : new Date(v)
-    return d.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: '2-digit' })
+    let d: Date
+    if (v?.toDate) { d = v.toDate() }
+    else if (v?.seconds) { d = new Date(v.seconds * 1000) }
+    else if (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v)) {
+      const [y, m, day] = v.split('-').map(Number)
+      d = new Date(y, m - 1, day)
+    } else { d = new Date(v) }
+    if (isNaN(d.getTime())) return ''
+    return d.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' })
   } catch { return '' }
 }
+
 function clean(s?: string): string {
   if (!s) return ''
   return s.replace(/[^\x20-\x7E]/g, '')
@@ -36,6 +45,7 @@ interface PDFDoc {
   cliente_telefone?: string; cliente_endereco?: string
   cliente_cidade?: string; cliente_estado?: string; cliente_cep?: string
   data_emissao: any; data_vencimento?: any; data_validade?: any
+  created_at?: any; createdAt?: any
   items: PDFItem[]; subtotal: number; desconto?: number
   taxa?: number; total: number; observacoes?: string
   termos_condicoes?: string; deposit?: number; vendedor_nome?: string
@@ -97,12 +107,25 @@ async function buildPDF(doc: PDFDoc, tipo: 'FATURA' | 'ORCAMENTO', empresa?: Emp
 
   // Invoice info — far right
   const rightX = 120
-  const dueDate = doc.data_vencimento
-    ? fmtDate(doc.data_vencimento)
-    : doc.data_validade
-      ? fmtDate(doc.data_validade)
-      : 'Due on Receipt'
 
+  // ── Issue Date: data real de criação da fatura
+  const rawIssue = doc.data_emissao || doc.created_at || doc.createdAt
+  const issueDate = rawIssue ? fmtDate(rawIssue) : fmtDate(new Date())
+
+  // ── Due Date: para parceladas usa próxima parcela pendente
+  let dueDate = 'Due on Receipt'
+  if (doc.parcelas_ativo && doc.parcelas && doc.parcelas.length > 0) {
+    const pendentes = doc.parcelas
+      .filter(p => p.status === 'pendente')
+      .sort((a, b) => new Date(a.data).getTime() - new Date(b.data).getTime())
+    if (pendentes.length > 0) dueDate = fmtDate(pendentes[0].data)
+  } else if (doc.data_vencimento) {
+    dueDate = fmtDate(doc.data_vencimento)
+  } else if (doc.data_validade) {
+    dueDate = fmtDate(doc.data_validade)
+  }
+
+  // Tipo + número
   pdf.setFont('helvetica', 'bold')
   pdf.setFontSize(9)
   pdf.setTextColor(20, 20, 20)
@@ -111,29 +134,39 @@ async function buildPDF(doc: PDFDoc, tipo: 'FATURA' | 'ORCAMENTO', empresa?: Emp
   pdf.setTextColor(60, 60, 60)
   pdf.text(` : ${doc.numero}`, rightX + 18, 16)
 
+  // Issue Date
   pdf.setFont('helvetica', 'normal')
   pdf.setFontSize(9)
-  pdf.setTextColor(60, 60, 60)
-  pdf.text('Due on Receipt : ', rightX, 23)
+  pdf.setTextColor(80, 80, 80)
+  pdf.text('Issue Date', rightX, 23)
   pdf.setFont('helvetica', 'bold')
   pdf.setTextColor(20, 20, 20)
-  pdf.text(dueDate, rightX + 34, 23)
+  pdf.text(` : ${issueDate}`, rightX + 21, 23)
+
+  // Due Date
+  pdf.setFont('helvetica', 'normal')
+  pdf.setFontSize(9)
+  pdf.setTextColor(80, 80, 80)
+  pdf.text('Due Date', rightX, 30)
+  pdf.setFont('helvetica', 'bold')
+  pdf.setTextColor(20, 20, 20)
+  pdf.text(` : ${dueDate}`, rightX + 18, 30)
 
   // Bill To
   pdf.setFont('helvetica', 'normal')
   pdf.setFontSize(8)
   pdf.setTextColor(80, 80, 80)
-  pdf.text('Bill To', rightX, 33)
+  pdf.text('Bill To', rightX, 39)
 
   pdf.setFont('helvetica', 'bold')
   pdf.setFontSize(9)
   pdf.setTextColor(10, 10, 10)
-  pdf.text(clean(doc.cliente_nome).toUpperCase(), rightX, 40)
+  pdf.text(clean(doc.cliente_nome).toUpperCase(), rightX, 46)
 
   pdf.setFont('helvetica', 'normal')
   pdf.setFontSize(8.5)
   pdf.setTextColor(50, 50, 50)
-  let cy = 47
+  let cy = 52
   if (doc.cliente_endereco) {
     const addr = clean(doc.cliente_endereco)
     if (addr) {
@@ -149,7 +182,7 @@ async function buildPDF(doc: PDFDoc, tipo: 'FATURA' | 'ORCAMENTO', empresa?: Emp
   if (doc.cliente_email) { pdf.text(clean(doc.cliente_email), rightX, cy); cy += 5 }
 
   // ── SEPARATOR LINE
-  const sepY = Math.max(cy + 6, Math.max(addrY + 4, 55))
+  const sepY = Math.max(cy + 6, Math.max(addrY + 4, 60))
   pdf.setDrawColor(180, 180, 180)
   pdf.setLineWidth(0.3)
   pdf.line(L, sepY, R, sepY)
@@ -231,7 +264,7 @@ async function buildPDF(doc: PDFDoc, tipo: 'FATURA' | 'ORCAMENTO', empresa?: Emp
     pdf.setFont('helvetica', 'bold'); pdf.setFontSize(8.5); pdf.setTextColor(40, 40, 40)
     pdf.text('Payment Schedule', totX, ty); ty += 5
     doc.parcelas.forEach((p) => {
-      const dateStr = (() => { try { return new Date(p.data + 'T12:00:00').toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: '2-digit' }) } catch { return p.data } })()
+      const dateStr = fmtDate(p.data)
       pdf.setFont('helvetica', 'normal'); pdf.setFontSize(8); pdf.setTextColor(60, 60, 60)
       pdf.text(`Installment ${p.numero}  ${dateStr}`, totX, ty)
       pdf.setTextColor(p.status === 'pago' ? 34 : 20, p.status === 'pago' ? 139 : 20, p.status === 'pago' ? 34 : 20)

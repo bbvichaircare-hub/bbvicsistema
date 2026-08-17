@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+﻿import { useEffect, useState } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import {
@@ -110,6 +110,7 @@ export function InvoiceForm() {
   const [produtoModalPreco, setProdutoModalPreco] = useState(0);
 
   const [numero, setNumero] = useState('');
+  const [dataEmissao, setDataEmissao] = useState<any>(null);
   const [cliente, setCliente] = useState<Cliente | null>(null);
   const [items, setItems] = useState<(DocumentItem & { tempId: string })[]>([]);
   const [observacoes, setObservacoes] = useState('');
@@ -171,7 +172,8 @@ export function InvoiceForm() {
   const fetchClientes = async () => {
     try {
       const clientesRef = collection(db, 'clientes');
-      const clientesQuery = !isAdmin
+      const verTodos = isAdmin || user?.ver_todos_clientes === true
+      const clientesQuery = !verTodos
         ? query(clientesRef, where('vendedor_id', '==', user?.uid))
         : clientesRef;
       const snap = await getDocs(clientesQuery);
@@ -221,6 +223,7 @@ export function InvoiceForm() {
       if (snap.exists()) {
         const data = snap.data() as Invoice;
         setNumero(data.numero);
+        setDataEmissao((data as any).data_emissao || (data as any).created_at || null);
         setObservacoes(data.observacoes || '');
         const dTipo: 'pct' | 'valor' = (data as any).desconto_tipo || 'pct';
         setDescontoTipo(dTipo);
@@ -281,7 +284,15 @@ export function InvoiceForm() {
             } as Cliente);
           }
         }
-        setItems(data.items.map((item, i) => ({ ...item, tempId: `e-${i}` })));
+        // Enriquecer itens com preco_original buscando preço atual do produto
+        const prodSnap = await getDocs(collection(db, 'produtos'))
+        const prodMap: Record<string, number> = {}
+        prodSnap.docs.forEach(d => { prodMap[d.id] = (d.data() as any).preco_venda || 0 })
+        setItems(data.items.map((item: any, i: number) => ({
+          ...item,
+          tempId: `e-${i}`,
+          preco_original: item.preco_original ?? prodMap[item.produto_id] ?? item.preco_unitario,
+        })));
       }
     } catch { toast.error('Erro ao carregar fatura'); }
     finally { setLoading(false); }
@@ -299,7 +310,7 @@ export function InvoiceForm() {
 
   const addItem = (produto: Produto, qty = 1, obs = '', precoCustom?: number) => {
     const preco = precoCustom !== undefined ? precoCustom : produto.preco_venda;
-    setItems(prev => [{ tempId: uuidv4(), produto_id: produto.id!, produto_nome: produto.nome, descricao: obs || produto.descricao || '', quantidade: qty, preco_unitario: preco, desconto: 0, subtotal: qty * preco }, ...prev]);
+    setItems(prev => [{ tempId: uuidv4(), produto_id: produto.id!, produto_nome: produto.nome, descricao: obs || produto.descricao || '', quantidade: qty, preco_unitario: preco, preco_original: produto.preco_venda, desconto: 0, subtotal: qty * preco }, ...prev]);
     setSearchProduto(''); setShowProdutoDropdown(false);
   };
 
@@ -322,16 +333,19 @@ export function InvoiceForm() {
   const updateQty = (tempId: string, qty: number) => { if (qty < 1) return; setItems(items.map(i => i.tempId === tempId ? { ...i, quantidade: qty, subtotal: qty * i.preco_unitario } : i)); };
   const updatePrice = (tempId: string, price: number) => { if (price < 0) return; setItems(items.map(i => i.tempId === tempId ? { ...i, preco_unitario: price, subtotal: i.quantidade * price } : i)); };
 
+  const [markupAtual, setMarkupAtual] = useState(0); // % de markup já aplicado
+
   const applyMarkup = () => {
     const pct = parseFloat(markupInput);
-    if (!pct || pct <= 0) { toast.error('Informe um percentual válido'); return; }
-    const fator = 1 + pct / 100;
-    setItems(items.map(i => ({
-      ...i,
-      preco_unitario: Math.round(i.preco_unitario * fator * 100) / 100,
-      subtotal: Math.round(i.quantidade * i.preco_unitario * fator * 100) / 100,
-    })));
-    toast.success(`Markup de ${pct}% aplicado`);
+    if (isNaN(pct) || pct < 0) { toast.error('Informe um percentual válido'); return; }
+    // Sempre calcular sobre o preco_original (antes de qualquer markup)
+    setItems(items.map(i => {
+      const base = i.preco_original !== undefined ? i.preco_original : i.preco_unitario;
+      const novoPreco = pct === 0 ? base : Math.round(base * (1 + pct / 100) * 100) / 100;
+      return { ...i, preco_unitario: novoPreco, subtotal: Math.round(i.quantidade * novoPreco * 100) / 100 };
+    }));
+    setMarkupAtual(pct);
+    toast.success(pct === 0 ? 'Markup removido' : `Markup de ${pct}% aplicado`);
     setMarkupInput('');
   };
 
@@ -339,7 +353,8 @@ export function InvoiceForm() {
     const base = dataVencimento ? new Date(dataVencimento + 'T12:00:00') : new Date();
     const valorTotal = totalVal !== undefined ? totalVal : total;
     const depositAmt2 = parseFloat(depositValue) || 0;
-    const saldo = valorTotal - depositAmt2;
+    // Descontar o que já foi pago anteriormente (pagamento parcial)
+    const saldo = valorTotal - depositAmt2 - valorPago;
     const valorParcela = Math.round((saldo / n) * 100) / 100;
     const novas = Array.from({ length: n }, (_, i) => {
       const d = new Date(base);
@@ -352,7 +367,18 @@ export function InvoiceForm() {
     setParcelas(novas);
   };
 
-  const buildInvoiceData = (status: 'rascunho' | 'enviado', token?: string) => ({
+  const buildAlteracoes = () => items
+    .filter(i => (i as any).preco_original !== undefined && i.preco_unitario !== (i as any).preco_original)
+    .map(i => ({
+      produto: i.produto_nome,
+      preco_original: (i as any).preco_original,
+      preco_cobrado: i.preco_unitario,
+      diferenca: Math.round((i.preco_unitario - (i as any).preco_original) * 100) / 100,
+    }));
+
+  const buildInvoiceData = (status: 'rascunho' | 'enviado', token?: string) => {
+    const alteracoes = buildAlteracoes();
+    return {
     numero, cliente_id: cliente!.id!, cliente_nome: cliente!.nome,
     cliente_email: cliente!.email || '', cliente_telefone: cliente!.telefone || '',
     cliente_endereco: (cliente as any)?.endereco || '',
@@ -378,8 +404,11 @@ export function InvoiceForm() {
     visualizado: false, visualizado_count: 0,
     parcelas_ativo: parcelasAtivo,
     parcelas: parcelasAtivo ? parcelas : [],
+    valores_alterados: alteracoes.length > 0,
+    detalhes_alteracoes: alteracoes,
     created_at: Timestamp.now(),
-  });
+    };
+  };
 
   const criarContaReceber = async (invoiceData: any, invoiceId: string, invoiceNumero: string) => {
     try {
@@ -408,6 +437,7 @@ export function InvoiceForm() {
     setSaving(true);
     try {
       if (isEditing && id) {
+        const alteracoes = buildAlteracoes();
         const updateData: any = {
           numero, cliente_id: cliente!.id!, cliente_nome: cliente!.nome,
           cliente_email: cliente!.email || '', cliente_telefone: cliente!.telefone || '',
@@ -431,6 +461,8 @@ export function InvoiceForm() {
           vendedor_nome: vendedorNome || (user as any)?.nome || '',
           parcelas_ativo: parcelasAtivo,
           parcelas: parcelasAtivo ? parcelas : [],
+          valores_alterados: alteracoes.length > 0,
+          detalhes_alteracoes: alteracoes,
           updated_at: Timestamp.now(),
         };
         await updateDoc(doc(db, 'invoices', id), updateData);
@@ -455,6 +487,7 @@ export function InvoiceForm() {
       const token = originalToken || uuidv4();
       let invoiceDocId = id || '';
       if (isEditing && id) {
+        const alteracoes = buildAlteracoes();
         const updateData: any = {
           numero, cliente_id: cliente!.id!, cliente_nome: cliente!.nome,
           cliente_email: cliente!.email || '', cliente_telefone: cliente!.telefone || '',
@@ -480,6 +513,8 @@ export function InvoiceForm() {
           public_token: token,
           parcelas_ativo: parcelasAtivo,
           parcelas: parcelasAtivo ? parcelas : [],
+          valores_alterados: alteracoes.length > 0,
+          detalhes_alteracoes: alteracoes,
           updated_at: Timestamp.now(),
         };
         await updateDoc(doc(db, 'invoices', id), updateData);
@@ -504,12 +539,34 @@ export function InvoiceForm() {
         const fpStr = formaPgtoRecebido ? ` via ${formaPgtoRecebido}` : '';
         totalMsgVar = `✅ *FATURA PAGA*\nTotal: ${formatCurrency(total)}\nPago em: ${dpStr}${fpStr}`;
       } else if (parcelasAtivo && parcelas.length > 0) {
-        const linhasParcelas = parcelas.map(p => {
-          const dataParc = p.data ? new Date(p.data + 'T12:00:00').toLocaleDateString('pt-BR') : '';
-          const icon = p.status === 'pago' ? '✅' : '⏳';
-          return `  ${icon} ${p.numero}ª parcela: ${formatCurrency(p.valor)} — ${dataParc}`;
-        }).join('\n');
-        totalMsgVar = `Total: ${formatCurrency(total)}\n\n📋 *Parcelas:*\n${linhasParcelas}`;
+        const parcelasPagas = parcelas.filter(p => p.status === 'pago')
+        const parcelasPendentes = parcelas.filter(p => p.status !== 'pago')
+        const totalPago = parcelasPagas.reduce((s, p) => s + (p.valor || 0), 0)
+        const totalRestante = parcelasPendentes.reduce((s, p) => s + (p.valor || 0), 0)
+
+        let linhas = ''
+        if (parcelasPagas.length > 0) {
+          linhas += `✅ *Parcelas pagas (${parcelasPagas.length}):*\n`
+          linhas += parcelasPagas.map(p => {
+            const dataParc = p.data ? new Date(p.data + 'T12:00:00').toLocaleDateString('pt-BR') : ''
+            const dataPgto = (p as any).data_pagamento ? new Date((p as any).data_pagamento + 'T12:00:00').toLocaleDateString('pt-BR') : dataParc
+            return `  ✅ ${p.numero}ª parcela: ${formatCurrency(p.valor)} — paga em ${dataPgto}`
+          }).join('\n')
+          linhas += `\n\n`
+        }
+        if (parcelasPendentes.length > 0) {
+          linhas += `⏳ *Parcelas em aberto (${parcelasPendentes.length}):*\n`
+          linhas += parcelasPendentes.map(p => {
+            const dataParc = p.data ? new Date(p.data + 'T12:00:00').toLocaleDateString('pt-BR') : ''
+            return `  ⏳ ${p.numero}ª parcela: ${formatCurrency(p.valor)}${dataParc ? ` — vence ${dataParc}` : ''}`
+          }).join('\n')
+        }
+
+        const resumo = totalPago > 0
+          ? `Total: ${formatCurrency(total)}\n✅ Já pago: ${formatCurrency(totalPago)}\n💰 *Saldo restante: ${formatCurrency(totalRestante)}*`
+          : `Total: ${formatCurrency(total)}`
+
+        totalMsgVar = `${resumo}\n\n📋 *Detalhamento das parcelas:*\n${linhas}`
       } else if (valorPago > 0) {
         const dpStr = dataPagamento ? dataPagamento.toLocaleDateString('pt-BR') : '';
         const fpStr = formaPgtoRecebido ? ` via ${formaPgtoRecebido}` : '';
@@ -626,7 +683,7 @@ export function InvoiceForm() {
       cliente_cidade: (cliente as any)?.cidade || '',
       cliente_estado: (cliente as any)?.estado || '',
       cliente_cep: (cliente as any)?.cep || '',
-      data_emissao: new Date(),
+      data_emissao: dataEmissao || new Date(),
       data_vencimento: dataVencimento ? new Date(dataVencimento + 'T12:00:00') : undefined,
       items: items.map(i => ({
         produto_nome: i.produto_nome,
@@ -801,13 +858,26 @@ export function InvoiceForm() {
 
               {/* Markup */}
               <div className="pt-3 border-t border-dashed border-gray-200">
-                <p className="text-xs font-semibold text-orange-600 uppercase tracking-wide mb-2">Markup Interno <span className="font-normal text-gray-400 normal-case">(não aparece para o cliente)</span></p>
+                <p className="text-xs font-semibold text-orange-600 uppercase tracking-wide mb-2">Markup Interno <span className="font-normal text-gray-400 normal-case">(não aparece para o cliente)</span>{markupAtual > 0 && <span className="ml-2 text-orange-500 font-bold">— {markupAtual}% aplicado</span>}</p>
                 <div className="flex items-center gap-2 flex-wrap">
                   <div className="relative">
                     <input type="number" min="0" max="200" value={markupInput} onChange={e => setMarkupInput(e.target.value)} placeholder="Ex: 20" className="w-28 px-3 py-2 rounded-xl border border-orange-200 text-gray-900 text-sm focus:outline-none focus:border-orange-400" />
                     <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">%</span>
                   </div>
                   <button onClick={applyMarkup} className="px-4 py-2 rounded-xl bg-orange-500 text-white text-sm font-medium hover:bg-orange-600">Aplicar Markup</button>
+                  {markupAtual > 0 && (
+                    <button
+                      onClick={() => {
+                        setItems(items.map(i => {
+                          const base = i.preco_original !== undefined ? i.preco_original : i.preco_unitario;
+                          return { ...i, preco_unitario: base, subtotal: Math.round(i.quantidade * base * 100) / 100 };
+                        }));
+                        setMarkupAtual(0);
+                        toast.success('Markup removido, preços originais restaurados');
+                      }}
+                      className="px-3 py-2 rounded-xl border border-orange-300 text-orange-600 text-sm font-medium hover:bg-orange-50"
+                    >Remover Markup</button>
+                  )}
                 </div>
               </div>
             </div>
@@ -933,27 +1003,52 @@ export function InvoiceForm() {
                   </div>
 
                   <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
-                    {parcelas.map((p, i) => (
-                      <div key={i} className="flex items-center gap-2">
-                        <span className="text-xs font-bold text-gray-500 w-6 text-center">{p.numero}x</span>
-                        <input
-                          type="date"
-                          value={p.data}
-                          onChange={e => setParcelas(prev => prev.map((x, j) => j === i ? { ...x, data: e.target.value } : x))}
-                          className="flex-1 px-2 py-1.5 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:border-[#C9A227]"
-                        />
-                        <div className="relative w-24">
-                          <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 text-xs">$</span>
-                          <input
-                            type="number"
-                            step="0.01"
-                            value={p.valor}
-                            onChange={e => setParcelas(prev => prev.map((x, j) => j === i ? { ...x, valor: parseFloat(e.target.value) || 0 } : x))}
-                            className="w-full pl-5 pr-2 py-1.5 rounded-lg border border-gray-200 text-sm text-right text-gray-900 focus:outline-none focus:border-[#C9A227]"
-                          />
+                    {/* Resumo de pagamento das parcelas */}
+                    {parcelas.some(p => p.status === 'pago') && (() => {
+                      const pagas = parcelas.filter(p => p.status === 'pago')
+                      const pendentes = parcelas.filter(p => p.status !== 'pago')
+                      const totalPago = pagas.reduce((s, p) => s + (p.valor || 0), 0)
+                      const totalPendente = pendentes.reduce((s, p) => s + (p.valor || 0), 0)
+                      return (
+                        <div className="bg-green-50 border border-green-200 rounded-xl p-3 mb-2">
+                          <p className="text-xs font-bold text-green-700 mb-1">📊 Situação das parcelas</p>
+                          <div className="flex gap-4 text-xs">
+                            <span className="text-green-700">✅ {pagas.length} paga{pagas.length > 1 ? 's' : ''}: <strong>${totalPago.toFixed(2)}</strong></span>
+                            {pendentes.length > 0 && <span className="text-orange-600">⏳ {pendentes.length} pendente{pendentes.length > 1 ? 's' : ''}: <strong>${totalPendente.toFixed(2)}</strong></span>}
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      )
+                    })()}
+                    {parcelas.map((p, i) => {
+                      const isPago = p.status === 'pago'
+                      return (
+                        <div key={i} className={`flex items-center gap-2 rounded-lg px-2 py-1 ${isPago ? 'bg-green-50 border border-green-200' : ''}`}>
+                          {isPago
+                            ? <span className="text-xs font-bold text-green-600 w-6 text-center">✅</span>
+                            : <span className="text-xs font-bold text-gray-500 w-6 text-center">{p.numero}x</span>
+                          }
+                          <input
+                            type="date"
+                            value={p.data}
+                            disabled={isPago}
+                            onChange={e => !isPago && setParcelas(prev => prev.map((x, j) => j === i ? { ...x, data: e.target.value } : x))}
+                            className={`flex-1 px-2 py-1.5 rounded-lg border text-sm focus:outline-none ${isPago ? 'border-green-200 bg-green-50 text-green-700 cursor-not-allowed' : 'border-gray-200 text-gray-900 focus:border-[#C9A227]'}`}
+                          />
+                          <div className="relative w-24">
+                            <span className={`absolute left-2 top-1/2 -translate-y-1/2 text-xs ${isPago ? 'text-green-500' : 'text-gray-400'}`}>$</span>
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={p.valor}
+                              disabled={isPago}
+                              onChange={e => !isPago && setParcelas(prev => prev.map((x, j) => j === i ? { ...x, valor: parseFloat(e.target.value) || 0 } : x))}
+                              className={`w-full pl-5 pr-2 py-1.5 rounded-lg border text-sm text-right focus:outline-none ${isPago ? 'border-green-200 bg-green-50 text-green-700 font-semibold cursor-not-allowed' : 'border-gray-200 text-gray-900 focus:border-[#C9A227]'}`}
+                            />
+                          </div>
+                          {isPago && <span className="text-xs font-bold text-green-600 whitespace-nowrap">PAGO</span>}
+                        </div>
+                      )
+                    })}
                   </div>
 
                   <div className="flex justify-between text-xs text-gray-500 pt-1 border-t border-gray-100">

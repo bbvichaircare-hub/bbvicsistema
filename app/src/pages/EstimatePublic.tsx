@@ -95,11 +95,7 @@ export default function EstimatePublic() {
     setApproving(true)
     setErrorMsg('')
     try {
-      await updateDoc(doc(db, 'estimates', estimate.id), {
-        status: 'aprovado',
-        aprovado_em: Timestamp.now(),
-      })
-
+      // Criar invoice PRIMEIRO — se falhar, orçamento não some
       const invoiceNumero = `INV-${Date.now()}`
       const newToken = uuidv4()
 
@@ -109,11 +105,17 @@ export default function EstimatePublic() {
         cliente_nome: estimate.cliente_nome,
         cliente_email: estimate.cliente_email || '',
         cliente_telefone: estimate.cliente_telefone || '',
+        cliente_endereco: (estimate as any).cliente_endereco || '',
+        cliente_cidade: (estimate as any).cliente_cidade || '',
+        cliente_zip: (estimate as any).cliente_zip || '',
         items: estimate.items || [],
         subtotal: estimate.subtotal || 0,
         desconto: estimate.desconto || 0,
+        desconto_pct: (estimate as any).desconto_pct || 0,
         taxa: estimate.taxa || 0,
+        taxa_pct: (estimate as any).taxa_pct || 0,
         total: estimate.total || 0,
+        taxa_envio: (estimate as any).taxa_envio || 0,
         deposit: 0,
         payment_terms: 'Net 30',
         status: 'enviado',
@@ -127,6 +129,13 @@ export default function EstimatePublic() {
         visualizado_count: 0,
         estimate_origem: estimate.id,
         created_at: Timestamp.now(),
+      })
+
+      // Só marca como aprovado APÓS fatura criada com sucesso
+      await updateDoc(doc(db, 'estimates', estimate.id), {
+        status: 'aprovado',
+        aprovado_em: Timestamp.now(),
+        invoice_gerada_id: invoiceRef.id,
       })
 
       await addDoc(collection(db, 'contas_receber'), {
@@ -320,6 +329,15 @@ export default function EstimatePublic() {
               <a href={`mailto:${estimate.cliente_email}`} className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700">
                 <Mail className="w-3.5 h-3.5 flex-shrink-0" /><span>{estimate.cliente_email}</span>
               </a>
+            )}
+            {((estimate as any).cliente_endereco || (estimate as any).cliente_cidade || (estimate as any).cliente_zip) && (
+              <p className="flex items-start gap-2 text-sm text-gray-500">
+                <MapPin className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+                <span>
+                  {(estimate as any).cliente_endereco && <>{(estimate as any).cliente_endereco}<br /></>}
+                  {[(estimate as any).cliente_cidade, (estimate as any).cliente_zip].filter(Boolean).join(', ')}
+                </span>
+              </p>
             )}
           </div>
         </div>

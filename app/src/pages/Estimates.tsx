@@ -13,7 +13,8 @@ import {
   deleteDoc,
   doc,
   updateDoc,
-  getDoc
+  getDoc,
+  where
 } from "firebase/firestore"
 
 import { db } from "@/lib/firebase"
@@ -24,7 +25,9 @@ import {
   Search,
   ClipboardList,
   Trash2,
-  MessageCircle
+  MessageCircle,
+  AlertTriangle,
+  FileText
 } from "lucide-react"
 
 import type { Estimate } from "@/types"
@@ -33,12 +36,15 @@ export function Estimates() {
 
   const navigate = useNavigate()
   const { user, isAdmin } = useAuth()
+  const [modalAlteracoes, setModalAlteracoes] = useState<any>(null)
 
   const [estimates, setEstimates] = useState<Estimate[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
   const [deleteConfirm, setDeleteConfirm] = useState<{id: string; numero: string; cliente: string} | null>(null)
   const [deleting, setDeleting] = useState(false)
+
+  const [prodMap, setProdMap] = useState<Record<string, number>>({})
 
   useEffect(() => {
     fetchEstimates()
@@ -48,6 +54,13 @@ export function Estimates() {
     if (!user) return
     try {
       setLoading(true)
+
+      // Carrega catálogo de produtos para comparação de preços
+      const prodSnap = await getDocs(collection(db, 'produtos'))
+      const map: Record<string, number> = {}
+      prodSnap.docs.forEach(d => { map[d.id] = (d.data() as any).preco_venda || 0 })
+      setProdMap(map)
+
       const snapshot = await getDocs(isAdmin
         ? query(collection(db, "estimates"), orderBy("created_at", "desc"))
         : collection(db, "estimates")
@@ -95,6 +108,23 @@ export function Estimates() {
     } finally {
       setDeleting(false)
     }
+  }
+
+  // Calcula alterações comparando itens com o catálogo atual — funciona em todos os orçamentos
+  const getAlteracoes = (estimate: any) => {
+    if (!isAdmin || Object.keys(prodMap).length === 0) return []
+    const items: any[] = estimate.items || []
+    return items
+      .filter(i => {
+        const precoOriginal = prodMap[i.produto_id]
+        return precoOriginal !== undefined && precoOriginal > 0 && Math.abs(i.preco_unitario - precoOriginal) > 0.01
+      })
+      .map(i => ({
+        produto: i.produto_nome,
+        preco_original: prodMap[i.produto_id],
+        preco_cobrado: i.preco_unitario,
+        diferenca: Math.round((i.preco_unitario - prodMap[i.produto_id]) * 100) / 100,
+      }))
   }
 
   const filteredEstimates = estimates.filter(est =>
@@ -152,7 +182,14 @@ export function Estimates() {
       .replace(/{VALIDADE}/g, dataVal)
       .replace(/{DATA_ENVIO}/g, dataEnvio)
       .replace(/{LINK}/g, estimateUrl)
-    window.open(`https://wa.me/1${phone}?text=${encodeURIComponent(msg)}`, '_blank', 'noopener,noreferrer')
+    const url = `https://wa.me/1${phone}?text=${encodeURIComponent(msg)}`
+    const a = document.createElement('a')
+    a.href = url
+    a.target = '_blank'
+    a.rel = 'noopener noreferrer'
+    document.body.appendChild(a)
+    a.click()
+    setTimeout(() => document.body.removeChild(a), 200)
   }
 
   return (
@@ -243,6 +280,12 @@ export function Estimates() {
                   <button onClick={() => navigate(`/estimates/${estimate.id}/editar`)} className="text-sm font-medium text-[#C9A227] hover:underline text-left">
                     {estimate.cliente_nome}
                   </button>
+                  {isAdmin && getAlteracoes(estimate).length > 0 && (
+                    <button onClick={() => setModalAlteracoes({ ...estimate, detalhes_alteracoes: getAlteracoes(estimate) })}
+                      className="flex items-center gap-1 mt-1 text-xs font-semibold text-amber-700 bg-amber-100 border border-amber-300 rounded-full px-2 py-0.5 hover:bg-amber-200">
+                      <AlertTriangle className="w-3 h-3" /> Preço Alterado
+                    </button>
+                  )}
 
                 </div>
 
@@ -258,8 +301,28 @@ export function Estimates() {
                 <span
                   className={`text-xs px-2 py-1 rounded-full ${getStatusColor(estimate.status)}`}
                 >
-                  {estimate.status}
+                  {estimate.status === 'aprovado' ? '✅ Aprovado' : estimate.status}
                 </span>
+
+                {estimate.status === 'aprovado' && (
+                  <button
+                    onClick={async e => {
+                      e.stopPropagation()
+                      try {
+                        const invSnap = await getDocs(query(collection(db, 'invoices'), where('estimate_origem', '==', estimate.id)))
+                        if (!invSnap.empty) {
+                          navigate(`/invoices/${invSnap.docs[0].id}/editar`)
+                        } else {
+                          navigate('/invoices')
+                        }
+                      } catch { navigate('/invoices') }
+                    }}
+                    className="flex items-center gap-1 px-2 py-1 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 text-xs font-medium"
+                    title="Ver fatura gerada"
+                  >
+                    <FileText className="w-3.5 h-3.5" /> Ver Fatura
+                  </button>
+                )}
 
                 <button
                   onClick={e => { e.stopPropagation(); sendWAEstimate(estimate) }}
@@ -311,8 +374,52 @@ export function Estimates() {
           </div>
         </div>
       )}
+
+      {/* Modal: Detalhes de Preços Alterados */}
+      {modalAlteracoes && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setModalAlteracoes(null)}>
+          <div onClick={e => e.stopPropagation()} className="bg-white rounded-2xl shadow-xl w-full max-w-lg mx-4 p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-9 h-9 rounded-xl bg-amber-100 flex items-center justify-center">
+                <AlertTriangle className="w-5 h-5 text-amber-600" />
+              </div>
+              <div>
+                <h3 className="font-bold text-gray-900 text-base">Preços Alterados pelo Vendedor</h3>
+                <p className="text-xs text-gray-400">Orçamento {modalAlteracoes.numero} · {modalAlteracoes.cliente_nome}</p>
+              </div>
+            </div>
+            <div className="overflow-x-auto rounded-xl border border-gray-100">
+              <table className="w-full text-sm">
+                <thead className="bg-amber-50">
+                  <tr>
+                    <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-600">Produto</th>
+                    <th className="text-right px-4 py-2.5 text-xs font-semibold text-gray-600">Preço Padrão</th>
+                    <th className="text-right px-4 py-2.5 text-xs font-semibold text-gray-600">Cobrado</th>
+                    <th className="text-right px-4 py-2.5 text-xs font-semibold text-gray-600">Diferença</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {((modalAlteracoes as any).detalhes_alteracoes || []).map((a: any, i: number) => (
+                    <tr key={i} className="border-t border-gray-100">
+                      <td className="px-4 py-3 text-gray-800">{a.produto}</td>
+                      <td className="px-4 py-3 text-right text-gray-500">{formatCurrency(a.preco_original)}</td>
+                      <td className="px-4 py-3 text-right font-semibold text-gray-900">{formatCurrency(a.preco_cobrado)}</td>
+                      <td className={`px-4 py-3 text-right font-bold ${a.diferenca < 0 ? 'text-red-500' : 'text-green-600'}`}>
+                        {a.diferenca > 0 ? '+' : ''}{formatCurrency(a.diferenca)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p className="text-xs text-gray-400 mt-3">Vendedor: {(modalAlteracoes as any).vendedor_nome || '—'}</p>
+            <button onClick={() => setModalAlteracoes(null)}
+              className="mt-4 w-full py-2.5 rounded-xl bg-gray-100 text-gray-700 font-semibold text-sm hover:bg-gray-200">
+              Fechar
+            </button>
+          </div>
+        </div>
+      )}
     </div>
-
   )
-
 }

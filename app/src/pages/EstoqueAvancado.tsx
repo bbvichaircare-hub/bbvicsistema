@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { collection, query, where, getDocs, addDoc, updateDoc, doc, Timestamp, orderBy, limit, deleteDoc, writeBatch } from 'firebase/firestore';
@@ -154,7 +154,7 @@ export function EstoqueAvancado() {
     setShowModal(true);
   };
 
-  const calcMargem = (custo: number, venda: number) => custo > 0 ? Math.round(((venda - custo) / custo) * 10000) / 100 : (venda > 0 ? 100 : 0);
+  const calcMargem = (custo: number, venda: number) => venda > 0 ? Math.round(((venda - custo) / custo) * 10000) / 100 : 0;
 
   const handleSave = async () => {
     if (!form.nome.trim()) { toast.error('Nome obrigat\u00f3rio'); return; }
@@ -307,7 +307,7 @@ export function EstoqueAvancado() {
             'Estoque MInimo', 'Estoque Minimo', 'Estoque Mínimo', 'estoque_minimo', 'minimo', 'min', 'ESTOQUE MINIMO')))
           const categoria = String(getCol(row, 'Categoria', 'categoria', 'category', 'CATEGORIA') || '').trim()
           const unidade = String(getCol(row, 'Unidade', 'unidade', 'unit', 'UNIDADE') || 'un').trim()
-          const margem = custo > 0 ? Math.round(((venda - custo) / custo) * 10000) / 100 : (venda > 0 ? 100 : 0)
+          const margem = venda > 0 ? Math.round(((venda - custo) / custo) * 10000) / 100 : 0
 
           const dadosProduto: any = {
             nome: nomeStr,
@@ -365,7 +365,7 @@ export function EstoqueAvancado() {
   const totalValorVenda = produtos.reduce((sum, p) => sum + ((p as any).preco||0) * (p.estoque||0), 0);
   const totalValorCusto = produtos.reduce((sum, p) => sum + ((p as any).preco_custo||0) * (p.estoque||0), 0);
   const lucroEstoque = totalValorVenda - totalValorCusto;
-  const margemMediaGeral = totalValorCusto > 0 ? (lucroEstoque / totalValorCusto) * 100 : 0;
+  const margemMediaGeral = totalValorVenda > 0 ? (lucroEstoque / totalValorVenda) * 100 : 0;
   const totalItens = produtos.reduce((sum, p) => sum + (p.estoque||0), 0);
 
   const fmt = (v: number) => v.toLocaleString('en-US', { minimumFractionDigits:2, maximumFractionDigits:2 });
@@ -690,7 +690,7 @@ export function EstoqueAvancado() {
                           {(() => {
                             const custo = (produto as any).preco_custo || 0;
                             const venda = (produto as any).preco || 0;
-                            const margem = custo > 0 ? ((venda - custo) / custo) * 100 : (venda > 0 ? 100 : 0);
+                            const margem = venda > 0 ? ((venda - custo) / custo) * 100 : 0;
                             return (
                               <span className={`text-sm font-bold ${margem >= 30 ? 'text-green-600' : margem >= 15 ? 'text-amber-600' : margem > 0 ? 'text-red-500' : 'text-gray-400'}`}>
                                 {margem > 0 ? `${margem.toFixed(1)}%` : '—'}

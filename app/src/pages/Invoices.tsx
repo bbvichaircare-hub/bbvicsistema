@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react'
+﻿import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
 import { collection, query, where, getDocs, orderBy, updateDoc, doc, addDoc, Timestamp, getDoc, deleteDoc, deleteField } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
-import { isAtrasada } from '@/lib/kpiUtils'
+// kpiUtils usado via faturaAtrasada local (mais abrangente)
 import { formatCurrency } from '@/lib/utils'
+import { toast } from 'sonner'
 import { Plus, Search, FileText, Eye, CheckCircle, Loader2, Trash2, MessageCircle } from 'lucide-react'
 import type { Invoice } from '@/types'
 
@@ -30,7 +31,9 @@ async function criarComissaoAuto(invoiceId: string, invoiceData: any) {
     const vendedorDoc = await getDoc(doc(db, 'users', invoiceData.vendedor_id))
     if (!vendedorDoc.exists()) return
     const percentual = vendedorDoc.data().comissao_percentual || 10
-    const valorComissao = (invoiceData.total * percentual) / 100
+    // Comissão calculada sobre o subtotal (valor dos produtos, sem frete/taxas)
+    const baseComissao = invoiceData.subtotal || invoiceData.total
+    const valorComissao = (baseComissao * percentual) / 100
     const comSnap = await getDocs(query(collection(db, 'comissoes'), where('invoice_id', '==', invoiceId)))
     if (!comSnap.empty) return
     await addDoc(collection(db, 'comissoes'), {
@@ -39,7 +42,7 @@ async function criarComissaoAuto(invoiceId: string, invoiceData: any) {
       invoice_id: invoiceId,
       invoice_numero: invoiceData.numero,
       cliente_nome: invoiceData.cliente_nome,
-      valor_venda: invoiceData.total,
+      valor_venda: baseComissao,
       percentual,
       valor_comissao: valorComissao,
       status: 'pendente',
@@ -74,6 +77,8 @@ export function Invoices() {
   const [deleting, setDeleting] = useState(false)
   const [modalBaixa, setModalBaixa] = useState<Invoice | null>(null)
   const [baixaFormaPgto, setBaixaFormaPgto] = useState('')
+  const [baixaSubOpcao, setBaixaSubOpcao] = useState('')
+  const [baixaObservacao, setBaixaObservacao] = useState('')
   const [baixaData, setBaixaData] = useState(() => new Date().toISOString().split('T')[0])
   const [salvandoBaixa, setSalvandoBaixa] = useState(false)
   const [parcialFormaPgto, setParcialFormaPgto] = useState('')
@@ -83,6 +88,13 @@ export function Invoices() {
   const [primeiraDataSaldo, setPrimeiraDataSaldo] = useState(() => {
     const d = new Date(); d.setMonth(d.getMonth() + 1); return d.toISOString().split('T')[0]
   })
+
+  // Modal Corrigir Pagamento
+  const [modalCorrigir, setModalCorrigir] = useState<Invoice | null>(null)
+  const [corrigirValor, setCorrigirValor] = useState('')
+  const [corrigirForma, setCorrigirForma] = useState('')
+  const [corrigirData, setCorrigirData] = useState(() => new Date().toISOString().split('T')[0])
+  const [salvandoCorrigir, setSalvandoCorrigir] = useState(false)
 
   useEffect(() => { fetchInvoices() }, [user, isAdmin])
 
@@ -125,6 +137,8 @@ export function Invoices() {
   const handleMarcarPago = (inv: Invoice) => {
     setBaixaData(new Date().toISOString().split('T')[0])
     setBaixaFormaPgto('')
+    setBaixaSubOpcao('')
+    setBaixaObservacao('')
     setModalBaixa(inv)
   }
 
@@ -135,7 +149,7 @@ export function Invoices() {
     const dataPgto = baixaData ? Timestamp.fromDate(new Date(baixaData + 'T12:00:00')) : Timestamp.now()
     try {
       await updateDoc(doc(db, 'invoices', inv.id), {
-        status: 'pago', data_pagamento: dataPgto, forma_pagamento_recebido: baixaFormaPgto, updated_at: Timestamp.now(),
+        status: 'pago', data_pagamento: dataPgto, forma_pagamento_recebido: baixaFormaPgto, forma_pagamento_sub: baixaSubOpcao || null, observacao_pagamento: baixaObservacao || null, updated_at: Timestamp.now(),
       })
       // Atualiza contas_receber
       const crSnap = await getDocs(query(collection(db, 'contas_receber'), where('invoice_id', '==', inv.id)))
@@ -177,6 +191,108 @@ export function Invoices() {
       setModalBaixa(null)
     } catch (e) { console.error(e); alert('Erro ao marcar como pago') }
     finally { setSalvandoBaixa(false) }
+  }
+
+  const abrirCorrigirPagamento = (inv: Invoice) => {
+    setModalCorrigir(inv)
+    setCorrigirValor(String((inv as any).valor_pago || inv.total || ''))
+    setCorrigirForma((inv as any).forma_pagamento_recebido || '')
+    setCorrigirData(new Date().toISOString().split('T')[0])
+  }
+
+  const handleCorrigirPagamento = async () => {
+    const inv = modalCorrigir
+    if (!inv?.id) return
+    const novoValor = parseFloat(corrigirValor)
+    if (isNaN(novoValor) || novoValor < 0) { alert('Informe um valor válido'); return }
+    setSalvandoCorrigir(true)
+    try {
+      const valorAntigo = (inv as any).valor_pago || 0
+      const diferenca = novoValor - valorAntigo
+      const dataPgtoTs = corrigirData ? Timestamp.fromDate(new Date(corrigirData + 'T12:00:00')) : Timestamp.now()
+      const agora = corrigirData ? new Date(corrigirData + 'T12:00:00') : new Date()
+
+      // Calcular novo status
+      let novoStatus: string
+      if (novoValor <= 0) {
+        novoStatus = (inv as any).statusOriginal || 'enviado'
+      } else if (novoValor >= inv.total - 0.01) {
+        novoStatus = 'pago'
+      } else {
+        novoStatus = 'parcial'
+      }
+
+      // Atualizar receitas: se diferença positiva → nova receita; se negativa → ajustar/deletar
+      if (diferenca > 0.01) {
+        await addDoc(collection(db, 'receitas'), {
+          descricao: `Correção de pagamento - Fatura ${inv.numero}`,
+          invoice_id: inv.id,
+          invoice_numero: inv.numero,
+          cliente_nome: inv.cliente_nome,
+          valor: diferenca,
+          mes: agora.getMonth() + 1,
+          ano: agora.getFullYear(),
+          data: dataPgtoTs,
+          origem: 'correcao_pagamento',
+          vendedor_id: (inv as any).vendedor_id || '',
+          created_at: Timestamp.now(),
+        })
+      } else if (diferenca < -0.01) {
+        // Buscar receitas existentes e ajustar a mais recente
+        const recSnap = await getDocs(query(collection(db, 'receitas'), where('invoice_id', '==', inv.id)))
+        const recDocs = recSnap.docs.sort((a, b) => (b.data().created_at?.seconds || 0) - (a.data().created_at?.seconds || 0))
+        let restanteAjuste = Math.abs(diferenca)
+        for (const rd of recDocs) {
+          if (restanteAjuste <= 0) break
+          const valRec = rd.data().valor || 0
+          if (valRec <= restanteAjuste) {
+            await deleteDoc(doc(db, 'receitas', rd.id))
+            restanteAjuste -= valRec
+          } else {
+            await updateDoc(doc(db, 'receitas', rd.id), { valor: valRec - restanteAjuste })
+            restanteAjuste = 0
+          }
+        }
+      }
+
+      // Atualizar parcelas se existirem
+      let novasParcelas = (inv as any).parcelas || []
+      if ((inv as any).parcelas_ativo && novasParcelas.length > 0) {
+        // Zera e redistribui conforme novo valor pago
+        let saldoPago = novoValor
+        novasParcelas = novasParcelas.map((p: any) => {
+          const valParcela = p.valor || 0
+          if (saldoPago >= valParcela - 0.01) {
+            saldoPago -= valParcela
+            return { ...p, status: 'pago', valor_pago: valParcela }
+          } else if (saldoPago > 0.01) {
+            const vp = saldoPago
+            saldoPago = 0
+            return { ...p, status: 'parcialmente_pago', valor_pago: vp }
+          } else {
+            return { ...p, status: 'pendente', valor_pago: 0 }
+          }
+        })
+      }
+
+      await updateDoc(doc(db, 'invoices', inv.id), {
+        valor_pago: novoValor,
+        status: novoStatus,
+        forma_pagamento_recebido: corrigirForma || '',
+        data_pagamento: novoStatus === 'pago' ? dataPgtoTs : null,
+        parcelas: novasParcelas,
+        ultima_correcao_pagamento: { data: Timestamp.now(), valor_anterior: valorAntigo, novo_valor: novoValor },
+        updated_at: Timestamp.now(),
+      })
+
+      setInvoices(prev => prev.map(i => i.id === inv.id
+        ? { ...i, status: novoStatus, valor_pago: novoValor, forma_pagamento_recebido: corrigirForma } as any
+        : i
+      ))
+      toast.success('Pagamento corrigido com sucesso!')
+      setModalCorrigir(null)
+    } catch (e) { console.error(e); alert('Erro ao corrigir pagamento') }
+    finally { setSalvandoCorrigir(false) }
   }
 
   const handleDelete = async () => {
@@ -299,17 +415,78 @@ export function Invoices() {
     }
   }
 
-  const faturaAtrasada = (inv: Invoice) => isAtrasada(inv as any)
+  // Detecção agressiva de fatura atrasada — verifica todos os campos de data possíveis
+  const faturaAtrasada = (inv: any): boolean => {
+    if (inv.status === 'pago') return false
+    if (inv.status === 'cancelado') return false
+
+    const hoje = new Date(); hoje.setHours(0, 0, 0, 0)
+
+    const parseDate = (v: any): Date | null => {
+      if (!v) return null
+      try {
+        if (typeof v?.toDate === 'function') return v.toDate()
+        if (typeof v === 'object' && typeof v.seconds === 'number') return new Date(v.seconds * 1000)
+        if (v instanceof Date) return isNaN(v.getTime()) ? null : v
+        const s = String(v).trim()
+        const dm = s.match(/^(\d{2})\/(\d{2})\/(\d{4})/)
+        if (dm) { const d = new Date(`${dm[3]}-${dm[2]}-${dm[1]}T12:00:00`); return isNaN(d.getTime()) ? null : d }
+        const ym = s.match(/^(\d{4})-(\d{2})-(\d{2})/)
+        if (ym) { const d = new Date(`${ym[1]}-${ym[2]}-${ym[3]}T12:00:00`); return isNaN(d.getTime()) ? null : d }
+        const d = new Date(s)
+        return isNaN(d.getTime()) ? null : d
+      } catch { return null }
+    }
+
+    const vencida = (d: Date | null) => !!d && (() => { const v = new Date(d!); v.setHours(23,59,59,999); return v < hoje })()
+
+    // Para faturas PARCELADAS: verificar SOMENTE as datas das parcelas pendentes
+    if (Array.isArray(inv.parcelas) && inv.parcelas.length > 0) {
+      const pendentes = inv.parcelas.filter((p: any) => p.status !== 'pago')
+      if (pendentes.length === 0) return false // todas pagas
+      for (const p of pendentes) {
+        const d = parseDate(p.data_vencimento ?? p.data ?? p.vencimento ?? p.due_date)
+        if (d && vencida(d)) return true
+      }
+      return false // parcelas pendentes ainda não venceram
+    }
+
+    // Para faturas NÃO parceladas: verificar data geral de vencimento
+    if (inv.status === 'atrasado') return true
+    const camposVenc = ['data_vencimento','vencimento','due_date','dataVencimento','data_venc','dueDate','data']
+    for (const campo of camposVenc) {
+      const d = parseDate(inv[campo])
+      if (d) return vencida(d)
+    }
+    const camposCriacao = ['data_emissao','created_at','createdAt','data_criacao']
+    for (const campo of camposCriacao) {
+      const d = parseDate(inv[campo])
+      if (d) { const l = new Date(d); l.setDate(l.getDate() + 15); return l < hoje }
+    }
+
+    // 4. Sem nenhuma data: se status indica não pago, é atrasado
+    return ['enviado','parcial','visualizado','aguardando_confirmacao','pendente'].includes(inv.status)
+  }
 
   const MESES_PT = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']
 
   const filtered = invoices.filter(inv => {
     const matchSearch = inv.numero.toLowerCase().includes(searchTerm.toLowerCase()) || inv.cliente_nome.toLowerCase().includes(searchTerm.toLowerCase())
-    const matchStatus = filterStatus === 'all' || inv.status === filterStatus
+
+    // Quando filtro "atrasado" está ativo: ignora filtro de data e status
+    // Mostra TODAS as faturas atrasadas independente do mês
+    if (activeCard === 'atrasado') {
+      return (faturaAtrasada(inv) || inv.status === 'atrasado') && matchSearch
+    }
+
+    const matchStatus = filterStatus === 'all'
+      ? true
+      : filterStatus === 'atrasado'
+        ? (faturaAtrasada(inv) || inv.status === 'atrasado')
+        : inv.status === filterStatus
     let matchCard = true
     if (activeCard === 'pago') matchCard = inv.status === 'pago'
     else if (activeCard === 'pendente') matchCard = ['enviado','aguardando_confirmacao','visualizado'].includes(inv.status) && !faturaAtrasada(inv)
-    else if (activeCard === 'atrasado') matchCard = faturaAtrasada(inv) || inv.status === 'atrasado'
     else if (activeCard === 'parcial') matchCard = inv.status === 'parcial'
     let matchDate = true
     if (filtroDataInicio || filtroDataFim) {
@@ -326,6 +503,9 @@ export function Invoices() {
     return matchSearch && matchStatus && matchCard && matchDate
   })
 
+  // Contagem/valor de TODAS as atrasadas (ignora filtro de data/status)
+  const todasAtrasadas = invoices.filter(i => faturaAtrasada(i) || i.status === 'atrasado')
+
   const totais = {
     pago: filtered.filter(i => ['pago','parcial'].includes(i.status)).reduce((s, i) => {
       if (i.status === 'pago') return s + (i.total - (i.desconto || 0))
@@ -333,9 +513,9 @@ export function Invoices() {
     }, 0),
     pagoGeral: filtered.filter(i => i.status === 'pago').reduce((s, i) => s + i.total, 0),
     pendente: filtered.filter(i => ['enviado','aguardando_confirmacao','visualizado','rascunho','pendente'].includes(i.status) && !faturaAtrasada(i)).reduce((s, i) => s + i.total, 0),
-    atrasado: filtered.filter(i => faturaAtrasada(i) || i.status === 'atrasado').reduce((s, i) => s + i.total, 0),
+    atrasado: todasAtrasadas.reduce((s, i) => s + i.total, 0),
     parcial: filtered.filter(i => i.status === 'parcial').reduce((s, i) => s + (i.total - ((i as any).valor_pago || 0)), 0),
-    countAtrasado: filtered.filter(i => faturaAtrasada(i) || i.status === 'atrasado').length,
+    countAtrasado: todasAtrasadas.length,
     countParcial: filtered.filter(i => i.status === 'parcial').length,
     mesLabel: (filtroDataInicio || filtroDataFim) ? `${filtroDataInicio || ''}${filtroDataInicio && filtroDataFim ? ' – ' : ''}${filtroDataFim || ''}` : `${MESES_PT[mesFiltro - 1]} ${anoFiltro}`,
   }
@@ -353,9 +533,46 @@ export function Invoices() {
     setSalvandoParcelaItem(true)
     try {
       const dataPgto = parcelaDataPgto ? Timestamp.fromDate(new Date(parcelaDataPgto + 'T12:00:00')) : Timestamp.now()
-      const novasParcelas = parcelas.map((p: any, idx: number) =>
-        idx === pagandoParcelaIdx ? { ...p, status: 'pago', valor_pago: valor, data_pagamento: parcelaDataPgto, forma_pagamento: parcelaForma } : p
-      )
+
+      // Verifica se o pagamento é parcial para ESTA parcela
+      const valorDaParcela = parcela.valor || 0
+      const pagoAntesDaParcela = parcela.valor_pago || 0
+      const novoTotalPagoDaParcela = pagoAntesDaParcela + valor
+      const faltaNaParcela = Math.round((valorDaParcela - novoTotalPagoDaParcela) * 100) / 100
+      const parcelaFoiPagaCompleta = faltaNaParcela <= 0.01
+
+      // Se pagou parcial desta parcela, redistribui o saldo faltante nas próximas pendentes
+      let novasParcelas = parcelas.map((p: any, idx: number) => {
+        if (idx !== pagandoParcelaIdx) return p
+        return {
+          ...p,
+          status: parcelaFoiPagaCompleta ? 'pago' : 'parcialmente_pago',
+          valor_pago: novoTotalPagoDaParcela,
+          data_pagamento: parcelaDataPgto,
+          forma_pagamento: parcelaForma,
+        }
+      })
+
+      // Se pagou menos que a parcela: redistribui o saldo faltante nas parcelas seguintes
+      if (!parcelaFoiPagaCompleta && faltaNaParcela > 0.01) {
+        const indicePendentes = novasParcelas
+          .map((p: any, i: number) => ({ p, i }))
+          .filter(({ p, i }) => i > pagandoParcelaIdx && p.status !== 'pago')
+        if (indicePendentes.length > 0) {
+          const adicionalPorParcela = Math.round((faltaNaParcela / indicePendentes.length) * 100) / 100
+          novasParcelas = novasParcelas.map((p: any, idx: number) => {
+            const eUltimaPendente = indicePendentes[indicePendentes.length - 1]?.i === idx
+            const ePendente = indicePendentes.some(({ i }) => i === idx)
+            if (!ePendente) return p
+            // Ajusta o valor da parcela pendente somando o saldo redistribuído
+            const novoValor = eUltimaPendente
+              ? Math.round((p.valor + faltaNaParcela - adicionalPorParcela * (indicePendentes.length - 1)) * 100) / 100
+              : Math.round((p.valor + adicionalPorParcela) * 100) / 100
+            return { ...p, valor: novoValor }
+          })
+        }
+      }
+
       const totalPagoAntes = (inv as any).valor_pago || 0
       const novoTotalPago = totalPagoAntes + valor
       const restante = inv.total - novoTotalPago
@@ -453,7 +670,14 @@ export function Invoices() {
       .replace(/{DATA_ENVIO}/g, dataEnvio)
       .replace(/{LINK}/g, invoiceUrl)
       + (squareLink ? `\n\n💳 Pague agora: ${squareLink}` : '')
-    window.open(`https://wa.me/1${phone}?text=${encodeURIComponent(msg)}`, '_blank', 'noopener,noreferrer')
+    const url = `https://wa.me/1${phone}?text=${encodeURIComponent(msg)}`
+    const a = document.createElement('a')
+    a.href = url
+    a.target = '_blank'
+    a.rel = 'noopener noreferrer'
+    document.body.appendChild(a)
+    a.click()
+    setTimeout(() => document.body.removeChild(a), 200)
   }
 
   return (
@@ -467,6 +691,60 @@ export function Invoices() {
         <button onClick={() => navigate('/invoices/novo')} className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#C9A227] text-white hover:bg-[#9A7B1A] text-sm font-medium">
           <Plus className="w-4 h-4" /> Nova Fatura
         </button>
+        {isAdmin && (
+          <button
+            onClick={async () => {
+              if (!confirm('Corrigir status de todas as faturas em RASCUNHO?')) return
+              const { getDocs: gd, query: q2, where: w2, collection: col2, doc: docRef2, updateDoc: ud2 } = await import('firebase/firestore')
+              const snap = await gd(q2(col2(db, 'invoices'), w2('status', '==', 'rascunho')))
+              if (snap.empty) { alert('Nenhuma fatura em rascunho encontrada.'); return }
+              const hoje = new Date(); hoje.setHours(0, 0, 0, 0)
+              const parseD = (v: any): Date | null => {
+                if (!v) return null
+                try {
+                  if (typeof v?.toDate === 'function') return v.toDate()
+                  if (typeof v === 'object' && typeof v.seconds === 'number') return new Date(v.seconds * 1000)
+                  const s = String(v).trim()
+                  const dm = s.match(/^(\d{2})\/(\d{2})\/(\d{4})/); if (dm) return new Date(`${dm[3]}-${dm[2]}-${dm[1]}T12:00:00`)
+                  const ym = s.match(/^(\d{4})-(\d{2})-(\d{2})/); if (ym) return new Date(`${ym[1]}-${ym[2]}-${ym[3]}T12:00:00`)
+                  return new Date(s)
+                } catch { return null }
+              }
+              const definirStatus = (d: any) => {
+                const total = d.total || 0; const vp = d.valor_pago || 0
+                if (vp >= total && total > 0) return 'pago'
+                if (vp > 0) return 'parcial'
+                if (Array.isArray(d.parcelas) && d.parcelas.length > 0) {
+                  const pagas = d.parcelas.filter((p: any) => p.status === 'pago').reduce((s: number, p: any) => s + (p.valor || 0), 0)
+                  if (pagas >= total && total > 0) return 'pago'
+                  if (pagas > 0) return 'parcial'
+                  for (const p of d.parcelas.filter((p: any) => p.status !== 'pago')) {
+                    const dt = parseD(p.data_vencimento ?? p.data ?? p.vencimento)
+                    if (dt) { const v = new Date(dt); v.setHours(23,59,59,999); if (v < hoje) return 'atrasado' }
+                  }
+                }
+                for (const c of ['data','data_vencimento','vencimento','due_date']) {
+                  if (d[c]) { const dt = parseD(d[c]); if (dt) { const v = new Date(dt); v.setHours(23,59,59,999); if (v < hoje) return 'atrasado'; break } }
+                }
+                return 'enviado'
+              }
+              let ok = 0
+              for (const docSnap of snap.docs) {
+                try {
+                  const novoStatus = definirStatus(docSnap.data())
+                  await ud2(docRef2(db, 'invoices', docSnap.id), { status: novoStatus })
+                  ok++
+                } catch { /* continua */ }
+              }
+              alert(`✅ ${ok} fatura(s) corrigida(s)! Recarregando...`)
+              window.location.reload()
+            }}
+            className="flex items-center gap-2 px-3 py-2 rounded-xl bg-orange-500 text-white hover:bg-orange-600 text-sm font-medium"
+            title="Corrigir faturas em rascunho"
+          >
+            Corrigir Rascunhos
+          </button>
+        )}
       </div>
 
       {/* Cards Totais */}
@@ -641,6 +919,15 @@ export function Invoices() {
                         <button onClick={() => sendWAFatura(inv)} title="Enviar WhatsApp" className="p-1.5 rounded-lg bg-green-100 text-green-700 hover:bg-green-200">
                           <MessageCircle className="w-4 h-4" />
                         </button>
+                        {((inv as any).valor_pago > 0 || inv.status === 'pago') && (
+                          <button
+                            onClick={() => abrirCorrigirPagamento(inv)}
+                            title="Corrigir valor pago"
+                            className="px-2 py-1.5 rounded-lg bg-orange-100 text-orange-700 hover:bg-orange-200 text-xs font-medium"
+                          >
+                            Corrigir
+                          </button>
+                        )}
                         <button onClick={() => setDeleteConfirm({ id: inv.id!, numero: inv.numero, cliente: inv.cliente_nome })} className="p-1.5 rounded-lg bg-red-50 text-red-400 hover:bg-red-100" title="Excluir fatura">
                           <Trash2 className="w-4 h-4" />
                         </button>
@@ -730,24 +1017,35 @@ export function Invoices() {
 
             <div className="space-y-2">
               {((modalParcelas as any).parcelas || []).map((p: any, idx: number) => (
-                <div key={idx} className={`rounded-xl border p-3 ${p.status === 'pago' ? 'bg-green-50 border-green-200' : 'bg-white border-gray-200'}`}>
+                <div key={idx} className={`rounded-xl border p-3 ${p.status === 'pago' ? 'bg-green-50 border-green-200' : p.status === 'parcialmente_pago' ? 'bg-yellow-50 border-yellow-300' : 'bg-white border-gray-200'}`}>
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm font-semibold text-gray-800">
-                        {p.status === 'pago' ? '✅' : '⏳'} {p.numero}ª parcela — {formatCurrency(p.valor)}
+                        {p.status === 'pago' ? '✅' : p.status === 'parcialmente_pago' ? '⚠️' : '⏳'} {p.numero}ª parcela — {formatCurrency(p.valor)}
                       </p>
                       <p className="text-xs text-gray-500 mt-0.5">
                         Vencimento: {p.data ? new Date(p.data + 'T12:00:00').toLocaleDateString('pt-BR') : '—'}
                         {p.status === 'pago' && p.data_pagamento ? ` · Pago em: ${new Date(p.data_pagamento + 'T12:00:00').toLocaleDateString('pt-BR')}` : ''}
                         {p.status === 'pago' && p.forma_pagamento ? ` via ${p.forma_pagamento}` : ''}
+                        {p.status === 'parcialmente_pago' && p.valor_pago ? ` · Pago parcial: ${formatCurrency(p.valor_pago)} · Falta: ${formatCurrency(Math.max(0, p.valor - p.valor_pago))}` : ''}
+                        {p.status === 'parcialmente_pago' && p.forma_pagamento ? ` via ${p.forma_pagamento}` : ''}
                       </p>
                     </div>
                     {p.status !== 'pago' && pagandoParcelaIdx !== idx && (
                       <button
-                        onClick={() => { setPagandoParcelaIdx(idx); setParcelaValorInput(String(p.valor)); setParcelaForma(''); setParcelaDataPgto(new Date().toISOString().split('T')[0]) }}
+                        onClick={() => {
+                          setPagandoParcelaIdx(idx)
+                          // Se já pagou parcial, pré-preenche com o valor RESTANTE da parcela
+                          const valorRestante = p.status === 'parcialmente_pago' && p.valor_pago
+                            ? Math.max(0, p.valor - p.valor_pago)
+                            : p.valor
+                          setParcelaValorInput(String(Math.round(valorRestante * 100) / 100))
+                          setParcelaForma('')
+                          setParcelaDataPgto(new Date().toISOString().split('T')[0])
+                        }}
                         className="px-3 py-1.5 rounded-xl bg-[#C9A227] text-white text-xs font-bold hover:bg-[#9A7B1A]"
                       >
-                        Pagar
+                        {p.status === 'parcialmente_pago' ? 'Completar' : 'Pagar'}
                       </button>
                     )}
                     {p.status === 'pago' && (
@@ -806,11 +1104,13 @@ export function Invoices() {
             {(() => {
               const prcls: any[] = (modalParcelas as any).parcelas || []
               const pagas = prcls.filter((p:any) => p.status === 'pago').length
+              const parcialPagas = prcls.filter((p:any) => p.status === 'parcialmente_pago').length
               const totalPago = (modalParcelas as any).valor_pago || 0
               const restante = modalParcelas.total - totalPago
               return (
                 <div className="bg-gray-50 rounded-xl p-3 space-y-1 text-sm">
                   <div className="flex justify-between"><span className="text-gray-500">Parcelas pagas</span><span className="font-semibold">{pagas}/{prcls.length}</span></div>
+                  {parcialPagas > 0 && <div className="flex justify-between"><span className="text-yellow-600">Parciais (pago parcial)</span><span className="font-semibold text-yellow-600">{parcialPagas}</span></div>}
                   <div className="flex justify-between"><span className="text-gray-500">Total pago</span><span className="font-semibold text-green-600">{formatCurrency(totalPago)}</span></div>
                   {restante > 0.01 && <div className="flex justify-between"><span className="text-gray-500">Saldo restante</span><span className="font-semibold text-red-500">{formatCurrency(restante)}</span></div>}
                 </div>
@@ -831,16 +1131,75 @@ export function Invoices() {
             <div className="bg-gray-50 rounded-xl p-3 text-sm flex justify-between">
               <span className="text-gray-500">Valor total</span>
               <span className="font-bold text-gray-900">{formatCurrency(modalBaixa.total)}</span>
-            </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">Forma de Pagamento</label>
               <div className="grid grid-cols-2 gap-2">
-                {['Zelle', 'Venmo', 'Cash', 'Square', 'Cartão', 'Outro'].map(f => (
-                  <button key={f} onClick={() => setBaixaFormaPgto(f)}
+                {['Zelle', 'Venmo', 'Cash', 'Link', 'Cartão', 'Outro'].map(f => (
+                  <button key={f} onClick={() => { setBaixaFormaPgto(f); setBaixaSubOpcao('') }}
                     className={`py-2 px-3 rounded-xl border text-sm font-medium transition ${baixaFormaPgto === f ? 'bg-[#C9A227] text-white border-[#C9A227]' : 'bg-white text-gray-600 border-gray-200 hover:border-[#C9A227]'}`}>
                     {f}
                   </button>
                 ))}
+              </div>
+            </div>
+            {baixaFormaPgto === 'Cartão' && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Recebido em qual conta?</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {['Brazilian Touch', 'Julieth'].map(op => (
+                    <button key={op} onClick={() => setBaixaSubOpcao(op)}
+                      className={`py-2 px-3 rounded-xl border text-sm font-medium transition ${baixaSubOpcao === op ? 'bg-[#C9A227] text-white border-[#C9A227]' : 'bg-white text-gray-600 border-gray-200 hover:border-[#C9A227]'}`}>
+                      {op}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            {baixaFormaPgto === 'Zelle' && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Recebido em qual conta?</label>
+                <div className="flex flex-col gap-2">
+                  {['Hair Body', 'BBVIC Hair Care', 'Julieth'].map(op => (
+                    <button key={op} onClick={() => setBaixaSubOpcao(op)}
+                      className={`py-2 px-3 rounded-xl border text-sm font-medium transition ${baixaSubOpcao === op ? 'bg-[#C9A227] text-white border-[#C9A227]' : 'bg-white text-gray-600 border-gray-200 hover:border-[#C9A227]'}`}>
+                      {op}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            {baixaFormaPgto === 'Venmo' && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Recebido em qual conta?</label>
+                <div className="grid grid-cols-1 gap-2">
+                  {['Julieth'].map(op => (
+                    <button key={op} onClick={() => setBaixaSubOpcao(op)}
+                      className={`py-2 px-3 rounded-xl border text-sm font-medium transition ${baixaSubOpcao === op ? 'bg-[#C9A227] text-white border-[#C9A227]' : 'bg-white text-gray-600 border-gray-200 hover:border-[#C9A227]'}`}>
+                      {op}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            {baixaFormaPgto === 'Link' && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Plataforma do link?</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {['Afterpay', 'Klarna'].map(op => (
+                    <button key={op} onClick={() => setBaixaSubOpcao(op)}
+                      className={`py-2 px-3 rounded-xl border text-sm font-medium transition ${baixaSubOpcao === op ? 'bg-[#C9A227] text-white border-[#C9A227]' : 'bg-white text-gray-600 border-gray-200 hover:border-[#C9A227]'}`}>
+                      {op}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Observação (opcional)</label>
+              <input type="text" value={baixaObservacao} onChange={e => setBaixaObservacao(e.target.value)}
+                placeholder="Ex: transferido dia 5, ref: pedido 123..."
+                className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-gray-900 text-sm focus:outline-none focus:border-[#C9A227]" />
+            </div>
               </div>
             </div>
             <div>
@@ -857,6 +1216,51 @@ export function Invoices() {
                 className="flex-[2] py-3 rounded-xl bg-[#C9A227] text-white font-bold hover:bg-[#9A7B1A] disabled:opacity-50 text-sm flex items-center justify-center gap-2">
                 {salvandoBaixa ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
                 {salvandoBaixa ? 'Salvando...' : 'Confirmar Pagamento'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Modal Corrigir Pagamento */}
+      {modalCorrigir && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setModalCorrigir(null)}>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 space-y-4" onClick={e => e.stopPropagation()}>
+            <div>
+              <h3 className="text-lg font-bold text-gray-900">Corrigir Pagamento</h3>
+              <p className="text-sm text-gray-500">{modalCorrigir.cliente_nome} — {modalCorrigir.numero}</p>
+              <p className="text-xs text-orange-600 mt-1 bg-orange-50 rounded-lg px-3 py-2">
+                Valor pago atual: <strong>{formatCurrency((modalCorrigir as any).valor_pago || 0)}</strong>
+                {' '}· Total: <strong>{formatCurrency(modalCorrigir.total)}</strong>
+              </p>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Novo valor correto pago ($)</label>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                value={corrigirValor}
+                onChange={e => setCorrigirValor(e.target.value)}
+                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Forma de Pagamento</label>
+              <select value={corrigirForma} onChange={e => setCorrigirForma(e.target.value)} className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm bg-white">
+                <option value="">Selecione...</option>
+                {['Zelle', 'Dinheiro', 'Cartão de Crédito', 'Débito', 'Venmo', 'CashApp', 'Cheque', 'Outro'].map(f => <option key={f}>{f}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Data do Pagamento</label>
+              <input type="date" value={corrigirData} onChange={e => setCorrigirData(e.target.value)} className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm" />
+            </div>
+            <div className="flex gap-3 pt-1">
+              <button onClick={() => setModalCorrigir(null)} className="flex-1 py-3 rounded-xl border border-gray-200 text-gray-700 font-medium hover:bg-gray-50 text-sm">Cancelar</button>
+              <button onClick={handleCorrigirPagamento} disabled={salvandoCorrigir}
+                className="flex-[2] py-3 rounded-xl bg-orange-500 text-white font-bold hover:bg-orange-600 disabled:opacity-50 text-sm flex items-center justify-center gap-2">
+                {salvandoCorrigir ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                {salvandoCorrigir ? 'Salvando...' : 'Salvar Correção'}
               </button>
             </div>
           </div>

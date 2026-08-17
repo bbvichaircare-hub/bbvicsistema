@@ -1,5 +1,5 @@
 // Service Worker para BBVIC Gestão Premium
-const CACHE_NAME = 'bbvic-v1';
+const CACHE_NAME = 'bbvic-v3';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
