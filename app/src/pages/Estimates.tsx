@@ -9,16 +9,16 @@ import {
   collection,
   query,
   getDocs,
+  getDoc,
   orderBy,
   deleteDoc,
   doc,
-  updateDoc,
-  getDoc,
   where
 } from "firebase/firestore"
 
 import { db } from "@/lib/firebase"
 import { formatCurrency } from "@/lib/utils"
+import { toast } from "sonner"
 
 import {
   Plus,
@@ -61,35 +61,33 @@ export function Estimates() {
       prodSnap.docs.forEach(d => { map[d.id] = (d.data() as any).preco_venda || 0 })
       setProdMap(map)
 
-      const snapshot = await getDocs(isAdmin
-        ? query(collection(db, "estimates"), orderBy("created_at", "desc"))
-        : collection(db, "estimates")
-      )
-      let list = snapshot.docs.map(d => ({ id: d.id, ...d.data() })) as Estimate[]
-
-      if (!isAdmin) {
-        const uid = user.uid
-        const nome = ((user as any)?.nome || '').toLowerCase().trim()
-        list = list.filter(est => {
-          const estVendId = ((est as any).vendedor_id || '').trim()
-          const estVendNome = ((est as any).vendedor_nome || '').toLowerCase().trim()
-          return estVendId === uid || (nome && estVendNome === nome)
-        })
-        list.forEach(est => {
-          if ((est as any).vendedor_id !== uid) {
-            updateDoc(doc(db, "estimates", est.id!), { vendedor_id: uid }).catch(() => {})
-          }
-        })
-        list.sort((a, b) => {
+      const verTodos = isAdmin || user?.ver_todos_clientes === true
+      let q = verTodos
+        ? query(collection(db, 'estimates'), orderBy('created_at', 'desc'))
+        : query(collection(db, 'estimates'), where('vendedor_id', '==', user.uid), orderBy('created_at', 'desc'))
+      const snapshot = await getDocs(q)
+      const list = snapshot.docs.map(d => ({ id: d.id, ...d.data() })) as Estimate[]
+      setEstimates(list)
+    } catch (error: any) {
+      console.error('Erro ao buscar orçamentos:', error)
+      // Fallback sem orderBy se faltar índice
+      try {
+        const verTodos = isAdmin || user?.ver_todos_clientes === true
+        const q2 = verTodos
+          ? collection(db, 'estimates')
+          : query(collection(db, 'estimates'), where('vendedor_id', '==', user.uid))
+        const snapshot2 = await getDocs(q2)
+        let list2 = snapshot2.docs.map(d => ({ id: d.id, ...d.data() })) as Estimate[]
+        list2.sort((a, b) => {
           const ta = (a as any).created_at?.toDate?.() ?? new Date(0)
           const tb = (b as any).created_at?.toDate?.() ?? new Date(0)
           return tb.getTime() - ta.getTime()
         })
+        setEstimates(list2)
+        toast.warning('Orçamentos carregados sem ordenação (índice pendente)')
+      } catch (error2: any) {
+        toast.error('Erro ao carregar orçamentos: ' + (error2.message || 'verifique permissões'))
       }
-
-      setEstimates(list)
-    } catch (error) {
-      console.error("Erro ao buscar orçamentos:", error)
     } finally {
       setLoading(false)
     }
@@ -157,7 +155,7 @@ export function Estimates() {
 
     return (
       <div className="flex items-center justify-center h-96">
-        <div className="w-8 h-8 border-2 border-[#C9A227] border-t-transparent rounded-full animate-spin"/>
+        <div className="w-8 h-8 border-2 border-[#6F2738] border-t-transparent rounded-full animate-spin"/>
       </div>
     )
 
@@ -214,7 +212,7 @@ export function Estimates() {
 
         <button
           onClick={() => navigate("/estimates/novo")}
-          className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[#C9A227] text-white hover:bg-[#9A7B1A]"
+          className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[#6F2738] text-white hover:bg-[#4A1A26]"
         >
           <Plus className="w-5 h-5"/>
           Novo Orçamento
@@ -234,7 +232,7 @@ export function Estimates() {
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           placeholder="Buscar orçamento ou cliente..."
-          className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 bg-white text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#C9A227]"
+          className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 bg-white text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#6F2738]"
         />
 
       </div>
@@ -267,8 +265,8 @@ export function Estimates() {
 
               <div className="flex items-center gap-4 flex-1 min-w-0">
 
-                <div className="w-10 h-10 rounded-lg bg-[#C9A227]/10 flex items-center justify-center">
-                  <ClipboardList className="w-5 h-5 text-[#C9A227]"/>
+                <div className="w-10 h-10 rounded-lg bg-[#6F2738]/10 flex items-center justify-center">
+                  <ClipboardList className="w-5 h-5 text-[#6F2738]"/>
                 </div>
 
                 <div>
@@ -277,7 +275,7 @@ export function Estimates() {
                     {estimate.numero}
                   </p>
 
-                  <button onClick={() => navigate(`/estimates/${estimate.id}/editar`)} className="text-sm font-medium text-[#C9A227] hover:underline text-left">
+                  <button onClick={() => navigate(`/estimates/${estimate.id}/editar`)} className="text-sm font-medium text-[#6F2738] hover:underline text-left">
                     {estimate.cliente_nome}
                   </button>
                   {isAdmin && getAlteracoes(estimate).length > 0 && (

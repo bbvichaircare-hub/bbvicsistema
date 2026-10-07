@@ -420,7 +420,7 @@ export function Dashboard() {
 
   if (loading) return (
     <div className="flex items-center justify-center h-96">
-      <div className="w-8 h-8 border-2 border-[#C9A227] border-t-transparent rounded-full animate-spin" />
+      <div className="w-8 h-8 border-2 border-[#6F2738] border-t-transparent rounded-full animate-spin" />
     </div>
   )
 
@@ -434,7 +434,7 @@ export function Dashboard() {
           <p className="text-gray-400 text-sm mt-0.5 capitalize">{new Date().toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}</p>
         </div>
         <div className="flex gap-2 flex-wrap justify-end sm:justify-start">
-          <button onClick={() => navigate("/invoices/novo")} className="flex items-center gap-2 px-4 py-2 text-sm rounded-xl text-white font-medium transition shadow-sm hover:shadow-md" style={{ background: 'linear-gradient(135deg, #C9A227, #9A7B1A)' }}>
+          <button onClick={() => navigate("/invoices/novo")} className="flex items-center gap-2 px-4 py-2 text-sm rounded-xl text-white font-medium transition shadow-sm hover:shadow-md" style={{ background: 'linear-gradient(135deg, #6F2738, #4A1A26)' }}>
             <Plus className="w-4 h-4" /> Nova Fatura
           </button>
           <button onClick={() => navigate("/estimates/novo")} className="flex items-center gap-2 px-4 py-2 text-sm rounded-xl bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 transition shadow-sm font-medium">
@@ -479,7 +479,7 @@ export function Dashboard() {
                 <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-gray-600">
                   <input
                     type="checkbox"
-                    className="w-4 h-4 accent-[#C9A227]"
+                    className="w-4 h-4 accent-[#6F2738]"
                     checked={selecionadosLembrete.size === atrasadosParaLembrete.length}
                     onChange={e => setSelecionadosLembrete(e.target.checked ? new Set(atrasadosParaLembrete.map((i: any) => i.id)) : new Set())}
                   />
@@ -491,10 +491,10 @@ export function Dashboard() {
                 const saldo = calcSaldoDevido(inv)
                 const checked = selecionadosLembrete.has(inv.id)
                 return (
-                  <label key={inv.id} className={`flex items-center gap-2 p-1.5 rounded-lg cursor-pointer hover:bg-gray-100 ${checked ? 'bg-[#C9A227]/10' : ''}`}>
+                  <label key={inv.id} className={`flex items-center gap-2 p-1.5 rounded-lg cursor-pointer hover:bg-gray-100 ${checked ? 'bg-[#6F2738]/10' : ''}`}>
                     <input
                       type="checkbox"
-                      className="w-4 h-4 accent-[#C9A227] flex-shrink-0"
+                      className="w-4 h-4 accent-[#6F2738] flex-shrink-0"
                       checked={checked}
                       onChange={e => {
                         const novo = new Set(selecionadosLembrete)
@@ -550,12 +550,12 @@ export function Dashboard() {
           <div className="flex items-center gap-1.5">
             <span className="text-xs text-gray-500">De:</span>
             <input type="date" value={dataInicioKPI} onChange={e => setDataInicioKPI(e.target.value)}
-              className="px-2 py-1.5 rounded-lg border border-gray-200 text-xs text-gray-700 focus:outline-none focus:border-[#C9A227]" />
+              className="px-2 py-1.5 rounded-lg border border-gray-200 text-xs text-gray-700 focus:outline-none focus:border-[#6F2738]" />
           </div>
           <div className="flex items-center gap-1.5">
             <span className="text-xs text-gray-500">Até:</span>
             <input type="date" value={dataFimKPI} onChange={e => setDataFimKPI(e.target.value)}
-              className="px-2 py-1.5 rounded-lg border border-gray-200 text-xs text-gray-700 focus:outline-none focus:border-[#C9A227]" />
+              className="px-2 py-1.5 rounded-lg border border-gray-200 text-xs text-gray-700 focus:outline-none focus:border-[#6F2738]" />
           </div>
         </div>
         <div className="flex gap-1.5 flex-wrap">
@@ -567,7 +567,7 @@ export function Dashboard() {
             { label: 'Este ano', fn: () => { const t = new Date(); const s = new Date(t.getFullYear(), 0, 1); setDataInicioKPI(s.toISOString().split('T')[0]); setDataFimKPI(t.toISOString().split('T')[0]) } },
           ].map(btn => (
             <button key={btn.label} onClick={btn.fn}
-              className="px-2.5 py-1 rounded-lg bg-gray-50 border border-gray-200 text-xs text-gray-600 hover:bg-[#C9A227] hover:text-white hover:border-[#C9A227] transition">
+              className="px-2.5 py-1 rounded-lg bg-gray-50 border border-gray-200 text-xs text-gray-600 hover:bg-[#6F2738] hover:text-white hover:border-[#6F2738] transition">
               {btn.label}
             </button>
           ))}
@@ -610,8 +610,8 @@ export function Dashboard() {
         <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm hover:shadow-lg cursor-default transition-all">
           <div className="flex items-center justify-between mb-3">
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Lucro Líquido</p>
-            <div className="w-9 h-9 rounded-xl bg-[#C9A227]/15 flex items-center justify-center">
-              <DollarSign className="w-5 h-5 text-[#C9A227]" />
+            <div className="w-9 h-9 rounded-xl bg-[#6F2738]/15 flex items-center justify-center">
+              <DollarSign className="w-5 h-5 text-[#6F2738]" />
             </div>
           </div>
           {(() => {
@@ -715,11 +715,11 @@ export function Dashboard() {
         {isAdmin && (
         <div
           onClick={() => setShowLucroModal(true)}
-          className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm hover:shadow-lg hover:border-[#C9A227]/40 cursor-pointer transition-all group"
+          className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm hover:shadow-lg hover:border-[#6F2738]/40 cursor-pointer transition-all group"
         >
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-[#C9A227]/15 flex items-center justify-center group-hover:scale-110 transition-transform flex-shrink-0">
-              <BarChart2 className="w-5 h-5 text-[#C9A227]" />
+            <div className="w-10 h-10 rounded-xl bg-[#6F2738]/15 flex items-center justify-center group-hover:scale-110 transition-transform flex-shrink-0">
+              <BarChart2 className="w-5 h-5 text-[#6F2738]" />
             </div>
             <div className="min-w-0">
               <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Lucro por Produto</p>
@@ -781,7 +781,7 @@ export function Dashboard() {
             {/* Header */}
             <div className="flex items-center justify-between p-5 border-b border-gray-100">
               <div className="flex items-center gap-2">
-                <BarChart2 className="w-5 h-5 text-[#C9A227]" />
+                <BarChart2 className="w-5 h-5 text-[#6F2738]" />
                 <h3 className="font-bold text-gray-900">Lucro por Produto</h3>
                 <span className="text-xs text-gray-400 font-normal">(somente faturas pagas)</span>
               </div>
@@ -796,7 +796,7 @@ export function Dashboard() {
                   type="date"
                   value={dataInicioLucro}
                   onChange={e => setDataInicioLucro(e.target.value)}
-                  className="flex-1 text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:border-[#C9A227]"
+                  className="flex-1 text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:border-[#6F2738]"
                 />
               </div>
               <div className="flex items-center gap-2 flex-1 min-w-0">
@@ -805,7 +805,7 @@ export function Dashboard() {
                   type="date"
                   value={dataFimLucro}
                   onChange={e => setDataFimLucro(e.target.value)}
-                  className="flex-1 text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:border-[#C9A227]"
+                  className="flex-1 text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:border-[#6F2738]"
                 />
               </div>
               <button
@@ -814,7 +814,7 @@ export function Dashboard() {
                   setDataInicioLucro(new Date(d.getFullYear(), d.getMonth(), 1).toISOString().split('T')[0])
                   setDataFimLucro(d.toISOString().split('T')[0])
                 }}
-                className="text-xs text-[#C9A227] hover:underline flex-shrink-0"
+                className="text-xs text-[#6F2738] hover:underline flex-shrink-0"
               >
                 Mês atual
               </button>
@@ -984,7 +984,7 @@ export function Dashboard() {
               <h2 className="text-base font-bold text-gray-900">Últimas Faturas</h2>
               <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-orange-100 text-orange-700">{kpi.faturasPendentesQtd}</span>
             </div>
-            <button onClick={() => navigate("/invoices")} className="text-xs text-[#C9A227] hover:underline flex items-center gap-1 font-medium">
+            <button onClick={() => navigate("/invoices")} className="text-xs text-[#6F2738] hover:underline flex items-center gap-1 font-medium">
               Ver todas <ChevronRight className="w-3 h-3" />
             </button>
           </div>
@@ -1003,7 +1003,7 @@ export function Dashboard() {
                   </div>
                   <div className="flex items-center gap-2 flex-shrink-0 ml-3">
                     <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusCls[f.status] ?? "bg-gray-100 text-gray-600"}`}>{f.status}</span>
-                    <span className="font-bold text-[#C9A227] text-sm">{formatCurrency(f.total)}</span>
+                    <span className="font-bold text-[#6F2738] text-sm">{formatCurrency(f.total)}</span>
                   </div>
                 </div>
               ))}

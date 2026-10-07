@@ -1,5 +1,13 @@
 {
-  "projects": {
-    "default": "bbvic-gestao-premium"
-  }
+  "projects": {},
+  "targets": {
+    "bbvic-gestao-premium": {
+      "hosting": {
+        "bbvic-gestao-premium": [
+          "bbvic-gestao-premium"
+        ]
+      }
+    }
+  },
+  "etags": {}
 }

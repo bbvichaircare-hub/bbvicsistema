@@ -41,7 +41,6 @@ export function Relatorios() {
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState<'visao'|'detalhado'|'vendas'|'despesas'|'estoque'|'vendedores'|'clientes'|'auditoria'|'tax'|'shipping'|'pagamentos'|'porproduto'>('visao')
   const [produtoFiltro, setProdutoFiltro] = useState('')
-  const [produtoSugestoes, setProdutoSugestoes] = useState<string[]>([])
 
   const [invoices, setInvoices] = useState<any[]>([])
   const [allInvoicesAberto, setAllInvoicesAberto] = useState<any[]>([])
@@ -674,12 +673,12 @@ export function Relatorios() {
           <div className="flex items-center gap-1.5">
             <span className="text-xs text-gray-500">De:</span>
             <input type="date" value={dataInicio} onChange={e => setDataInicio(e.target.value)}
-              className="px-2 py-1.5 rounded-lg border border-gray-200 text-xs text-gray-700 focus:outline-none focus:border-[#C9A227]" />
+              className="px-2 py-1.5 rounded-lg border border-gray-200 text-xs text-gray-700 focus:outline-none focus:border-[#6F2738]" />
           </div>
           <div className="flex items-center gap-1.5">
             <span className="text-xs text-gray-500">Até:</span>
             <input type="date" value={dataFim} onChange={e => setDataFim(e.target.value)}
-              className="px-2 py-1.5 rounded-lg border border-gray-200 text-xs text-gray-700 focus:outline-none focus:border-[#C9A227]" />
+              className="px-2 py-1.5 rounded-lg border border-gray-200 text-xs text-gray-700 focus:outline-none focus:border-[#6F2738]" />
           </div>
         </div>
         <div className="flex gap-1.5 flex-wrap">
@@ -691,7 +690,7 @@ export function Relatorios() {
             { label: 'Este ano', fn: () => { const t = new Date(); const s = new Date(t.getFullYear(), 0, 1); setDataInicio(s.toISOString().split('T')[0]); setDataFim(t.toISOString().split('T')[0]) } },
           ].map(btn => (
             <button key={btn.label} onClick={btn.fn}
-              className="px-2.5 py-1 rounded-lg bg-gray-50 border border-gray-200 text-xs text-gray-600 hover:bg-[#C9A227] hover:text-white hover:border-[#C9A227] transition">
+              className="px-2.5 py-1 rounded-lg bg-gray-50 border border-gray-200 text-xs text-gray-600 hover:bg-[#6F2738] hover:text-white hover:border-[#6F2738] transition">
               {btn.label}
             </button>
           ))}
@@ -704,7 +703,7 @@ export function Relatorios() {
             <select
               value={filtroVendedor}
               onChange={e => setFiltroVendedor(e.target.value)}
-              className="px-2 py-1.5 rounded-lg border border-gray-200 text-xs text-gray-700 bg-white focus:outline-none focus:border-[#C9A227]"
+              className="px-2 py-1.5 rounded-lg border border-gray-200 text-xs text-gray-700 bg-white focus:outline-none focus:border-[#6F2738]"
             >
               <option value="todos">Todos os Vendedores</option>
               {vendedores.map(v => <option key={v.uid||v.id} value={v.uid||v.id}>{v.nome}</option>)}
@@ -723,7 +722,7 @@ export function Relatorios() {
       </div>
 
       {loading ? (
-        <div className="flex items-center justify-center h-48"><div className="w-8 h-8 border-2 border-[#C9A227] border-t-transparent rounded-full animate-spin"/></div>
+        <div className="flex items-center justify-center h-48"><div className="w-8 h-8 border-2 border-[#6F2738] border-t-transparent rounded-full animate-spin"/></div>
       ) : (
         <>
           {/* ── VISÃO GERAL ── */}
@@ -791,7 +790,7 @@ export function Relatorios() {
                 <div className={cardCls}>
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-2">
-                      <Award className="w-4 h-4 text-[#C9A227]"/>
+                      <Award className="w-4 h-4 text-[#6F2738]"/>
                       <p className="text-sm font-semibold text-gray-900">Produtos Mais Vendidos</p>
                     </div>
                     <button onClick={exportProdutosMaisVendidos} className="flex items-center gap-1 text-xs text-green-600 hover:text-green-700 font-medium">
@@ -818,7 +817,7 @@ export function Relatorios() {
                                 <span className="text-xs text-gray-500 flex-shrink-0 ml-2">{p.quantidade} un</span>
                               </div>
                               <div className="w-full bg-gray-100 rounded-full h-1.5">
-                                <div className="h-1.5 rounded-full bg-[#C9A227]" style={{ width: `${pct}%` }}/>
+                                <div className="h-1.5 rounded-full bg-[#6F2738]" style={{ width: `${pct}%` }}/>
                               </div>
                             </div>
                             <span className="text-xs font-semibold text-green-600 flex-shrink-0">{fmt(p.receita)}</span>
@@ -909,7 +908,7 @@ export function Relatorios() {
                 <div className={cardCls}>
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-2">
-                      <Award className="w-4 h-4 text-[#C9A227]"/>
+                      <Award className="w-4 h-4 text-[#6F2738]"/>
                       <p className="text-sm font-semibold text-gray-900">Produtos Mais Vendidos no Período</p>
                     </div>
                     <button onClick={exportProdutosMaisVendidos} className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-green-600 text-white text-xs hover:bg-green-700"><Download className="w-3 h-3"/> Exportar</button>
@@ -924,7 +923,7 @@ export function Relatorios() {
                               <span className="font-bold text-gray-500">{['🥇','🥈','🥉'][i] || `#${i+1}`}</span>
                             </td>
                             <td className={`${tdCls} font-medium text-gray-900`}>{p.nome}</td>
-                            <td className={`${tdCls} text-center font-bold text-[#C9A227]`}>{p.quantidade}</td>
+                            <td className={`${tdCls} text-center font-bold text-[#6F2738]`}>{p.quantidade}</td>
                             <td className={`${tdCls} font-semibold text-green-600`}>{fmt(p.receita)}</td>
                           </tr>
                         ))}
@@ -1121,7 +1120,7 @@ export function Relatorios() {
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <p className="text-sm text-gray-500">Clique em uma categoria para ver as faturas</p>
-                  <button onClick={exportGeral} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#C9A227] text-white text-sm font-semibold hover:bg-[#9A7B1A]">
+                  <button onClick={exportGeral} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#6F2738] text-white text-sm font-semibold hover:bg-[#4A1A26]">
                     <Download className="w-4 h-4"/> Exportar Completo
                   </button>
                 </div>
@@ -1407,7 +1406,7 @@ export function Relatorios() {
                                 <td className={`${tdCls} text-red-600`}>{atras.length}</td>
                                 <td className={`${tdCls} font-semibold`}>{fmt(vendTotal)}</td>
                                 <td className={`${tdCls} font-bold text-green-700`}>{fmt(recTotal)}</td>
-                                <td className={`${tdCls} text-[#C9A227] font-semibold`}>{fmt(subtotal*pctCom/100)} ({pctCom}%)</td>
+                                <td className={`${tdCls} text-[#6F2738] font-semibold`}>{fmt(subtotal*pctCom/100)} ({pctCom}%)</td>
                               </tr>
                             )
                           })}
@@ -1496,7 +1495,7 @@ export function Relatorios() {
                             <td className={`${tdCls} font-bold text-center ${baixo?'text-red-500':'text-gray-900'}`}>{p.estoque||0}</td>
                             <td className={`${tdCls} text-center text-gray-400`}>{p.estoque_minimo||0}</td>
                             <td className={tdCls}>{baixo?<span className="px-2 py-0.5 rounded-full text-xs bg-red-100 text-red-600">Baixo</span>:<span className="px-2 py-0.5 rounded-full text-xs bg-green-100 text-green-700">Normal</span>}</td>
-                            <td className={`${tdCls} font-semibold text-[#C9A227]`}>{fmt(p.preco||0)}</td>
+                            <td className={`${tdCls} font-semibold text-[#6F2738]`}>{fmt(p.preco||0)}</td>
                             <td className={`${tdCls} font-semibold ${(p.margem_lucro||0)>=30?'text-green-600':(p.margem_lucro||0)>=15?'text-amber-600':'text-red-500'}`}>{(p.margem_lucro||0).toFixed(1)}%</td>
                           </tr>
                         )
@@ -1614,7 +1613,7 @@ export function Relatorios() {
                     value={auditSearch}
                     onChange={e => setAuditSearch(e.target.value)}
                     placeholder="Buscar por ação, usuário ou detalhe..."
-                    className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#C9A227]"
+                    className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#6F2738]"
                   />
                 </div>
                 <div className="flex items-center gap-1.5">
@@ -1635,7 +1634,7 @@ export function Relatorios() {
 
               <div className={cardCls}>
                 {loadingAudit ? (
-                  <div className="flex justify-center p-10"><div className="w-6 h-6 border-2 border-[#C9A227] border-t-transparent rounded-full animate-spin"/></div>
+                  <div className="flex justify-center p-10"><div className="w-6 h-6 border-2 border-[#6F2738] border-t-transparent rounded-full animate-spin"/></div>
                 ) : auditFiltrado.length === 0 ? (
                   <div className="text-center py-12">
                     <Activity className="w-10 h-10 text-gray-300 mx-auto mb-3"/>

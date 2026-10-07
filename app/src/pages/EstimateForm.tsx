@@ -520,7 +520,7 @@ export function EstimateForm() {
     } catch { toast.error('Erro ao converter') } finally { setSaving(false) }
   }
 
-  if (loading) return <div className="flex justify-center p-10"><Loader2 className="w-6 h-6 animate-spin text-[#C9A227]" /></div>
+  if (loading) return <div className="flex justify-center p-10"><Loader2 className="w-6 h-6 animate-spin text-[#6F2738]" /></div>
 
   return (
     <>
@@ -549,7 +549,7 @@ export function EstimateForm() {
               onChange={e => { setSearchCliente(e.target.value); setCliente(null); setShowClienteDropdown(true) }}
               onFocus={() => setShowClienteDropdown(true)}
               placeholder="Buscar cliente..."
-              className="w-full pl-9 pr-4 py-3 rounded-xl border border-gray-200 text-gray-900 focus:outline-none focus:border-[#C9A227] text-sm"
+              className="w-full pl-9 pr-4 py-3 rounded-xl border border-gray-200 text-gray-900 focus:outline-none focus:border-[#6F2738] text-sm"
             />
             {showClienteDropdown && clientesFiltrados.length > 0 && (
               <div className="absolute top-full left-0 right-0 z-30 bg-white border border-gray-200 rounded-xl shadow-lg mt-1 max-h-52 overflow-y-auto">
@@ -562,7 +562,7 @@ export function EstimateForm() {
               </div>
             )}
           </div>
-          <button type="button" onClick={() => setShowNovoClienteModal(true)} className="mt-2 w-full flex items-center justify-center gap-2 py-2 rounded-xl border border-dashed border-[#C9A227] text-[#C9A227] text-sm font-medium hover:bg-[#C9A227]/5 transition-colors">
+          <button type="button" onClick={() => setShowNovoClienteModal(true)} className="mt-2 w-full flex items-center justify-center gap-2 py-2 rounded-xl border border-dashed border-[#6F2738] text-[#6F2738] text-sm font-medium hover:bg-[#6F2738]/5 transition-colors">
             <UserPlus className="w-4 h-4" /> Cadastrar novo cliente
           </button>
           {cliente && (
@@ -583,7 +583,7 @@ export function EstimateForm() {
                   setVendedorId(e.target.value)
                   setVendedorNome(v?.nome || '')
                 }}
-                className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-gray-900 focus:outline-none focus:border-[#C9A227] text-sm"
+                className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-gray-900 focus:outline-none focus:border-[#6F2738] text-sm"
               >
                 <option value="">— Sem vendedor —</option>
                 {vendedores.map(v => (
@@ -607,14 +607,14 @@ export function EstimateForm() {
               onChange={e => { setSearchProduto(e.target.value); setShowProdutoDropdown(e.target.value.length > 0) }}
               onFocus={() => searchProduto && setShowProdutoDropdown(true)}
               placeholder="Buscar produto ou serviço para adicionar..."
-              className="w-full pl-9 pr-4 py-3 rounded-xl border border-gray-200 text-gray-900 focus:outline-none focus:border-[#C9A227] text-sm"
+              className="w-full pl-9 pr-4 py-3 rounded-xl border border-gray-200 text-gray-900 focus:outline-none focus:border-[#6F2738] text-sm"
             />
             {showProdutoDropdown && filteredProdutos.length > 0 && (
               <div className="absolute top-full left-0 right-0 z-20 bg-white border border-gray-200 rounded-xl shadow-lg mt-1 max-h-52 overflow-y-auto">
                 {filteredProdutos.map(p => (
                   <button key={p.id} onClick={() => openProdutoModal(p)} className="w-full px-4 py-3 text-left hover:bg-gray-50 border-b border-gray-50 last:border-0 flex items-center justify-between gap-2">
                     <span className="text-gray-900 text-sm font-medium">{p.nome}</span>
-                    <span className="text-[#C9A227] font-semibold text-sm flex-shrink-0">{formatCurrency(p.preco_venda)}</span>
+                    <span className="text-[#6F2738] font-semibold text-sm flex-shrink-0">{formatCurrency(p.preco_venda)}</span>
                   </button>
                 ))}
               </div>
@@ -641,7 +641,7 @@ export function EstimateForm() {
                         <input
                           type="number" step="0.01" min="0" value={item.preco_unitario}
                           onChange={e => updatePrice(item.tempId, parseFloat(e.target.value) || 0)}
-                          className="w-24 pl-5 pr-1 py-1.5 rounded-lg border border-gray-200 text-sm focus:outline-none focus:border-[#C9A227] text-right bg-white"
+                          className="w-24 pl-5 pr-1 py-1.5 rounded-lg border border-gray-200 text-sm focus:outline-none focus:border-[#6F2738] text-right bg-white"
                         />
                       </div>
                     </div>
@@ -658,7 +658,7 @@ export function EstimateForm() {
                       </div>
                     </div>
                     <div className="ml-auto">
-                      <span className="font-semibold text-[#C9A227] text-sm">{formatCurrency(item.subtotal)}</span>
+                      <span className="font-semibold text-[#6F2738] text-sm">{formatCurrency(item.subtotal)}</span>
                     </div>
                   </div>
                   <div>
@@ -667,7 +667,7 @@ export function EstimateForm() {
                       value={item.descricao || ''}
                       onChange={e => setItems(items.map(i => i.tempId === item.tempId ? { ...i, descricao: e.target.value } : i))}
                       placeholder="Observação deste item (visível na nota)..."
-                      className="w-full px-3 py-1.5 text-xs bg-white border border-gray-200 rounded-lg focus:outline-none focus:border-[#C9A227] text-gray-700 placeholder-gray-300"
+                      className="w-full px-3 py-1.5 text-xs bg-white border border-gray-200 rounded-lg focus:outline-none focus:border-[#6F2738] text-gray-700 placeholder-gray-300"
                     />
                   </div>
                 </div>
@@ -711,14 +711,14 @@ export function EstimateForm() {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Validade</label>
               <select value={validadeDias} onChange={e => { setValidadeDias(e.target.value); applyValidade(parseInt(e.target.value)) }}
-                className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-gray-900 focus:outline-none focus:border-[#C9A227]">
+                className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-gray-900 focus:outline-none focus:border-[#6F2738]">
                 {VALIDADE_OPCOES.map(o => <option key={o.label} value={o.days}>{o.label}</option>)}
               </select>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Data de Validade</label>
               <input type="date" value={dataValidade} onChange={e => { setDataValidade(e.target.value); setValidadeDias('-1') }}
-                className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-gray-900 focus:outline-none focus:border-[#C9A227]" />
+                className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-gray-900 focus:outline-none focus:border-[#6F2738]" />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -727,21 +727,21 @@ export function EstimateForm() {
                   <button
                     type="button"
                     onClick={() => { setDescontoTipo('pct'); setDescontoInput('0'); }}
-                    className={`px-2 py-1 text-xs rounded-lg border font-medium transition ${descontoTipo === 'pct' ? 'bg-[#C9A227] text-white border-[#C9A227]' : 'bg-white text-gray-600 border-gray-200'}`}
+                    className={`px-2 py-1 text-xs rounded-lg border font-medium transition ${descontoTipo === 'pct' ? 'bg-[#6F2738] text-white border-[#6F2738]' : 'bg-white text-gray-600 border-gray-200'}`}
                   >%</button>
                   <button
                     type="button"
                     onClick={() => { setDescontoTipo('valor'); setDescontoInput('0'); }}
-                    className={`px-2 py-1 text-xs rounded-lg border font-medium transition ${descontoTipo === 'valor' ? 'bg-[#C9A227] text-white border-[#C9A227]' : 'bg-white text-gray-600 border-gray-200'}`}
+                    className={`px-2 py-1 text-xs rounded-lg border font-medium transition ${descontoTipo === 'valor' ? 'bg-[#6F2738] text-white border-[#6F2738]' : 'bg-white text-gray-600 border-gray-200'}`}
                   >$</button>
                 </div>
                 <input type="number" min="0" value={descontoInput} onChange={e => setDescontoInput(e.target.value)}
-                  className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-gray-900 focus:outline-none focus:border-[#C9A227]" />
+                  className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-gray-900 focus:outline-none focus:border-[#6F2738]" />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Tax (%)</label>
                 <input type="number" min="0" max="30" step="0.01" value={taxaInput} onChange={e => setTaxaInput(e.target.value)}
-                  className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-gray-900 focus:outline-none focus:border-[#C9A227]" />
+                  className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-gray-900 focus:outline-none focus:border-[#6F2738]" />
                 <p className="text-xs text-gray-400 mt-1">Padrão: 6.25%</p>
               </div>
             </div>
@@ -749,7 +749,7 @@ export function EstimateForm() {
               <label className="block text-sm font-medium text-gray-700 mb-1">Taxa de Envio ($)</label>
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
-                <input type="number" step="0.01" min="0" value={taxaEnvioInput} onChange={e => setTaxaEnvioInput(e.target.value)} placeholder="15.00" className="w-full pl-7 pr-4 py-2.5 rounded-xl border border-gray-200 text-gray-900 focus:outline-none focus:border-[#C9A227]" />
+                <input type="number" step="0.01" min="0" value={taxaEnvioInput} onChange={e => setTaxaEnvioInput(e.target.value)} placeholder="15.00" className="w-full pl-7 pr-4 py-2.5 rounded-xl border border-gray-200 text-gray-900 focus:outline-none focus:border-[#6F2738]" />
               </div>
               <p className="text-xs text-gray-400 mt-1">Padrão: $15.00 — edite conforme necessário</p>
             </div>
@@ -757,7 +757,7 @@ export function EstimateForm() {
               <label className="block text-sm font-medium text-gray-700 mb-1">Observações</label>
               <textarea value={observacoes} onChange={e => setObservacoes(e.target.value)} rows={2}
                 placeholder="Informações adicionais..."
-                className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#C9A227] resize-none text-sm" />
+                className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#6F2738] resize-none text-sm" />
             </div>
             <div>
               <label className="block text-sm font-medium text-orange-600 mb-1 flex items-center gap-1">🔒 Observação Interna <span className="text-xs font-normal text-gray-400">(cliente não vê)</span></label>
@@ -767,7 +767,7 @@ export function EstimateForm() {
               <label className="block text-sm font-medium text-gray-700 mb-1">Termos e Condições</label>
               <textarea value={termosCondicoes} onChange={e => setTermosCondicoes(e.target.value)} rows={2}
                 placeholder="Condições de pagamento, políticas..."
-                className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#C9A227] resize-none text-sm" />
+                className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#6F2738] resize-none text-sm" />
             </div>
           </div>
 
@@ -779,7 +779,7 @@ export function EstimateForm() {
               <div className="flex justify-between text-gray-600"><span>Tax ({taxaInput}%)</span><span>+{formatCurrency(taxa)}</span></div>
               {taxaEnvio > 0 && <div className="flex justify-between text-gray-600"><span>Taxa de Envio</span><span>+{formatCurrency(taxaEnvio)}</span></div>}
               <div className="border-t border-gray-200 pt-3">
-                <div className="flex justify-between text-gray-900 font-bold text-lg"><span>Total</span><span className="text-[#C9A227]">{formatCurrency(total)}</span></div>
+                <div className="flex justify-between text-gray-900 font-bold text-lg"><span>Total</span><span className="text-[#6F2738]">{formatCurrency(total)}</span></div>
               </div>
               <div className="pt-2 border-t border-gray-100">
                 <p className="text-xs text-gray-400">Válido até: <span className="font-medium text-gray-600">{new Date(dataValidade + 'T12:00:00').toLocaleDateString('pt-BR')}</span></p>
@@ -810,14 +810,14 @@ export function EstimateForm() {
                   min="0"
                   value={produtoModalPreco}
                   onChange={e => setProdutoModalPreco(parseFloat(e.target.value) || 0)}
-                  className="w-full pl-7 pr-4 py-2.5 rounded-xl border border-gray-200 text-gray-900 text-lg font-semibold focus:outline-none focus:border-[#C9A227]"
+                  className="w-full pl-7 pr-4 py-2.5 rounded-xl border border-gray-200 text-gray-900 text-lg font-semibold focus:outline-none focus:border-[#6F2738]"
                 />
               </div>
               {produtoModalPreco !== produtoModal.preco_venda && (
                 <button
                   type="button"
                   onClick={() => setProdutoModalPreco(produtoModal.preco_venda)}
-                  className="text-xs text-[#C9A227] mt-1 hover:underline"
+                  className="text-xs text-[#6F2738] mt-1 hover:underline"
                 >
                   Restaurar preço padrão (${(produtoModal.preco_venda || 0).toFixed(2)})
                 </button>
@@ -827,18 +827,18 @@ export function EstimateForm() {
               <label className="block text-sm font-medium text-gray-700 mb-1">Quantidade</label>
               <div className="flex items-center gap-3">
                 <button onClick={() => setProdutoModalQty(q => Math.max(1, q - 1))} className="w-9 h-9 rounded-xl border border-gray-200 flex items-center justify-center hover:bg-gray-100">−</button>
-                <input type="number" min="1" value={produtoModalQty} onChange={e => setProdutoModalQty(Math.max(1, parseInt(e.target.value) || 1))} className="w-20 text-center text-lg font-bold border border-gray-200 rounded-xl py-2 focus:outline-none focus:border-[#C9A227]" />
+                <input type="number" min="1" value={produtoModalQty} onChange={e => setProdutoModalQty(Math.max(1, parseInt(e.target.value) || 1))} className="w-20 text-center text-lg font-bold border border-gray-200 rounded-xl py-2 focus:outline-none focus:border-[#6F2738]" />
                 <button onClick={() => setProdutoModalQty(q => q + 1)} className="w-9 h-9 rounded-xl border border-gray-200 flex items-center justify-center hover:bg-gray-100">+</button>
               </div>
-              <p className="text-xs text-gray-400 mt-1">Subtotal: <span className="font-semibold text-[#C9A227]">${(produtoModalPreco * produtoModalQty).toFixed(2)}</span></p>
+              <p className="text-xs text-gray-400 mt-1">Subtotal: <span className="font-semibold text-[#6F2738]">${(produtoModalPreco * produtoModalQty).toFixed(2)}</span></p>
             </div>
             <div className="mb-5">
               <label className="block text-sm font-medium text-gray-700 mb-1">Observação do item <span className="text-gray-400 font-normal">(aparece na nota)</span></label>
-              <input type="text" value={produtoModalObs} onChange={e => setProdutoModalObs(e.target.value)} placeholder="Ex: Tamanho G, cor preta..." className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-gray-900 text-sm focus:outline-none focus:border-[#C9A227]" autoFocus />
+              <input type="text" value={produtoModalObs} onChange={e => setProdutoModalObs(e.target.value)} placeholder="Ex: Tamanho G, cor preta..." className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-gray-900 text-sm focus:outline-none focus:border-[#6F2738]" autoFocus />
             </div>
             <div className="flex gap-3">
               <button onClick={() => setProdutoModal(null)} className="flex-1 py-3 rounded-xl border border-gray-200 text-gray-600 font-medium hover:bg-gray-50">Cancelar</button>
-              <button onClick={confirmProdutoModal} className="flex-[2] py-3 rounded-xl bg-[#C9A227] text-white font-bold hover:bg-[#b8911f]">Adicionar à Nota</button>
+              <button onClick={confirmProdutoModal} className="flex-[2] py-3 rounded-xl bg-[#6F2738] text-white font-bold hover:bg-[#b8911f]">Adicionar à Nota</button>
             </div>
           </div>
         </div>
@@ -853,12 +853,12 @@ export function EstimateForm() {
             <span className="hidden sm:inline">Salvar</span>
           </button>
           <button onClick={handleDownloadPDF}
-            className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl border border-[#C9A227] text-[#C9A227] text-sm font-medium hover:bg-[#C9A227]/10 bg-white">
+            className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl border border-[#6F2738] text-[#6F2738] text-sm font-medium hover:bg-[#6F2738]/10 bg-white">
             <FileDown className="w-4 h-4" />
             <span className="hidden sm:inline">PDF</span>
           </button>
           <button onClick={handleSend} disabled={saving}
-            className="flex-[2] flex items-center justify-center gap-2 py-3 rounded-xl bg-[#C9A227] text-white text-sm font-bold hover:bg-[#b8911f] disabled:opacity-60 shadow">
+            className="flex-[2] flex items-center justify-center gap-2 py-3 rounded-xl bg-[#6F2738] text-white text-sm font-bold hover:bg-[#b8911f] disabled:opacity-60 shadow">
             {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
             Enviar WhatsApp
           </button>
@@ -883,20 +883,20 @@ export function EstimateForm() {
           <div className="space-y-3">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Nome *</label>
-              <input type="text" value={novoClienteForm.nome} onChange={e => setNovoClienteForm(p => ({...p, nome: e.target.value}))} placeholder="Nome completo" className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#C9A227]"/>
+              <input type="text" value={novoClienteForm.nome} onChange={e => setNovoClienteForm(p => ({...p, nome: e.target.value}))} placeholder="Nome completo" className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#6F2738]"/>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Telefone</label>
-              <input type="text" value={novoClienteForm.telefone} onChange={e => setNovoClienteForm(p => ({...p, telefone: e.target.value}))} placeholder="+1 (555) 000-0000" className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#C9A227]"/>
+              <input type="text" value={novoClienteForm.telefone} onChange={e => setNovoClienteForm(p => ({...p, telefone: e.target.value}))} placeholder="+1 (555) 000-0000" className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#6F2738]"/>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-              <input type="email" value={novoClienteForm.email} onChange={e => setNovoClienteForm(p => ({...p, email: e.target.value}))} placeholder="email@exemplo.com" className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#C9A227]"/>
+              <input type="email" value={novoClienteForm.email} onChange={e => setNovoClienteForm(p => ({...p, email: e.target.value}))} placeholder="email@exemplo.com" className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#6F2738]"/>
             </div>
           </div>
           <div className="flex gap-2 pt-1">
             <button onClick={() => setShowNovoClienteModal(false)} className="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-700 text-sm font-medium hover:bg-gray-50">Cancelar</button>
-            <button onClick={handleCriarClienteRapido} disabled={savingNovoCliente} className="flex-[2] py-2.5 rounded-xl bg-[#C9A227] text-white text-sm font-bold hover:bg-[#9A7B1A] disabled:opacity-50 flex items-center justify-center gap-2">
+            <button onClick={handleCriarClienteRapido} disabled={savingNovoCliente} className="flex-[2] py-2.5 rounded-xl bg-[#6F2738] text-white text-sm font-bold hover:bg-[#4A1A26] disabled:opacity-50 flex items-center justify-center gap-2">
               {savingNovoCliente ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"/> : <UserPlus className="w-4 h-4"/>}
               Criar e Selecionar
             </button>

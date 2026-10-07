@@ -113,7 +113,7 @@ export function ProdutoForm() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
-        <div className="w-8 h-8 border-2 border-[#C9A227] border-t-transparent rounded-full animate-spin" />
+        <div className="w-8 h-8 border-2 border-[#6F2738] border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
@@ -147,7 +147,7 @@ export function ProdutoForm() {
             value={formData.nome}
             onChange={handleChange}
             placeholder="Nome do produto"
-            className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-gray-500 focus:border-[#C9A227] outline-none"
+            className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-gray-500 focus:border-[#6F2738] outline-none"
           />
         </div>
 
@@ -160,7 +160,7 @@ export function ProdutoForm() {
             onChange={handleChange}
             rows={3}
             placeholder="Descrição do produto..."
-            className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-gray-500 focus:border-[#C9A227] outline-none resize-none"
+            className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-gray-500 focus:border-[#6F2738] outline-none resize-none"
           />
         </div>
 
@@ -191,7 +191,7 @@ export function ProdutoForm() {
               value={formData.preco_custo}
               onChange={handleChange}
               placeholder="0,00"
-              className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-gray-500 focus:border-[#C9A227] outline-none"
+              className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-gray-500 focus:border-[#6F2738] outline-none"
             />
           </div>
           <div>
@@ -204,7 +204,7 @@ export function ProdutoForm() {
               value={formData.preco_venda}
               onChange={handleChange}
               placeholder="0,00"
-              className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-gray-500 focus:border-[#C9A227] outline-none"
+              className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-gray-500 focus:border-[#6F2738] outline-none"
             />
           </div>
         </div>
@@ -220,7 +220,7 @@ export function ProdutoForm() {
               value={formData.estoque}
               onChange={handleChange}
               placeholder="0"
-              className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-gray-500 focus:border-[#C9A227] outline-none"
+              className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-gray-500 focus:border-[#6F2738] outline-none"
             />
           </div>
           <div>
@@ -232,7 +232,7 @@ export function ProdutoForm() {
               value={formData.estoque_minimo}
               onChange={handleChange}
               placeholder="0"
-              className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-gray-500 focus:border-[#C9A227] outline-none"
+              className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-gray-500 focus:border-[#6F2738] outline-none"
             />
           </div>
         </div>
@@ -249,7 +249,7 @@ export function ProdutoForm() {
             value={formData.comissao_percentual || ''}
             onChange={handleChange}
             placeholder="0"
-            className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-gray-500 focus:border-[#C9A227] outline-none"
+            className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-gray-500 focus:border-[#6F2738] outline-none"
           />
           <p className="text-gray-500 text-xs mt-1">Porcentagem de comissão para vendedores</p>
         </div>
@@ -266,7 +266,7 @@ export function ProdutoForm() {
           <button
             type="submit"
             disabled={saving}
-            className="flex-1 px-4 py-3 rounded-xl bg-[#C9A227] text-white hover:bg-[#9A7B1A] flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+            className="flex-1 px-4 py-3 rounded-xl bg-[#6F2738] text-white hover:bg-[#4A1A26] flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
           >
             {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
             {saving ? 'Salvando...' : 'Salvar'}

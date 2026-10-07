@@ -8,6 +8,7 @@ import { toast } from 'sonner';
 import { Package, Search, AlertTriangle, Plus, Minus, RotateCcw, TrendingUp, DollarSign, ShoppingBag, Download, Upload, Edit2, X, History, ArrowUpCircle, ArrowDownCircle, SlidersHorizontal, ShoppingCart, Filter, Trash2 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import type { Produto } from '@/types';
+import { buscarTotalEmConsignacaoPorProduto } from '@/services/consignmentService';
 
 interface ProdutoForm {
   nome: string
@@ -54,6 +55,7 @@ export function EstoqueAvancado() {
   const { isAdmin, user } = useAuth();
   const [produtos, setProdutos] = useState<Produto[]>([]);
   const [loading, setLoading] = useState(true);
+  const [emConsignacao, setEmConsignacao] = useState<Record<string, number>>({});
   const [search, setSearch] = useState('');
   const [sortAZ, setSortAZ] = useState(false);
   const [showBaixoEstoque, setShowBaixoEstoque] = useState(false);
@@ -90,6 +92,7 @@ export function EstoqueAvancado() {
       setLoading(true);
       const snap = await getDocs(query(collection(db,'produtos'), where('ativo','==',true)));
       setProdutos(snap.docs.map(d => ({ id:d.id,...d.data() })) as Produto[]);
+      try { setEmConsignacao(await buscarTotalEmConsignacaoPorProduto()); } catch { /* ignora */ }
     } catch{ toast.error('Erro ao carregar estoque'); }
     finally { setLoading(false); }
   };
@@ -375,10 +378,10 @@ export function EstoqueAvancado() {
   const totalItens = produtos.reduce((sum, p) => sum + (p.estoque||0), 0);
 
   const fmt = (v: number) => v.toLocaleString('en-US', { minimumFractionDigits:2, maximumFractionDigits:2 });
-  const inputCls = 'w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-900 focus:outline-none focus:border-[#C9A227]';
+  const inputCls = 'w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-900 focus:outline-none focus:border-[#6F2738]';
   const labelCls = 'block text-xs font-medium text-gray-500 mb-1';
 
-  if (loading) return <div className="flex items-center justify-center h-96"><div className="w-8 h-8 border-2 border-[#C9A227] border-t-transparent rounded-full animate-spin"/></div>;
+  if (loading) return <div className="flex items-center justify-center h-96"><div className="w-8 h-8 border-2 border-[#6F2738] border-t-transparent rounded-full animate-spin"/></div>;
 
   const triggerUndo = (deletados: Produto[]) => {
     setUndoStack(deletados)
@@ -520,7 +523,7 @@ export function EstoqueAvancado() {
               <button onClick={handleExport} className="flex items-center gap-2 px-3 py-2 rounded-xl border border-gray-200 text-gray-600 text-sm hover:bg-gray-50">
                 <Download className="w-4 h-4"/> Exportar Excel
               </button>
-              <button onClick={handleDownloadTemplate} className="flex items-center gap-2 px-3 py-2 rounded-xl border border-[#C9A227]/50 text-[#C9A227] text-sm hover:bg-[#C9A227]/5">
+              <button onClick={handleDownloadTemplate} className="flex items-center gap-2 px-3 py-2 rounded-xl border border-[#6F2738]/50 text-[#6F2738] text-sm hover:bg-[#6F2738]/5">
                 <Download className="w-4 h-4"/> Baixar Modelo
               </button>
               <button onClick={() => importRef.current?.click()} className="flex items-center gap-2 px-3 py-2 rounded-xl border border-gray-200 text-gray-600 text-sm hover:bg-gray-50">
@@ -542,7 +545,7 @@ export function EstoqueAvancado() {
                     <Trash2 className="w-4 h-4" /> Excluir Todos
                   </button>
                 )}
-                <button onClick={openNew} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#C9A227] text-white text-sm font-medium hover:bg-[#9A7B1A]">
+                <button onClick={openNew} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#6F2738] text-white text-sm font-medium hover:bg-[#4A1A26]">
                   <Plus className="w-4 h-4"/> Novo Produto
                 </button>
               </div>
@@ -642,12 +645,12 @@ export function EstoqueAvancado() {
           <div className="flex gap-2">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400"/>
-              <input type="text" value={search} onChange={e=>setSearch(e.target.value)} placeholder="Buscar produto..." className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-gray-200 bg-white text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#C9A227]"/>
+              <input type="text" value={search} onChange={e=>setSearch(e.target.value)} placeholder="Buscar produto..." className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-gray-200 bg-white text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#6F2738]"/>
             </div>
             <button
               onClick={() => setSortAZ(v => !v)}
               title="Ordenar A-Z"
-              className={`flex items-center gap-1.5 px-3 py-2.5 rounded-xl border text-sm font-medium transition-all ${sortAZ ? 'bg-[#C9A227] border-[#C9A227] text-white' : 'bg-white border-gray-200 text-gray-600 hover:border-[#C9A227]'}`}
+              className={`flex items-center gap-1.5 px-3 py-2.5 rounded-xl border text-sm font-medium transition-all ${sortAZ ? 'bg-[#6F2738] border-[#6F2738] text-white' : 'bg-white border-gray-200 text-gray-600 hover:border-[#6F2738]'}`}
             >
               A↕Z
             </button>
@@ -678,8 +681,8 @@ export function EstoqueAvancado() {
                       <tr key={produto.id} className={`hover:bg-gray-50 ${baixo?'bg-red-50/30':''}`}>
                         <td className="px-5 py-4">
                           <div className="flex items-center gap-3">
-                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${baixo?'bg-red-100':'bg-[#C9A227]/15'}`}>
-                              <Package className={`w-4 h-4 ${baixo?'text-red-500':'text-[#C9A227]'}`}/>
+                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${baixo?'bg-red-100':'bg-[#6F2738]/15'}`}>
+                              <Package className={`w-4 h-4 ${baixo?'text-red-500':'text-[#6F2738]'}`}/>
                             </div>
                             <div>
                               <p className="font-medium text-gray-900 text-sm">{produto.nome}</p>
@@ -688,7 +691,12 @@ export function EstoqueAvancado() {
                           </div>
                         </td>
                         <td className="px-5 py-4 text-gray-500 text-sm hidden md:table-cell">{produto.categoria}</td>
-                        <td className="px-5 py-4 text-center"><span className={`text-xl font-bold ${baixo?'text-red-500':'text-gray-900'}`}>{produto.estoque||0}</span></td>
+                        <td className="px-5 py-4 text-center">
+                          <span className={`text-xl font-bold ${baixo?'text-red-500':'text-gray-900'}`}>{produto.estoque||0}</span>
+                          {!!emConsignacao[produto.id!] && (
+                            <p className="text-[10px] text-[#6F2738] font-medium mt-0.5">Em consignação: {emConsignacao[produto.id!]}</p>
+                          )}
+                        </td>
                         <td className="px-5 py-4 text-center text-gray-400 text-sm hidden sm:table-cell">{produto.estoque_minimo||0}</td>
                         <td className="px-5 py-4 text-right text-sm font-medium text-gray-700">${((produto as any).preco_custo||0).toFixed(2)}</td>
                         <td className="px-5 py-4 text-right text-sm font-semibold text-gray-900">${((produto as any).preco||0).toFixed(2)}</td>
@@ -721,13 +729,13 @@ export function EstoqueAvancado() {
                             </button>
                             {ajustando===produto.id ? (
                               <div className="flex items-center gap-1">
-                                <input type="number" min="1" value={quantidadeAjuste} onChange={e=>setQuantidadeAjuste(e.target.value)} placeholder="Qtd" className="w-14 px-2 py-1.5 text-sm rounded-lg border border-gray-200 text-gray-900 text-center focus:outline-none focus:border-[#C9A227]" autoFocus/>
+                                <input type="number" min="1" value={quantidadeAjuste} onChange={e=>setQuantidadeAjuste(e.target.value)} placeholder="Qtd" className="w-14 px-2 py-1.5 text-sm rounded-lg border border-gray-200 text-gray-900 text-center focus:outline-none focus:border-[#6F2738]" autoFocus/>
                                 <button onClick={()=>handleAjuste(produto.id!,'entrada')} className="p-1.5 rounded-lg bg-green-100 text-green-600 hover:bg-green-200" title="Entrada"><Plus className="w-4 h-4"/></button>
                                 <button onClick={()=>handleAjuste(produto.id!,'saida')} className="p-1.5 rounded-lg bg-red-100 text-red-500 hover:bg-red-200" title="Sa\u00edda"><Minus className="w-4 h-4"/></button>
                                 <button onClick={()=>{setAjustando(null);setQuantidadeAjuste('');}} className="p-1.5 rounded-lg bg-gray-100 text-gray-500"><RotateCcw className="w-4 h-4"/></button>
                               </div>
                             ) : (
-                              <button onClick={()=>setAjustando(produto.id!)} className="px-3 py-1.5 rounded-lg bg-[#C9A227] text-white hover:bg-[#9A7B1A] text-xs font-medium">Ajustar</button>
+                              <button onClick={()=>setAjustando(produto.id!)} className="px-3 py-1.5 rounded-lg bg-[#6F2738] text-white hover:bg-[#4A1A26] text-xs font-medium">Ajustar</button>
                             )}
                           </div>
                         </td>
@@ -772,7 +780,7 @@ export function EstoqueAvancado() {
                 value={filtroMovProduto}
                 onChange={e => setFiltroMovProduto(e.target.value)}
                 placeholder="Buscar por produto..."
-                className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#C9A227]"
+                className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#6F2738]"
               />
             </div>
             <div className="flex items-center gap-1.5">
@@ -793,7 +801,7 @@ export function EstoqueAvancado() {
 
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
             {loadingMovimentos ? (
-              <div className="flex justify-center p-10"><div className="w-6 h-6 border-2 border-[#C9A227] border-t-transparent rounded-full animate-spin"/></div>
+              <div className="flex justify-center p-10"><div className="w-6 h-6 border-2 border-[#6F2738] border-t-transparent rounded-full animate-spin"/></div>
             ) : movimentosFiltrados.length === 0 ? (
               <div className="text-center py-12">
                 <History className="w-10 h-10 text-gray-300 mx-auto mb-3"/>
@@ -962,7 +970,7 @@ export function EstoqueAvancado() {
                     value={form.comissao_percentual}
                     onChange={e => setForm({ ...form, comissao_percentual: e.target.value })}
                     placeholder="Ex: 5"
-                    className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-gray-900 focus:outline-none focus:border-[#C9A227] pr-8"
+                    className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-gray-900 focus:outline-none focus:border-[#6F2738] pr-8"
                   />
                   <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">%</span>
                 </div>
@@ -980,7 +988,7 @@ export function EstoqueAvancado() {
               </div>
               <div className="border-t border-gray-100 pt-3">
                 <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" checked={!!form.eh_kit} onChange={e=>setForm(f=>({...f, eh_kit: e.target.checked}))} className="w-4 h-4 rounded accent-[#C9A227]"/>
+                  <input type="checkbox" checked={!!form.eh_kit} onChange={e=>setForm(f=>({...f, eh_kit: e.target.checked}))} className="w-4 h-4 rounded accent-[#6F2738]"/>
                   <span className="text-sm font-medium text-gray-700">Este produto é um Kit (baixa vários produtos ao ser vendido)</span>
                 </label>
                 {form.eh_kit && (
@@ -1014,7 +1022,7 @@ export function EstoqueAvancado() {
                     <button
                       type="button"
                       onClick={() => setForm(f => ({ ...f, kit_itens: [...(f.kit_itens||[]), { produto_id:'', produto_nome:'', quantidade:1 }] }))}
-                      className="text-sm font-medium text-[#9A7B1A] hover:underline"
+                      className="text-sm font-medium text-[#4A1A26] hover:underline"
                     >
                       + Adicionar item ao kit
                     </button>
@@ -1024,7 +1032,7 @@ export function EstoqueAvancado() {
             </div>
             <div className="px-5 py-4 border-t border-gray-100 flex gap-3">
               <button onClick={()=>setShowModal(false)} className="flex-1 py-3 rounded-xl border border-gray-200 text-gray-600 text-sm font-medium hover:bg-gray-50">Cancelar</button>
-              <button onClick={handleSave} disabled={saving} className="flex-[2] py-3 rounded-xl bg-[#C9A227] text-white text-sm font-bold hover:bg-[#9A7B1A] disabled:opacity-50">
+              <button onClick={handleSave} disabled={saving} className="flex-[2] py-3 rounded-xl bg-[#6F2738] text-white text-sm font-bold hover:bg-[#4A1A26] disabled:opacity-50">
                 {saving ? 'Salvando...' : (editingId ? 'Salvar Altera\u00e7\u00f5es' : 'Criar Produto')}
               </button>
             </div>
@@ -1035,7 +1043,7 @@ export function EstoqueAvancado() {
       {showUndo && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-gray-900 text-white px-5 py-3 rounded-2xl shadow-2xl flex items-center gap-4 animate-in slide-in-from-bottom-4">
           <span className="text-sm">{undoStack.length} produto(s) excluído(s)</span>
-          <button onClick={handleUndo} className="px-4 py-1.5 bg-[#C9A227] text-white text-sm font-semibold rounded-xl hover:bg-[#b8911f]">
+          <button onClick={handleUndo} className="px-4 py-1.5 bg-[#6F2738] text-white text-sm font-semibold rounded-xl hover:bg-[#b8911f]">
             Desfazer
           </button>
           <button onClick={() => setShowUndo(false)} className="text-gray-400 hover:text-white text-lg leading-none">✕</button>

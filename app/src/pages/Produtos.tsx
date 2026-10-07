@@ -1,18 +1,19 @@
 // ============================================
-// BBVIC GESTÃO - PRODUTOS (LISTA PREMIUM)
+// BBVIC GESTÃO - PRODUTOS (ADMIN ONLY)
 // ============================================
 
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
 import { collection, query, where, getDocs, deleteDoc, doc } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { formatCurrency } from '@/lib/utils'
 import { toast } from 'sonner'
-import { Search, Package, Trash2 } from 'lucide-react'
+import { Plus, Search, Package, Edit, Trash2 } from 'lucide-react'
 import type { Produto } from '@/types'
 
 export function Produtos() {
-
+  const navigate = useNavigate()
   const { isAdmin } = useAuth()
 
   const [produtos, setProdutos] = useState<Produto[]>([])
@@ -20,13 +21,16 @@ export function Produtos() {
   const [search, setSearch] = useState('')
 
   useEffect(() => {
+    if (!isAdmin) {
+      navigate('/')
+      return
+    }
+
     fetchProdutos()
   }, [isAdmin])
 
   const fetchProdutos = async () => {
-
     try {
-
       setLoading(true)
 
       const q = query(
@@ -36,44 +40,32 @@ export function Produtos() {
 
       const snapshot = await getDocs(q)
 
-      setProdutos(
-        snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        })) as Produto[]
-      )
+      const lista = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+      })) as Produto[]
+
+      setProdutos(lista)
 
     } catch (error) {
-
       console.error('Erro ao buscar produtos:', error)
       toast.error('Erro ao carregar produtos')
-
     } finally {
-
       setLoading(false)
-
     }
-
   }
 
   const handleDelete = async (id: string) => {
-
     if (!confirm('Tem certeza que deseja excluir este produto?')) return
 
     try {
-
       await deleteDoc(doc(db, 'produtos', id))
-
       toast.success('Produto excluído!')
       fetchProdutos()
-
     } catch (error) {
-
       console.error('Erro ao excluir:', error)
       toast.error('Erro ao excluir produto')
-
     }
-
   }
 
   const filteredProdutos = produtos.filter(p =>
@@ -82,139 +74,127 @@ export function Produtos() {
   )
 
   if (loading) {
-
     return (
-      <div className="flex items-center justify-center h-96">
-        <div className="w-8 h-8 border-2 border-[#C9A227] border-t-transparent rounded-full animate-spin" />
+      <div className="flex items-center justify-center h-40">
+        <div className="w-8 h-8 border-2 border-[#6F2738] border-t-transparent rounded-full animate-spin" />
       </div>
     )
-
   }
 
   return (
-
     <div className="space-y-6">
-
-      {/* HEADER */}
-
-      <div className="flex items-center justify-between">
-
+      {/* Header */}
+      <div className="flex justify-between items-center">
         <div>
-
-          <h1 className="text-2xl font-semibold text-gray-900">
+          <h1 className="text-2xl font-bold text-white">
             Produtos
           </h1>
-
-          <p className="text-gray-500">
+          <p className="text-gray-400">
             Gerencie seus produtos
           </p>
-
         </div>
 
+        <button
+          onClick={() => navigate('/produtos/novo')}
+          className="px-4 py-2 rounded-lg bg-[#6F2738] text-white hover:bg-[#4A1A26] flex items-center gap-2"
+        >
+          <Plus className="w-4 h-4" />
+          Novo Produto
+        </button>
       </div>
 
-
-      {/* SEARCH */}
-
+      {/* Search */}
       <div className="relative">
-
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-
         <input
           type="text"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Buscar produto..."
-          className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 bg-white text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#C9A227]"
+          className="w-full pl-10 pr-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white"
         />
-
       </div>
 
+      {/* Grid */}
+      {filteredProdutos.length === 0 ? (
+        <div className="text-center py-12">
+          <p className="text-gray-400">
+            Nenhum produto encontrado
+          </p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filteredProdutos.map(produto => (
+            <div
+              key={produto.id}
+              className="bg-white/5 rounded-xl p-6 border border-white/10 hover:bg-white/10 transition-colors"
+            >
+              <div className="flex justify-between mb-4">
+                <div className="p-3 rounded-lg bg-[#6F2738]/20">
+                  <Package className="w-6 h-6 text-[#6F2738]" />
+                </div>
 
-      {/* LISTA */}
+                <div className="flex gap-2">
+                  <button
+                    onClick={() =>
+                      navigate(`/produtos/${produto.id}/editar`)
+                    }
+                    className="p-2 rounded-lg bg-white/10 text-gray-400 hover:text-white hover:bg-white/20"
+                  >
+                    <Edit className="w-4 h-4" />
+                  </button>
 
-      <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+                  <button
+                    onClick={() =>
+                      handleDelete(produto.id!)
+                    }
+                    className="p-2 rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
 
-        {filteredProdutos.length === 0 ? (
+              <h3 className="text-white font-semibold text-lg mb-1">
+                {produto.nome}
+              </h3>
 
-          <div className="text-center py-12">
+              <p className="text-gray-400 text-sm mb-4">
+                {produto.categoria}
+              </p>
 
-            <Package className="w-10 h-10 text-gray-400 mx-auto mb-3" />
-
-            <p className="text-gray-500">
-              Nenhum produto encontrado
-            </p>
-
-          </div>
-
-        ) : (
-
-          <table className="w-full">
-
-            <thead className="bg-gray-50 border-b">
-
-              <tr className="text-left text-sm text-gray-600">
-
-                <th className="px-6 py-3 font-medium">Produto</th>
-                <th className="px-6 py-3 font-medium">Categoria</th>
-                <th className="px-6 py-3 font-medium">Preço Venda</th>
-                <th className="px-6 py-3 font-medium">Estoque</th>
-                {isAdmin && <th className="px-6 py-3 font-medium text-right">Ações</th>}
-
-              </tr>
-
-            </thead>
-
-            <tbody>
-
-              {filteredProdutos.map(produto => (
-
-                <tr
-                  key={produto.id}
-                  className="border-b hover:bg-gray-50"
-                >
-
-                  <td className="px-6 py-4 font-medium text-gray-900">
-                    {produto.nome}
-                  </td>
-
-                  <td className="px-6 py-4 text-gray-600">
-                    {produto.categoria || "-"}
-                  </td>
-
-                  <td className="px-6 py-4 text-[#C9A227] font-semibold">
+              <div className="space-y-2">
+                <div className="flex justify-between">
+                  <span className="text-gray-400 text-sm">
+                    Preço de venda:
+                  </span>
+                  <span className="text-[#6F2738] font-semibold">
                     {formatCurrency(produto.preco_venda)}
-                  </td>
+                  </span>
+                </div>
 
-                  <td className="px-6 py-4 text-gray-600">
+                <div className="flex justify-between">
+                  <span className="text-gray-400 text-sm">
+                    Preço de custo:
+                  </span>
+                  <span className="text-gray-300">
+                    {formatCurrency(produto.preco_custo)}
+                  </span>
+                </div>
+
+                <div className="flex justify-between">
+                  <span className="text-gray-400 text-sm">
+                    Estoque:
+                  </span>
+                  <span className="text-gray-300">
                     {produto.estoque || 0} un
-                  </td>
-
-                  {isAdmin && (
-                    <td className="px-6 py-4 text-right">
-                      <button
-                        onClick={() => handleDelete(produto.id!)}
-                        className="p-2 rounded-lg hover:bg-red-100"
-                      >
-                        <Trash2 className="w-4 h-4 text-red-500" />
-                      </button>
-                    </td>
-                  )}
-
-                </tr>
-
-              ))}
-
-            </tbody>
-
-          </table>
-
-        )}
-
-      </div>
-
+                  </span>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
-
   )
-
 }

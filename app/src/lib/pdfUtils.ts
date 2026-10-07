@@ -56,7 +56,7 @@ interface PDFDoc {
 
 async function loadLogoBase64(url?: string): Promise<string | null> {
   try {
-    const src = url || '/logo-bbvic.jpg'
+    const src = url || '/bbvic-logo-new.png'
     const response = await fetch(src)
     if (!response.ok) return null
     const blob = await response.blob()
@@ -67,6 +67,10 @@ async function loadLogoBase64(url?: string): Promise<string | null> {
       reader.readAsDataURL(blob)
     })
   } catch { return null }
+}
+
+function logoFormat(dataUrl: string): 'PNG' | 'JPEG' {
+  return dataUrl.startsWith('data:image/png') ? 'PNG' : 'JPEG'
 }
 
 async function buildPDF(doc: PDFDoc, tipo: 'FATURA' | 'ORCAMENTO', empresa?: EmpresaConfig): Promise<jsPDF> {
@@ -89,9 +93,9 @@ async function buildPDF(doc: PDFDoc, tipo: 'FATURA' | 'ORCAMENTO', empresa?: Emp
   const tipoLabel = tipo === 'FATURA' ? 'INVOICE' : 'ESTIMATE'
 
   // ── HEADER: Logo left, address below logo, invoice info far right
-  const logoW = 55; const logoH = 35
+  const logoW = 38; const logoH = 35
   if (logoBase64) {
-    try { pdf.addImage(logoBase64, 'JPEG', L, 8, logoW, logoH) } catch { /* skip */ }
+    try { pdf.addImage(logoBase64, logoFormat(logoBase64), L, 8, logoW, logoH) } catch { /* skip */ }
   }
 
   // Address — below logo, left aligned
@@ -331,6 +335,173 @@ export async function gerarPDFBlob(doc: PDFDoc, tipo: 'FATURA' | 'ORCAMENTO', em
   const config = empresaConfig ?? await getEmpresaConfig()
   const pdf = await buildPDF(doc, tipo, config)
   return pdf.output('blob')
+}
+
+// ============================================
+// RECIBO DE CONSIGNAÇÃO (sem cobrança)
+// ============================================
+
+export interface ReciboConsignacaoItem {
+  produto_nome: string
+  quantidade: number
+  preco_unitario?: number
+  tipo: 'entrega' | 'reposicao' | 'devolucao'
+  data: any
+}
+export interface ReciboConsignacaoDoc {
+  numero: string
+  cliente_nome: string
+  cliente_endereco?: string
+  cliente_telefone?: string
+  vendedor_nome?: string
+  items: ReciboConsignacaoItem[]
+  observacao?: string
+}
+
+const TIPO_LABEL_RECIBO: Record<ReciboConsignacaoItem['tipo'], string> = {
+  entrega: 'Entrega em Consignação',
+  reposicao: 'Reposição de Consignação',
+  devolucao: 'Devolução ao Estoque',
+}
+
+async function buildReciboConsignacao(doc: ReciboConsignacaoDoc, empresa?: EmpresaConfig): Promise<jsPDF> {
+  const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
+  const W = 210
+  const L = 15
+  const R = 195
+
+  const empEndereco = clean(empresa?.endereco || '10 Howe St')
+  const empCidEst = clean(empresa?.cidade_estado || 'Framingham MA')
+  const empTelefone = clean(empresa?.telefone || '617 768 7191')
+  const empNome = clean(empresa?.nome || 'BBVIC Hair Care')
+
+  const logoBase64 = await loadLogoBase64(empresa?.logo_url)
+  const vendedor = clean(doc.vendedor_nome) || 'Julieth Batista Gomes'
+
+  const logoW = 38; const logoH = 35
+  if (logoBase64) {
+    try { pdf.addImage(logoBase64, logoFormat(logoBase64), L, 8, logoW, logoH) } catch { /* skip */ }
+  }
+
+  pdf.setFont('helvetica', 'normal')
+  pdf.setFontSize(9)
+  pdf.setTextColor(70, 70, 70)
+  let addrY = 47
+  pdf.text(empEndereco, L, addrY); addrY += 6
+  pdf.text(empCidEst, L, addrY); addrY += 6
+  pdf.text(empTelefone, L, addrY); addrY += 6
+
+  const rightX = 120
+  pdf.setFont('helvetica', 'bold')
+  pdf.setFontSize(9)
+  pdf.setTextColor(20, 20, 20)
+  pdf.text('CONSIGNMENT RECEIPT', rightX, 16)
+  pdf.setFont('helvetica', 'normal')
+  pdf.setTextColor(60, 60, 60)
+  pdf.text(` : ${doc.numero}`, rightX + 46, 16)
+
+  pdf.setFont('helvetica', 'normal')
+  pdf.setFontSize(9)
+  pdf.setTextColor(80, 80, 80)
+  pdf.text('Date', rightX, 23)
+  pdf.setFont('helvetica', 'bold')
+  pdf.setTextColor(20, 20, 20)
+  pdf.text(` : ${fmtDate(new Date())}`, rightX + 12, 23)
+
+  pdf.setFont('helvetica', 'normal')
+  pdf.setFontSize(8)
+  pdf.setTextColor(80, 80, 80)
+  pdf.text('Salão / Cliente', rightX, 33)
+  pdf.setFont('helvetica', 'bold')
+  pdf.setFontSize(9)
+  pdf.setTextColor(10, 10, 10)
+  pdf.text(clean(doc.cliente_nome).toUpperCase(), rightX, 40)
+
+  pdf.setFont('helvetica', 'normal')
+  pdf.setFontSize(8.5)
+  pdf.setTextColor(50, 50, 50)
+  let cy = 46
+  if (doc.cliente_endereco) { pdf.text(clean(doc.cliente_endereco), rightX, cy); cy += 5 }
+  if (doc.cliente_telefone) { pdf.text(clean(doc.cliente_telefone), rightX, cy); cy += 5 }
+
+  const sepY = Math.max(cy + 6, Math.max(addrY + 4, 60))
+  pdf.setDrawColor(180, 180, 180)
+  pdf.setLineWidth(0.3)
+  pdf.line(L, sepY, R, sepY)
+
+  const temValores = doc.items.some(it => typeof it.preco_unitario === 'number' && it.preco_unitario > 0)
+  const valorTotal = doc.items.reduce((a, it) => a + (it.preco_unitario || 0) * it.quantidade, 0)
+
+  autoTable(pdf, {
+    startY: sepY + 5,
+    margin: { left: L, right: W - R },
+    head: temValores
+      ? [['Produto', 'Tipo de Movimento', 'Qtd', 'Valor Unit.', 'Valor Total', 'Data']]
+      : [['Produto', 'Tipo de Movimento', 'Quantidade', 'Data']],
+    body: doc.items.map(it => temValores
+      ? [clean(it.produto_nome), TIPO_LABEL_RECIBO[it.tipo], String(it.quantidade), fmt(it.preco_unitario || 0), fmt((it.preco_unitario || 0) * it.quantidade), fmtDate(it.data)]
+      : [clean(it.produto_nome), TIPO_LABEL_RECIBO[it.tipo], String(it.quantidade), fmtDate(it.data)]),
+    foot: temValores ? [['', '', '', 'Valor Total (referência):', fmt(valorTotal), ''] as any] : undefined,
+    headStyles: {
+      fillColor: [240, 240, 240], textColor: [20, 20, 20], fontStyle: 'bold', fontSize: 8,
+      cellPadding: { top: 4, bottom: 4, left: 4, right: 4 }, lineColor: [180, 180, 180], lineWidth: 0.3,
+    },
+    bodyStyles: {
+      fontSize: 8, cellPadding: { top: 3.5, bottom: 3.5, left: 4, right: 4 },
+      textColor: [30, 30, 30], lineColor: [200, 200, 200], lineWidth: 0.2,
+    },
+    footStyles: {
+      fontSize: 8, fontStyle: 'bold', textColor: [111, 39, 56],
+      cellPadding: { top: 4, bottom: 4, left: 4, right: 4 }, lineColor: [180, 180, 180], lineWidth: 0.3,
+    },
+    alternateRowStyles: { fillColor: [250, 250, 250] },
+    columnStyles: temValores
+      ? { 0: { cellWidth: 'auto' }, 1: { cellWidth: 42 }, 2: { cellWidth: 14, halign: 'right' }, 3: { cellWidth: 24, halign: 'right' }, 4: { cellWidth: 26, halign: 'right' }, 5: { cellWidth: 22, halign: 'right' } }
+      : { 0: { cellWidth: 'auto' }, 1: { cellWidth: 55 }, 2: { cellWidth: 25, halign: 'right' }, 3: { cellWidth: 28, halign: 'right' } },
+    tableLineColor: [180, 180, 180], tableLineWidth: 0.3,
+  })
+
+  const afterTableY = (pdf as any).lastAutoTable.finalY + 8
+
+  pdf.setFont('helvetica', 'italic')
+  pdf.setFontSize(8.5)
+  pdf.setTextColor(120, 120, 120)
+  const aviso = 'Este documento comprova a entrega dos produtos acima em regime de CONSIGNAÇÃO, sem valor cobrado neste momento. O pagamento será gerado somente quando a venda for confirmada.'
+  const avisoLines = pdf.splitTextToSize(aviso, R - L)
+  pdf.text(avisoLines, L, afterTableY)
+
+  let ny = afterTableY + avisoLines.length * 4.5 + 8
+  if (doc.observacao) {
+    pdf.setFont('helvetica', 'bold'); pdf.setFontSize(8); pdf.setTextColor(40, 40, 40)
+    pdf.text('Observações', L, ny); ny += 5
+    pdf.setFont('helvetica', 'normal'); pdf.setFontSize(7.5); pdf.setTextColor(80, 80, 80)
+    const lines = pdf.splitTextToSize(clean(doc.observacao), R - L)
+    pdf.text(lines, L, ny); ny += lines.length * 4.5 + 6
+  }
+
+  ny += 15
+  pdf.setDrawColor(150, 150, 150); pdf.setLineWidth(0.3)
+  pdf.line(L, ny, L + 70, ny)
+  pdf.line(R - 70, ny, R, ny)
+  pdf.setFont('helvetica', 'normal'); pdf.setFontSize(7.5); pdf.setTextColor(100, 100, 100)
+  pdf.text('Assinatura do Cliente', L, ny + 5)
+  pdf.text('Assinatura do Responsável BBVIC', R - 70, ny + 5)
+
+  const H = 297
+  pdf.setDrawColor(200, 200, 200); pdf.setLineWidth(0.3); pdf.line(L, H - 22, R, H - 22)
+  pdf.setFont('helvetica', 'bold'); pdf.setFontSize(8.5); pdf.setTextColor(20, 20, 20)
+  pdf.text('Consultor: ' + clean(vendedor).toUpperCase(), L, H - 15)
+  pdf.setFont('helvetica', 'normal'); pdf.setFontSize(7); pdf.setTextColor(150, 150, 150)
+  const footerParts = [empNome, empEndereco + ', ' + empCidEst, empTelefone].filter(Boolean)
+  pdf.text(footerParts.join('  |  '), W / 2, H - 8, { align: 'center' })
+
+  return pdf
+}
+
+export async function gerarPDFReciboConsignacao(doc: ReciboConsignacaoDoc, empresaConfig?: EmpresaConfig) {
+  const config = empresaConfig ?? await getEmpresaConfig()
+  const pdf = await buildReciboConsignacao(doc, config)
+  pdf.save(`Recibo-Consignacao-${doc.numero}.pdf`)
 }
 
 export type { PDFDoc, PDFItem }

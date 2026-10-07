@@ -207,21 +207,46 @@ export function InvoiceForm() {
           else if (cliNome) setCliente({ id: cliId, nome: decodeURIComponent(cliNome) } as any);
         }
       }
-    } catch { console.error('Erro clientes') }
+    } catch (e: any) {
+      console.error('Erro clientes', e);
+      toast.error('Erro ao carregar clientes: ' + (e.message || 'verifique permissões'));
+    }
   };
 
   const fetchProdutos = async () => {
     try {
       const snap = await getDocs(collection(db, 'produtos'));
-      setProdutos(snap.docs.map(d => ({ id: d.id, ...d.data() })) as Produto[]);
-    } catch { console.error('Erro produtos') }
+      const lista = snap.docs.map(d => ({ id: d.id, ...d.data() })) as Produto[];
+      setProdutos(lista);
+    } catch (e: any) {
+      console.error('Erro produtos', e);
+      toast.error('Erro ao carregar produtos: ' + (e.message || 'verifique permissões'));
+    }
   };
 
   const generateInvoiceNumber = async () => {
     const now = new Date();
-    const snap = await getDocs(collection(db, 'invoices'));
-    const next = (snap.size + 1).toString().padStart(4, '0');
-    setNumero(`INV-${now.getFullYear()}-${next}`);
+    const year = now.getFullYear();
+    const prefix = `INV-${year}-`;
+    try {
+      // Busca só as faturas do ano atual (muito mais leve que toda a coleção)
+      const q = query(
+        collection(db, 'invoices'),
+        where('numero', '>=', prefix),
+        where('numero', '<=', prefix + '\uf8ff')
+      );
+      const snap = await getDocs(q);
+      let max = 0;
+      snap.docs.forEach(d => {
+        const num = d.data().numero || '';
+        const match = num.match(/-(\d+)$/);
+        if (match) max = Math.max(max, parseInt(match[1], 10));
+      });
+      setNumero(`${prefix}${(max + 1).toString().padStart(4, '0')}`);
+    } catch {
+      // Fallback seguro usando timestamp se a query falhar
+      setNumero(`${prefix}${Date.now().toString().slice(-4)}`);
+    }
   };
 
   const applyPaymentTerms = (term: string) => {
@@ -440,6 +465,7 @@ export function InvoiceForm() {
         invoice_id: invoiceId,
         invoice_numero: invoiceNumero,
         valor: valorReceber,
+        vendedor_id: invoiceData.vendedor_id || user?.uid || '',
         data_emissao: Timestamp.now(),
         data_vencimento: invoiceData.data_vencimento,
         status: 'pendente',
@@ -492,7 +518,10 @@ export function InvoiceForm() {
       }
       import('@/lib/auditLog').then(({ logActivity }) => logActivity(isEditing ? 'Fatura editada' : 'Fatura criada', `Fatura para cliente: ${cliente?.nome || ''}`, 'fatura')).catch(() => {});
       toast.success('Fatura salva!'); navigate('/invoices');
-    } catch { toast.error('Erro ao salvar fatura'); }
+    } catch (e: any) {
+      console.error(e);
+      toast.error(e.message || 'Erro ao salvar fatura');
+    }
     finally { setSaving(false); }
   };
 
@@ -616,7 +645,10 @@ export function InvoiceForm() {
       openWhatsApp(`https://wa.me/1${phone}?text=${encodeURIComponent(msg)}`);
       import('@/lib/auditLog').then(({ logActivity }) => logActivity('Fatura enviada por WhatsApp', `Fatura enviada para ${cliente?.nome || ''} via WhatsApp`, 'fatura')).catch(() => {});
       toast.success(`Fatura enviada para ${cliente.nome}!`); navigate('/invoices');
-    } catch { toast.error('Erro ao enviar fatura'); }
+    } catch (e: any) {
+      console.error(e);
+      toast.error(e.message || 'Erro ao enviar fatura');
+    }
     finally { setSaving(false); }
   };
 
@@ -678,7 +710,7 @@ export function InvoiceForm() {
 
   if (loading) return (
     <div className="flex items-center justify-center h-96">
-      <div className="w-8 h-8 border-2 border-[#C9A227] border-t-transparent rounded-full animate-spin" />
+      <div className="w-8 h-8 border-2 border-[#6F2738] border-t-transparent rounded-full animate-spin" />
     </div>
   );
 
@@ -765,19 +797,26 @@ export function InvoiceForm() {
             <div className="space-y-2">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                <input type="text" value={searchCliente} onChange={e => { setSearchCliente(e.target.value); setShowClienteDropdown(true); }} placeholder="Buscar cliente..." className="w-full pl-9 pr-4 py-3 rounded-xl border border-gray-200 text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#C9A227]" />
+                <input type="text" value={searchCliente} onChange={e => { setSearchCliente(e.target.value); setShowClienteDropdown(true); }} placeholder="Buscar cliente..." className="w-full pl-9 pr-4 py-3 rounded-xl border border-gray-200 text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#6F2738]" />
                 {showClienteDropdown && searchCliente && (
                   <div className="absolute z-20 w-full mt-1 bg-white rounded-xl border border-gray-200 shadow-lg max-h-52 overflow-auto">
-                    {filteredClientes.length === 0 ? <p className="text-gray-400 text-sm p-4">Nenhum cliente encontrado</p> : filteredClientes.map(c => (
+                    {filteredClientes.length === 0 ? <p className="text-gray-400 text-sm p-4">Nenhum cliente encontrado</p> : (
+                  <>
+                    {filteredClientes.slice(0, 50).map(c => (
                       <button key={c.id} onClick={() => { setCliente(c); setSearchCliente(''); setShowClienteDropdown(false); }} className="w-full px-4 py-3 text-left hover:bg-gray-50 border-b last:border-b-0">
                         <p className="font-medium text-gray-900 text-sm">{c.nome}</p>
                         <p className="text-gray-500 text-xs">{c.telefone}</p>
                       </button>
                     ))}
+                    {filteredClientes.length > 50 && (
+                      <p className="text-xs text-gray-400 p-3 text-center">{filteredClientes.length - 50} resultados ocultos. Refine a busca.</p>
+                    )}
+                  </>
+                )}
                   </div>
                 )}
               </div>
-              <button type="button" onClick={() => setShowNovoClienteModal(true)} className="w-full flex items-center justify-center gap-2 py-2 rounded-xl border border-dashed border-[#C9A227] text-[#C9A227] text-sm font-medium hover:bg-[#C9A227]/5 transition-colors">
+              <button type="button" onClick={() => setShowNovoClienteModal(true)} className="w-full flex items-center justify-center gap-2 py-2 rounded-xl border border-dashed border-[#6F2738] text-[#6F2738] text-sm font-medium hover:bg-[#6F2738]/5 transition-colors">
                 <UserPlus className="w-4 h-4" /> Cadastrar novo cliente
               </button>
             </div>
@@ -794,7 +833,7 @@ export function InvoiceForm() {
                   setVendedorId(e.target.value);
                   setVendedorNome(v?.nome || '');
                 }}
-                className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-gray-900 focus:outline-none focus:border-[#C9A227] text-sm"
+                className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-gray-900 focus:outline-none focus:border-[#6F2738] text-sm"
               >
                 <option value="">— Sem vendedor —</option>
                 {vendedores.map(v => (
@@ -813,21 +852,30 @@ export function InvoiceForm() {
           <h2 className="text-base font-semibold text-gray-900 mb-4">Itens</h2>
           <div className="relative mb-4">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <input type="text" value={searchProduto} onChange={e => { setSearchProduto(e.target.value); setShowProdutoDropdown(true); }} placeholder="Buscar produto / serviço..." className="w-full pl-9 pr-4 py-3 rounded-xl border border-gray-200 text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#C9A227]" />
-            {showProdutoDropdown && searchProduto && (
+            <input type="text" value={searchProduto} onChange={e => { setSearchProduto(e.target.value); setShowProdutoDropdown(true); }} onFocus={() => setShowProdutoDropdown(true)} placeholder="Buscar produto / serviço..." className="w-full pl-9 pr-4 py-3 rounded-xl border border-gray-200 text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#6F2738]" />
+            {showProdutoDropdown && (
               <div className="absolute z-20 w-full mt-1 bg-white rounded-xl border border-gray-200 shadow-lg max-h-52 overflow-auto">
-                {filteredProdutos.map(p => (
-                  <button key={p.id} onClick={() => openProdutoModal(p)} className="w-full px-4 py-3 text-left hover:bg-gray-50 border-b last:border-b-0 flex justify-between items-center gap-2">
-                    <div>
-                      <p className="font-medium text-gray-900 text-sm">{p.nome}</p>
-                      {p.descricao && <p className="text-xs text-gray-400">{p.descricao}</p>}
-                    </div>
-                    <div className="text-right flex-shrink-0">
-                      <p className="text-[#C9A227] font-semibold text-sm">{formatCurrency(p.preco_venda)}</p>
-                      <p className="text-xs text-gray-400">Estoque: {(p as any).estoque ?? '—'}</p>
-                    </div>
-                  </button>
-                ))}
+                {filteredProdutos.length === 0 ? (
+                  <p className="text-gray-400 text-sm p-4">Nenhum produto encontrado</p>
+                ) : (
+                  <>
+                    {filteredProdutos.slice(0, 50).map(p => (
+                      <button key={p.id} onClick={() => openProdutoModal(p)} className="w-full px-4 py-3 text-left hover:bg-gray-50 border-b last:border-b-0 flex justify-between items-center gap-2">
+                        <div>
+                          <p className="font-medium text-gray-900 text-sm">{p.nome}</p>
+                          {p.descricao && <p className="text-xs text-gray-400">{p.descricao}</p>}
+                        </div>
+                        <div className="text-right flex-shrink-0">
+                          <p className="text-[#6F2738] font-semibold text-sm">{formatCurrency(p.preco_venda)}</p>
+                          <p className="text-xs text-gray-400">Estoque: {(p as any).estoque ?? '—'}</p>
+                        </div>
+                      </button>
+                    ))}
+                    {filteredProdutos.length > 50 && (
+                      <p className="text-xs text-gray-400 p-3 text-center">{filteredProdutos.length - 50} resultados ocultos. Digite para filtrar.</p>
+                    )}
+                  </>
+                )}
               </div>
             )}
           </div>
@@ -847,7 +895,7 @@ export function InvoiceForm() {
                       <span className="text-xs text-gray-500">Preço:</span>
                       <div className="relative">
                         <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 text-xs">$</span>
-                        <input type="number" step="0.01" min="0" value={item.preco_unitario} onChange={e => updatePrice(item.tempId, parseFloat(e.target.value) || 0)} className="w-24 pl-5 pr-1 py-1.5 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:border-[#C9A227] text-right" />
+                        <input type="number" step="0.01" min="0" value={item.preco_unitario} onChange={e => updatePrice(item.tempId, parseFloat(e.target.value) || 0)} className="w-24 pl-5 pr-1 py-1.5 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:border-[#6F2738] text-right" />
                       </div>
                     </div>
                     <div className="flex items-center gap-1.5">
@@ -859,7 +907,7 @@ export function InvoiceForm() {
                       </div>
                     </div>
                     <div className="ml-auto">
-                      <span className="font-semibold text-[#C9A227] text-sm">{formatCurrency(item.subtotal)}</span>
+                      <span className="font-semibold text-[#6F2738] text-sm">{formatCurrency(item.subtotal)}</span>
                     </div>
                   </div>
                   <div>
@@ -868,7 +916,7 @@ export function InvoiceForm() {
                       value={item.descricao || ''}
                       onChange={e => setItems(items.map(i => i.tempId === item.tempId ? { ...i, descricao: e.target.value } : i))}
                       placeholder="Observação deste item (visível na nota)..."
-                      className="w-full px-3 py-1.5 text-xs bg-white border border-gray-200 rounded-lg focus:outline-none focus:border-[#C9A227] text-gray-700 placeholder-gray-300"
+                      className="w-full px-3 py-1.5 text-xs bg-white border border-gray-200 rounded-lg focus:outline-none focus:border-[#6F2738] text-gray-700 placeholder-gray-300"
                     />
                   </div>
                 </div>
@@ -909,14 +957,14 @@ export function InvoiceForm() {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Condições de Pagamento</label>
-              <select value={paymentTerms} onChange={e => applyPaymentTerms(e.target.value)} className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-gray-900 focus:outline-none focus:border-[#C9A227]">
+              <select value={paymentTerms} onChange={e => applyPaymentTerms(e.target.value)} className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-gray-900 focus:outline-none focus:border-[#6F2738]">
                 {PAYMENT_TERMS.map(t => <option key={t.label} value={t.label}>{t.label}</option>)}
               </select>
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Data de Vencimento</label>
-              <input type="date" value={dataVencimento} onChange={e => { setDataVencimento(e.target.value); setPaymentTerms('Personalizado'); }} className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-gray-900 focus:outline-none focus:border-[#C9A227]" />
+              <input type="date" value={dataVencimento} onChange={e => { setDataVencimento(e.target.value); setPaymentTerms('Personalizado'); }} className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-gray-900 focus:outline-none focus:border-[#6F2738]" />
             </div>
 
             <div className="grid grid-cols-2 gap-3">
@@ -926,22 +974,22 @@ export function InvoiceForm() {
                 <button
                   type="button"
                   onClick={() => { setDescontoTipo('pct'); setDescontoInput('0'); }}
-                  className={`px-2 py-1 text-xs rounded-lg border font-medium transition ${descontoTipo === 'pct' ? 'bg-[#C9A227] text-white border-[#C9A227]' : 'bg-white text-gray-600 border-gray-200'}`}
+                  className={`px-2 py-1 text-xs rounded-lg border font-medium transition ${descontoTipo === 'pct' ? 'bg-[#6F2738] text-white border-[#6F2738]' : 'bg-white text-gray-600 border-gray-200'}`}
                 >%</button>
                 <button
                   type="button"
                   onClick={() => { setDescontoTipo('valor'); setDescontoInput('0'); }}
-                  className={`px-2 py-1 text-xs rounded-lg border font-medium transition ${descontoTipo === 'valor' ? 'bg-[#C9A227] text-white border-[#C9A227]' : 'bg-white text-gray-600 border-gray-200'}`}
+                  className={`px-2 py-1 text-xs rounded-lg border font-medium transition ${descontoTipo === 'valor' ? 'bg-[#6F2738] text-white border-[#6F2738]' : 'bg-white text-gray-600 border-gray-200'}`}
                 >$</button>
               </div>
               <input
                 type="number"
                 value={descontoInput}
-                onChange={e => setDescontoInput(e.target.value)} className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-gray-900 focus:outline-none focus:border-[#C9A227]" />
+                onChange={e => setDescontoInput(e.target.value)} className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-gray-900 focus:outline-none focus:border-[#6F2738]" />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Tax (%)</label>
-                <input type="number" min="0" max="30" step="0.01" value={taxaInput} onChange={e => setTaxaInput(e.target.value)} className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-gray-900 focus:outline-none focus:border-[#C9A227]" />
+                <input type="number" min="0" max="30" step="0.01" value={taxaInput} onChange={e => setTaxaInput(e.target.value)} className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-gray-900 focus:outline-none focus:border-[#6F2738]" />
                 <p className="text-xs text-gray-400 mt-1">Padrão: 6.25%</p>
               </div>
             </div>
@@ -950,7 +998,7 @@ export function InvoiceForm() {
               <label className="block text-sm font-medium text-gray-700 mb-1">Taxa de Envio ($)</label>
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
-                <input type="number" step="0.01" min="0" value={taxaEnvioInput} onChange={e => setTaxaEnvioInput(e.target.value)} placeholder="15.00" className="w-full pl-7 pr-4 py-2.5 rounded-xl border border-gray-200 text-gray-900 focus:outline-none focus:border-[#C9A227]" />
+                <input type="number" step="0.01" min="0" value={taxaEnvioInput} onChange={e => setTaxaEnvioInput(e.target.value)} placeholder="15.00" className="w-full pl-7 pr-4 py-2.5 rounded-xl border border-gray-200 text-gray-900 focus:outline-none focus:border-[#6F2738]" />
               </div>
               <p className="text-xs text-gray-400 mt-1">Padrão: $15.00 — edite conforme necessário</p>
             </div>
@@ -959,13 +1007,13 @@ export function InvoiceForm() {
               <label className="block text-sm font-medium text-gray-700 mb-1">Adiantamento / Depósito ($)</label>
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
-                <input type="number" step="0.01" min="0" value={depositValue} onChange={e => setDepositValue(e.target.value)} placeholder="0.00" className="w-full pl-7 pr-4 py-2.5 rounded-xl border border-gray-200 text-gray-900 focus:outline-none focus:border-[#C9A227]" />
+                <input type="number" step="0.01" min="0" value={depositValue} onChange={e => setDepositValue(e.target.value)} placeholder="0.00" className="w-full pl-7 pr-4 py-2.5 rounded-xl border border-gray-200 text-gray-900 focus:outline-none focus:border-[#6F2738]" />
               </div>
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Observações</label>
-              <textarea value={observacoes} onChange={e => setObservacoes(e.target.value)} rows={3} placeholder="Informações adicionais..." className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#C9A227] resize-none text-sm" />
+              <textarea value={observacoes} onChange={e => setObservacoes(e.target.value)} rows={3} placeholder="Informações adicionais..." className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#6F2738] resize-none text-sm" />
             </div>
 
             <div>
@@ -975,7 +1023,7 @@ export function InvoiceForm() {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Link de Pagamento Square</label>
-              <input type="url" value={squareLink} onChange={e => setSquareLink(e.target.value)} placeholder="https://square.link/..." className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-gray-900 focus:outline-none focus:border-[#C9A227] text-sm" />
+              <input type="url" value={squareLink} onChange={e => setSquareLink(e.target.value)} placeholder="https://square.link/..." className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-gray-900 focus:outline-none focus:border-[#6F2738] text-sm" />
               <p className="text-xs text-gray-400 mt-1">Cole o link do Square — o cliente poderá pagar e confirmar automaticamente</p>
             </div>
 
@@ -993,7 +1041,7 @@ export function InvoiceForm() {
                     setParcelasAtivo(next);
                     if (next && total > 0) gerarParcelas(numParcelas);
                   }}
-                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${parcelasAtivo ? 'bg-[#C9A227]' : 'bg-gray-200'}`}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${parcelasAtivo ? 'bg-[#6F2738]' : 'bg-gray-200'}`}
                 >
                   <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${parcelasAtivo ? 'translate-x-6' : 'translate-x-1'}`} />
                 </button>
@@ -1005,7 +1053,7 @@ export function InvoiceForm() {
                     <select
                       value={numParcelas}
                       onChange={e => { const n = parseInt(e.target.value); setNumParcelas(n); gerarParcelas(n); }}
-                      className="px-3 py-2 rounded-xl border border-gray-200 text-sm text-gray-900 focus:outline-none focus:border-[#C9A227]"
+                      className="px-3 py-2 rounded-xl border border-gray-200 text-sm text-gray-900 focus:outline-none focus:border-[#6F2738]"
                     >
                       {[2,3,4,5,6,7,8,9,10,11,12].map(n => (
                         <option key={n} value={n}>{n}x parcelas</option>
@@ -1050,7 +1098,7 @@ export function InvoiceForm() {
                             value={p.data}
                             disabled={isPago}
                             onChange={e => !isPago && setParcelas(prev => prev.map((x, j) => j === i ? { ...x, data: e.target.value } : x))}
-                            className={`flex-1 px-2 py-1.5 rounded-lg border text-sm focus:outline-none ${isPago ? 'border-green-200 bg-green-50 text-green-700 cursor-not-allowed' : 'border-gray-200 text-gray-900 focus:border-[#C9A227]'}`}
+                            className={`flex-1 px-2 py-1.5 rounded-lg border text-sm focus:outline-none ${isPago ? 'border-green-200 bg-green-50 text-green-700 cursor-not-allowed' : 'border-gray-200 text-gray-900 focus:border-[#6F2738]'}`}
                           />
                           <div className="relative w-24">
                             <span className={`absolute left-2 top-1/2 -translate-y-1/2 text-xs ${isPago ? 'text-green-500' : 'text-gray-400'}`}>$</span>
@@ -1060,7 +1108,7 @@ export function InvoiceForm() {
                               value={p.valor}
                               disabled={isPago}
                               onChange={e => !isPago && setParcelas(prev => prev.map((x, j) => j === i ? { ...x, valor: parseFloat(e.target.value) || 0 } : x))}
-                              className={`w-full pl-5 pr-2 py-1.5 rounded-lg border text-sm text-right focus:outline-none ${isPago ? 'border-green-200 bg-green-50 text-green-700 font-semibold cursor-not-allowed' : 'border-gray-200 text-gray-900 focus:border-[#C9A227]'}`}
+                              className={`w-full pl-5 pr-2 py-1.5 rounded-lg border text-sm text-right focus:outline-none ${isPago ? 'border-green-200 bg-green-50 text-green-700 font-semibold cursor-not-allowed' : 'border-gray-200 text-gray-900 focus:border-[#6F2738]'}`}
                             />
                           </div>
                           {isPago && <span className="text-xs font-bold text-green-600 whitespace-nowrap">PAGO</span>}
@@ -1086,13 +1134,13 @@ export function InvoiceForm() {
               <div className="flex justify-between text-gray-600"><span>Tax ({taxaInput}%)</span><span>+{formatCurrency(taxa)}</span></div>
               {(parseFloat(taxaEnvioInput) || 0) > 0 && <div className="flex justify-between text-gray-600"><span>Envio</span><span>+{formatCurrency(parseFloat(taxaEnvioInput) || 0)}</span></div>}
               <div className="border-t border-gray-200 pt-3">
-                <div className="flex justify-between text-gray-900 font-bold text-lg"><span>Total</span><span className="text-[#C9A227]">{formatCurrency(total)}</span></div>
+                <div className="flex justify-between text-gray-900 font-bold text-lg"><span>Total</span><span className="text-[#6F2738]">{formatCurrency(total)}</span></div>
               </div>
               {depositAmt > 0 && (
                 <>
                   <div className="flex justify-between text-gray-600 text-sm"><span>Adiantamento Recebido</span><span className="text-green-600">-{formatCurrency(depositAmt)}</span></div>
                   <div className="border-t border-gray-200 pt-2">
-                    <div className="flex justify-between text-gray-900 font-bold text-base"><span>Saldo Restante</span><span className="text-[#C9A227]">{formatCurrency(balanceDue)}</span></div>
+                    <div className="flex justify-between text-gray-900 font-bold text-base"><span>Saldo Restante</span><span className="text-[#6F2738]">{formatCurrency(balanceDue)}</span></div>
                   </div>
                 </>
               )}
@@ -1137,7 +1185,7 @@ export function InvoiceForm() {
             {/* Passo 1: Preparando */}
             <div className="flex flex-col items-center gap-1">
               <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
-                statusEntregaAtual ? 'bg-[#C9A227] text-white' : 'bg-gray-200 text-gray-500'
+                statusEntregaAtual ? 'bg-[#6F2738] text-white' : 'bg-gray-200 text-gray-500'
               }`}>✓</div>
               <span className="text-xs text-gray-500 text-center leading-tight">Fatura<br/>Criada</span>
             </div>
@@ -1224,14 +1272,14 @@ export function InvoiceForm() {
                   min="0"
                   value={produtoModalPreco}
                   onChange={e => setProdutoModalPreco(parseFloat(e.target.value) || 0)}
-                  className="w-full pl-7 pr-4 py-2.5 rounded-xl border border-gray-200 text-gray-900 text-lg font-semibold focus:outline-none focus:border-[#C9A227]"
+                  className="w-full pl-7 pr-4 py-2.5 rounded-xl border border-gray-200 text-gray-900 text-lg font-semibold focus:outline-none focus:border-[#6F2738]"
                 />
               </div>
               {produtoModalPreco !== produtoModal.preco_venda && (
                 <button
                   type="button"
                   onClick={() => setProdutoModalPreco(produtoModal.preco_venda)}
-                  className="text-xs text-[#C9A227] mt-1 hover:underline"
+                  className="text-xs text-[#6F2738] mt-1 hover:underline"
                 >
                   Restaurar preço padrão ({formatCurrency(produtoModal.preco_venda)})
                 </button>
@@ -1241,18 +1289,18 @@ export function InvoiceForm() {
               <label className="block text-sm font-medium text-gray-700 mb-1">Quantidade</label>
               <div className="flex items-center gap-3">
                 <button onClick={() => setProdutoModalQty(q => Math.max(1, q - 1))} className="w-9 h-9 rounded-xl border border-gray-200 flex items-center justify-center hover:bg-gray-100"><Minus className="w-4 h-4" /></button>
-                <input type="number" min="1" value={produtoModalQty} onChange={e => setProdutoModalQty(Math.max(1, parseInt(e.target.value) || 1))} className="w-20 text-center text-lg font-bold border border-gray-200 rounded-xl py-2 focus:outline-none focus:border-[#C9A227]" />
+                <input type="number" min="1" value={produtoModalQty} onChange={e => setProdutoModalQty(Math.max(1, parseInt(e.target.value) || 1))} className="w-20 text-center text-lg font-bold border border-gray-200 rounded-xl py-2 focus:outline-none focus:border-[#6F2738]" />
                 <button onClick={() => setProdutoModalQty(q => q + 1)} className="w-9 h-9 rounded-xl border border-gray-200 flex items-center justify-center hover:bg-gray-100"><Plus className="w-4 h-4" /></button>
               </div>
-              <p className="text-xs text-gray-400 mt-1">Subtotal: <span className="font-semibold text-[#C9A227]">{formatCurrency(produtoModalPreco * produtoModalQty)}</span></p>
+              <p className="text-xs text-gray-400 mt-1">Subtotal: <span className="font-semibold text-[#6F2738]">{formatCurrency(produtoModalPreco * produtoModalQty)}</span></p>
             </div>
             <div className="mb-5">
               <label className="block text-sm font-medium text-gray-700 mb-1">Observação do item <span className="text-gray-400 font-normal">(aparece na nota)</span></label>
-              <input type="text" value={produtoModalObs} onChange={e => setProdutoModalObs(e.target.value)} placeholder="Ex: Tamanho G, cor preta..." className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-gray-900 text-sm focus:outline-none focus:border-[#C9A227]" autoFocus />
+              <input type="text" value={produtoModalObs} onChange={e => setProdutoModalObs(e.target.value)} placeholder="Ex: Tamanho G, cor preta..." className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-gray-900 text-sm focus:outline-none focus:border-[#6F2738]" autoFocus />
             </div>
             <div className="flex gap-3">
               <button onClick={() => setProdutoModal(null)} className="flex-1 py-3 rounded-xl border border-gray-200 text-gray-600 font-medium hover:bg-gray-50">Cancelar</button>
-              <button onClick={confirmProdutoModal} className="flex-[2] py-3 rounded-xl bg-[#C9A227] text-white font-bold hover:bg-[#b8911f]">Adicionar à Nota</button>
+              <button onClick={confirmProdutoModal} className="flex-[2] py-3 rounded-xl bg-[#6F2738] text-white font-bold hover:bg-[#b8911f]">Adicionar à Nota</button>
             </div>
           </div>
         </div>
@@ -1265,7 +1313,7 @@ export function InvoiceForm() {
             {saving ? <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" /> : <Save className="w-4 h-4" />}
             <span className="hidden sm:inline">Salvar</span>
           </button>
-          <button onClick={handleDownloadPDF} className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl border border-[#C9A227] text-[#C9A227] text-sm font-medium hover:bg-[#C9A227]/10 bg-white">
+          <button onClick={handleDownloadPDF} className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl border border-[#6F2738] text-[#6F2738] text-sm font-medium hover:bg-[#6F2738]/10 bg-white">
             <FileDown className="w-4 h-4" />
             <span className="hidden sm:inline">Baixar PDF</span>
             <span className="sm:hidden">PDF</span>
@@ -1288,7 +1336,7 @@ export function InvoiceForm() {
               <span className="hidden sm:inline">Entregue</span>
             </button>
           )}
-          <button onClick={handleSend} disabled={saving} className="flex-[2] flex items-center justify-center gap-2 py-3 rounded-xl bg-[#C9A227] text-white text-sm font-bold hover:bg-[#b8911f] disabled:opacity-60 shadow">
+          <button onClick={handleSend} disabled={saving} className="flex-[2] flex items-center justify-center gap-2 py-3 rounded-xl bg-[#6F2738] text-white text-sm font-bold hover:bg-[#b8911f] disabled:opacity-60 shadow">
             {saving ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <Send className="w-4 h-4" />}
             Enviar WhatsApp
           </button>
@@ -1307,20 +1355,20 @@ export function InvoiceForm() {
           <div className="space-y-3">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Nome *</label>
-              <input type="text" value={novoClienteForm.nome} onChange={e => setNovoClienteForm(p => ({...p, nome: e.target.value}))} placeholder="Nome completo" className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#C9A227]"/>
+              <input type="text" value={novoClienteForm.nome} onChange={e => setNovoClienteForm(p => ({...p, nome: e.target.value}))} placeholder="Nome completo" className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#6F2738]"/>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Telefone</label>
-              <input type="text" value={novoClienteForm.telefone} onChange={e => setNovoClienteForm(p => ({...p, telefone: e.target.value}))} placeholder="+1 (555) 000-0000" className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#C9A227]"/>
+              <input type="text" value={novoClienteForm.telefone} onChange={e => setNovoClienteForm(p => ({...p, telefone: e.target.value}))} placeholder="+1 (555) 000-0000" className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#6F2738]"/>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-              <input type="email" value={novoClienteForm.email} onChange={e => setNovoClienteForm(p => ({...p, email: e.target.value}))} placeholder="email@exemplo.com" className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#C9A227]"/>
+              <input type="email" value={novoClienteForm.email} onChange={e => setNovoClienteForm(p => ({...p, email: e.target.value}))} placeholder="email@exemplo.com" className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#6F2738]"/>
             </div>
           </div>
           <div className="flex gap-2 pt-1">
             <button onClick={() => setShowNovoClienteModal(false)} className="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-700 text-sm font-medium hover:bg-gray-50">Cancelar</button>
-            <button onClick={handleCriarClienteRapido} disabled={savingNovoCliente} className="flex-[2] py-2.5 rounded-xl bg-[#C9A227] text-white text-sm font-bold hover:bg-[#9A7B1A] disabled:opacity-50 flex items-center justify-center gap-2">
+            <button onClick={handleCriarClienteRapido} disabled={savingNovoCliente} className="flex-[2] py-2.5 rounded-xl bg-[#6F2738] text-white text-sm font-bold hover:bg-[#4A1A26] disabled:opacity-50 flex items-center justify-center gap-2">
               {savingNovoCliente ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"/> : <UserPlus className="w-4 h-4"/>}
               Criar e Selecionar
             </button>

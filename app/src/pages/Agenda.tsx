@@ -122,7 +122,7 @@ export function Agenda() {
     porData[key].push(a);
   });
 
-  if (loading) return <div className="flex items-center justify-center h-96"><div className="w-8 h-8 border-2 border-[#C9A227] border-t-transparent rounded-full animate-spin"/></div>;
+  if (loading) return <div className="flex items-center justify-center h-96"><div className="w-8 h-8 border-2 border-[#6F2738] border-t-transparent rounded-full animate-spin"/></div>;
 
   return (
     <div className="space-y-6">
@@ -131,7 +131,7 @@ export function Agenda() {
           <h1 className="text-2xl font-semibold text-gray-900">Agenda</h1>
           <p className="text-gray-500 text-sm">Gerencie seus agendamentos</p>
         </div>
-        <button onClick={openNew} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#C9A227] text-white hover:bg-[#9A7B1A] text-sm font-medium">
+        <button onClick={openNew} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#6F2738] text-white hover:bg-[#4A1A26] text-sm font-medium">
           <Plus className="w-4 h-4"/> Novo Agendamento
         </button>
       </div>
@@ -145,40 +145,40 @@ export function Agenda() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Cliente *</label>
-              <input type="text" value={clienteNome} onChange={e => setClienteNome(e.target.value)} placeholder="Nome do cliente" className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-gray-900 focus:outline-none focus:border-[#C9A227]"/>
+              <input type="text" value={clienteNome} onChange={e => setClienteNome(e.target.value)} placeholder="Nome do cliente" className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-gray-900 focus:outline-none focus:border-[#6F2738]"/>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Telefone</label>
-              <input type="tel" value={clienteTelefone} onChange={e => setClienteTelefone(e.target.value)} placeholder="(000) 000-0000" className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-gray-900 focus:outline-none focus:border-[#C9A227]"/>
+              <input type="tel" value={clienteTelefone} onChange={e => setClienteTelefone(e.target.value)} placeholder="(000) 000-0000" className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-gray-900 focus:outline-none focus:border-[#6F2738]"/>
             </div>
             <div className="md:col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-1">Serviço *</label>
-              <input type="text" value={servico} onChange={e => setServico(e.target.value)} placeholder="Descrição do serviço" className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-gray-900 focus:outline-none focus:border-[#C9A227]"/>
+              <input type="text" value={servico} onChange={e => setServico(e.target.value)} placeholder="Descrição do serviço" className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-gray-900 focus:outline-none focus:border-[#6F2738]"/>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Data</label>
-              <input type="date" value={data} onChange={e => setData(e.target.value)} className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-gray-900 focus:outline-none focus:border-[#C9A227]"/>
+              <input type="date" value={data} onChange={e => setData(e.target.value)} className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-gray-900 focus:outline-none focus:border-[#6F2738]"/>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Hora</label>
-              <input type="time" value={hora} onChange={e => setHora(e.target.value)} className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-gray-900 focus:outline-none focus:border-[#C9A227]"/>
+              <input type="time" value={hora} onChange={e => setHora(e.target.value)} className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-gray-900 focus:outline-none focus:border-[#6F2738]"/>
             </div>
             {editingId && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-                <select value={statusForm} onChange={e => setStatusForm(e.target.value as Agendamento['status'])} className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-gray-900 focus:outline-none focus:border-[#C9A227]">
+                <select value={statusForm} onChange={e => setStatusForm(e.target.value as Agendamento['status'])} className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-gray-900 focus:outline-none focus:border-[#6F2738]">
                   {STATUS_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                 </select>
               </div>
             )}
             <div className={editingId ? '' : 'md:col-span-2'}>
               <label className="block text-sm font-medium text-gray-700 mb-1">Observações</label>
-              <textarea value={observacoes} onChange={e => setObservacoes(e.target.value)} rows={2} placeholder="Observações adicionais..." className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-gray-900 focus:outline-none focus:border-[#C9A227] resize-none"/>
+              <textarea value={observacoes} onChange={e => setObservacoes(e.target.value)} rows={2} placeholder="Observações adicionais..." className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-gray-900 focus:outline-none focus:border-[#6F2738] resize-none"/>
             </div>
           </div>
           <div className="flex gap-3 justify-end">
             <button type="button" onClick={() => { setShowForm(false); setEditingId(null); }} className="px-4 py-2 rounded-xl border border-gray-200 text-gray-600 text-sm hover:bg-gray-50">Cancelar</button>
-            <button type="submit" disabled={saving} className="px-4 py-2 rounded-xl bg-[#C9A227] text-white text-sm font-medium hover:bg-[#9A7B1A] disabled:opacity-60 flex items-center gap-2">
+            <button type="submit" disabled={saving} className="px-4 py-2 rounded-xl bg-[#6F2738] text-white text-sm font-medium hover:bg-[#4A1A26] disabled:opacity-60 flex items-center gap-2">
               {saving && <Loader2 className="w-4 h-4 animate-spin"/>} {editingId ? 'Salvar' : 'Agendar'}
             </button>
           </div>
@@ -187,7 +187,7 @@ export function Agenda() {
 
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400"/>
-        <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar agendamento..." className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#C9A227]"/>
+        <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar agendamento..." className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#6F2738]"/>
       </div>
 
       {Object.keys(porData).length === 0 ? (
@@ -200,14 +200,14 @@ export function Agenda() {
           {Object.entries(porData).map(([key, items]) => (
             <div key={key}>
               <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3 flex items-center gap-2">
-                <Calendar className="w-4 h-4 text-[#C9A227]"/>
+                <Calendar className="w-4 h-4 text-[#6F2738]"/>
                 {new Date(key + 'T12:00:00').toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}
               </h3>
               <div className="bg-white rounded-xl border border-gray-200 shadow-sm divide-y divide-gray-50">
                 {items.map(a => (
                   <div key={a.id} className="flex items-center justify-between px-5 py-4 hover:bg-gray-50 transition">
                     <div className="flex items-center gap-4 flex-1 min-w-0">
-                      <div className="w-10 h-10 rounded-xl bg-[#C9A227]/10 flex items-center justify-center flex-shrink-0"><Clock className="w-5 h-5 text-[#C9A227]"/></div>
+                      <div className="w-10 h-10 rounded-xl bg-[#6F2738]/10 flex items-center justify-center flex-shrink-0"><Clock className="w-5 h-5 text-[#6F2738]"/></div>
                       <div className="min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           <p className="font-semibold text-gray-900">{a.hora}</p>
@@ -219,7 +219,7 @@ export function Agenda() {
                     </div>
                     <div className="flex items-center gap-1 flex-shrink-0 ml-2">
                       <button onClick={() => setViewItem(a)} className="p-1.5 rounded-lg text-blue-400 hover:bg-blue-50" title="Ver detalhes"><Eye className="w-4 h-4"/></button>
-                      <button onClick={() => openEdit(a)} className="p-1.5 rounded-lg text-[#C9A227] hover:bg-yellow-50" title="Editar"><Edit2 className="w-4 h-4"/></button>
+                      <button onClick={() => openEdit(a)} className="p-1.5 rounded-lg text-[#6F2738] hover:bg-yellow-50" title="Editar"><Edit2 className="w-4 h-4"/></button>
                       <button onClick={() => handleDelete(a.id!)} className="p-1.5 rounded-lg text-red-400 hover:bg-red-50" title="Excluir"><Trash2 className="w-4 h-4"/></button>
                     </div>
                   </div>
@@ -236,7 +236,7 @@ export function Agenda() {
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-[#C9A227]/10 flex items-center justify-center"><Clock className="w-5 h-5 text-[#C9A227]"/></div>
+                <div className="w-10 h-10 rounded-xl bg-[#6F2738]/10 flex items-center justify-center"><Clock className="w-5 h-5 text-[#6F2738]"/></div>
                 <div>
                   <p className="font-bold text-gray-900">{viewItem.hora}</p>
                   <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusCls[viewItem.status] || 'bg-gray-100 text-gray-600'}`}>
@@ -293,7 +293,7 @@ export function Agenda() {
                   <MessageSquare className="w-4 h-4"/> WhatsApp
                 </a>
               )}
-              <button onClick={() => openEdit(viewItem)} className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-[#C9A227] text-white text-sm font-medium hover:bg-[#9A7B1A]">
+              <button onClick={() => openEdit(viewItem)} className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-[#6F2738] text-white text-sm font-medium hover:bg-[#4A1A26]">
                 <Edit2 className="w-4 h-4"/> Editar
               </button>
               <button onClick={() => handleDelete(viewItem.id!)} className="p-2.5 rounded-xl border border-red-200 text-red-400 hover:bg-red-50">

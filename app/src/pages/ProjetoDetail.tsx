@@ -66,7 +66,7 @@ export function ProjetoDetail() {
     } catch{ toast.error("Erro ao adicionar despesa") }
   }
 
-  if (loading) return <div className="flex items-center justify-center h-96"><div className="w-8 h-8 border-2 border-[#C9A227] border-t-transparent rounded-full animate-spin"/></div>
+  if (loading) return <div className="flex items-center justify-center h-96"><div className="w-8 h-8 border-2 border-[#6F2738] border-t-transparent rounded-full animate-spin"/></div>
   if (!projeto) return null
 
   const margem = projeto.total_receitas > 0 ? ((projeto.lucro/projeto.total_receitas)*100).toFixed(1) : "0"
@@ -102,13 +102,13 @@ export function ProjetoDetail() {
           <p className="text-xl font-bold text-red-500">{formatCurrency(projeto.total_despesas)}</p>
         </div>
         <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
-          <div className="flex items-center gap-2 mb-2"><DollarSign className="w-4 h-4 text-[#C9A227]"/><p className="text-sm text-gray-500">Lucro Líquido</p></div>
-          <p className={`text-xl font-bold ${projeto.lucro>=0?"text-[#C9A227]":"text-red-600"}`}>{formatCurrency(projeto.lucro)}</p>
+          <div className="flex items-center gap-2 mb-2"><DollarSign className="w-4 h-4 text-[#6F2738]"/><p className="text-sm text-gray-500">Lucro Líquido</p></div>
+          <p className={`text-xl font-bold ${projeto.lucro>=0?"text-[#6F2738]":"text-red-600"}`}>{formatCurrency(projeto.lucro)}</p>
         </div>
         <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
           <p className="text-sm text-gray-500 mb-2">Orçamento Usado</p>
           <p className="text-xl font-bold text-gray-900">{progresso}%</p>
-          {projeto.orcamento_estimado > 0 && <div className="mt-2 h-1.5 bg-gray-100 rounded-full"><div className="h-1.5 bg-[#C9A227] rounded-full" style={{ width:`${progresso}%` }}/></div>}
+          {projeto.orcamento_estimado > 0 && <div className="mt-2 h-1.5 bg-gray-100 rounded-full"><div className="h-1.5 bg-[#6F2738] rounded-full" style={{ width:`${progresso}%` }}/></div>}
           <p className="text-xs text-gray-400 mt-1">de {formatCurrency(projeto.orcamento_estimado)} · Margem {margem}%</p>
         </div>
       </div>
@@ -117,7 +117,7 @@ export function ProjetoDetail() {
         {/* Faturas */}
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
           <div className="p-4 border-b border-gray-100 flex items-center gap-2">
-            <FileText className="w-4 h-4 text-[#C9A227]"/>
+            <FileText className="w-4 h-4 text-[#6F2738]"/>
             <h3 className="font-semibold text-gray-900">Faturas Vinculadas</h3>
           </div>
           {faturas.length === 0 ? <p className="text-center text-gray-400 text-sm py-8">Nenhuma fatura vinculada</p> : (
@@ -126,7 +126,7 @@ export function ProjetoDetail() {
                 <div key={f.id} className="flex items-center justify-between px-4 py-3">
                   <div><p className="font-medium text-gray-900 text-sm">{f.numero}</p><p className="text-xs text-gray-500">{formatDate(f.data_emissao)}</p></div>
                   <div className="text-right">
-                    <p className="font-semibold text-[#C9A227] text-sm">{formatCurrency(f.total)}</p>
+                    <p className="font-semibold text-[#6F2738] text-sm">{formatCurrency(f.total)}</p>
                     <span className={`text-xs px-2 py-0.5 rounded-full ${f.status==="pago"?"bg-green-100 text-green-700":"bg-blue-100 text-blue-700"}`}>{f.status}</span>
                   </div>
                 </div>
@@ -139,21 +139,21 @@ export function ProjetoDetail() {
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
           <div className="p-4 border-b border-gray-100 flex items-center justify-between">
             <div className="flex items-center gap-2"><Receipt className="w-4 h-4 text-red-500"/><h3 className="font-semibold text-gray-900">Despesas do Projeto</h3></div>
-            <button onClick={() => setShowExpForm(!showExpForm)} className="flex items-center gap-1 text-xs text-[#C9A227] hover:underline"><Plus className="w-3 h-3"/> Adicionar</button>
+            <button onClick={() => setShowExpForm(!showExpForm)} className="flex items-center gap-1 text-xs text-[#6F2738] hover:underline"><Plus className="w-3 h-3"/> Adicionar</button>
           </div>
 
           {showExpForm && (
             <div className="p-4 bg-gray-50 border-b border-gray-100 space-y-3">
-              <input type="text" value={expForm.descricao} onChange={e => setExpForm({...expForm,descricao:e.target.value})} placeholder="Descrição *" className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:border-[#C9A227]"/>
+              <input type="text" value={expForm.descricao} onChange={e => setExpForm({...expForm,descricao:e.target.value})} placeholder="Descrição *" className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:border-[#6F2738]"/>
               <div className="flex gap-2">
-                <input type="number" step="0.01" min="0" value={expForm.valor} onChange={e => setExpForm({...expForm,valor:e.target.value})} placeholder="Valor *" className="flex-1 px-3 py-2 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:border-[#C9A227]"/>
-                <select value={expForm.categoria} onChange={e => setExpForm({...expForm,categoria:e.target.value})} className="flex-1 px-3 py-2 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:border-[#C9A227]">
+                <input type="number" step="0.01" min="0" value={expForm.valor} onChange={e => setExpForm({...expForm,valor:e.target.value})} placeholder="Valor *" className="flex-1 px-3 py-2 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:border-[#6F2738]"/>
+                <select value={expForm.categoria} onChange={e => setExpForm({...expForm,categoria:e.target.value})} className="flex-1 px-3 py-2 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:border-[#6F2738]">
                   {CATS.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
               <div className="flex gap-2">
-                <input type="date" value={expForm.data} onChange={e => setExpForm({...expForm,data:e.target.value})} className="flex-1 px-3 py-2 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:border-[#C9A227]"/>
-                <button onClick={handleAddDespesa} className="px-4 py-2 rounded-lg bg-[#C9A227] text-white text-sm hover:bg-[#9A7B1A]">Salvar</button>
+                <input type="date" value={expForm.data} onChange={e => setExpForm({...expForm,data:e.target.value})} className="flex-1 px-3 py-2 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:border-[#6F2738]"/>
+                <button onClick={handleAddDespesa} className="px-4 py-2 rounded-lg bg-[#6F2738] text-white text-sm hover:bg-[#4A1A26]">Salvar</button>
                 <button onClick={() => setShowExpForm(false)} className="p-2 rounded-lg border border-gray-200 text-gray-400"><X className="w-4 h-4"/></button>
               </div>
             </div>

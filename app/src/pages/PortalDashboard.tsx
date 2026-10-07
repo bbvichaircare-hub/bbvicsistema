@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { collection, query, where, getDocs } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { toast } from 'sonner'
-import { LogOut, Receipt, FileText, DollarSign, Clock, CheckCircle, AlertCircle, ChevronRight, User, Calendar, Download, Loader2 } from 'lucide-react'
+import { LogOut, Receipt, FileText, DollarSign, Clock, CheckCircle, AlertCircle, ChevronRight, User, Calendar, Download, Loader2, Package } from 'lucide-react'
 import { gerarPDFFatura, gerarPDFOrcamento } from '@/lib/pdfUtils'
 
 const fmt = (v: number) => `$${v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
@@ -11,6 +11,12 @@ const fmtDate = (v: any) => {
   if (!v) return '—'
   const d = v?.toDate ? v.toDate() : new Date(v)
   return d.toLocaleDateString('pt-BR')
+}
+
+const isConsignacao = (inv: any) => {
+  const obs = (inv.observacoes || '').toLowerCase()
+  const itemsTxt = (inv.items || inv.itens || []).map((i: any) => (i.descricao || '').toLowerCase()).join(' ')
+  return obs.includes('consigna') || itemsTxt.includes('consigna')
 }
 
 const statusBadge = (s: string) => {
@@ -32,9 +38,10 @@ const statusBadge = (s: string) => {
 export function PortalDashboard() {
   const navigate = useNavigate()
   const [cliente, setCliente] = useState<{ id: string; nome: string; email: string } | null>(null)
-  const [tab, setTab] = useState<'faturas' | 'orcamentos' | 'pagamentos'>('faturas')
+  const [tab, setTab] = useState<'faturas' | 'orcamentos' | 'pagamentos' | 'consignacao'>('faturas')
   const [invoices, setInvoices] = useState<any[]>([])
   const [estimates, setEstimates] = useState<any[]>([])
+  const [consignacoes, setConsignacoes] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedInvoice, setSelectedInvoice] = useState<any | null>(null)
   const [generatingPdf, setGeneratingPdf] = useState<string | null>(null)
@@ -44,15 +51,16 @@ export function PortalDashboard() {
     if (!stored) { navigate('/portal'); return }
     const c = JSON.parse(stored)
     setCliente(c)
-    loadData(c.email)
+    loadData(c.email, c.id)
   }, [])
 
-  const loadData = async (email: string) => {
+  const loadData = async (email: string, clienteId: string) => {
     setLoading(true)
     try {
-      const [invSnap, estSnap] = await Promise.all([
+      const [invSnap, estSnap, consSnap] = await Promise.all([
         getDocs(query(collection(db, 'invoices'), where('cliente_email', '==', email))),
         getDocs(query(collection(db, 'estimates'), where('cliente_email', '==', email))),
+        getDocs(query(collection(db, 'consignacoes'), where('cliente_id', '==', clienteId))),
       ])
       const invs = invSnap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a: any, b: any) => {
         const da = a.data_emissao?.toDate ? a.data_emissao.toDate() : new Date(0)
@@ -64,8 +72,10 @@ export function PortalDashboard() {
         const db2 = b.data_emissao?.toDate ? b.data_emissao.toDate() : new Date(0)
         return db2.getTime() - da.getTime()
       })
+      const cons = consSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter((c: any) => (c.quantidade_em_consignacao || 0) > 0)
       setInvoices(invs)
       setEstimates(ests)
+      setConsignacoes(cons)
     } catch (e) {
       console.error(e)
       toast.error('Erro ao carregar dados')
@@ -172,90 +182,97 @@ export function PortalDashboard() {
       return db2.getTime() - da.getTime()
     })
 
-  const cardCls = 'bg-white rounded-2xl border border-gray-200 shadow-sm p-5'
+  const cardCls = 'bg-white rounded-2xl border border-[#f0e6e0] shadow-sm p-5'
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen" style={{ background: 'linear-gradient(180deg, #F7F3EE 0%, #FAF8F5 220px, #FAF8F5 100%)' }}>
       {/* Header */}
-      <header className="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-20">
-        <div className="max-w-4xl mx-auto px-4 h-14 flex items-center justify-between">
+      <header className="bg-white/90 backdrop-blur-xl border-b border-[#eee1da] shadow-sm sticky top-0 z-20">
+        <div className="max-w-4xl mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <img src="/logo-bbvic.jpg" alt="BBVIC" className="w-8 h-8 rounded-lg object-contain"/>
-            <div>
+            <img src="/bbvic-logo-new.png" alt="BBVIC" className="h-11 w-auto object-contain"/>
+            <div className="border-l border-gray-200 pl-3">
               <p className="font-bold text-gray-900 text-sm leading-none">BBVIC Hair Care</p>
-              <p className="text-[#C9A227] text-xs">Portal do Cliente</p>
+              <p className="text-[#6F2738] text-xs font-medium tracking-wide">Portal do Cliente</p>
             </div>
           </div>
           <div className="flex items-center gap-3">
             <div className="hidden sm:flex items-center gap-2">
-              <div className="w-7 h-7 rounded-full bg-[#C9A227]/15 flex items-center justify-center">
-                <User className="w-3.5 h-3.5 text-[#C9A227]"/>
+              <div className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background: 'linear-gradient(135deg,#6F2738 0%,#4A1A26 100%)' }}>
+                <User className="w-4 h-4 text-white"/>
               </div>
               <div>
-                <p className="text-sm font-medium text-gray-900 leading-none">{cliente.nome}</p>
+                <p className="text-sm font-semibold text-gray-900 leading-none">{cliente.nome}</p>
                 <p className="text-xs text-gray-400">{cliente.email}</p>
               </div>
             </div>
-            <button onClick={handleLogout} className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-red-500 transition-colors px-3 py-2 rounded-lg hover:bg-red-50">
+            <button onClick={handleLogout} className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-[#6F2738] transition-colors px-3 py-2 rounded-lg hover:bg-[#6F2738]/5">
               <LogOut className="w-4 h-4"/> Sair
             </button>
           </div>
         </div>
       </header>
 
-      <main className="max-w-4xl mx-auto px-4 py-6 space-y-6">
+      <main className="max-w-4xl mx-auto px-4 py-7 space-y-6">
         {/* Greeting */}
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Olá, {cliente.nome.split(' ')[0]}! 👋</h1>
+          <h1 className="text-2xl font-black text-gray-900">Olá, {cliente.nome.split(' ')[0]}! <span className="inline-block">👋</span></h1>
           <p className="text-gray-500 text-sm mt-1">Aqui você pode acompanhar seus orçamentos, faturas e pagamentos.</p>
         </div>
 
         {/* Summary Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className={cardCls}>
+          <div className={`${cardCls} relative overflow-hidden`}>
+            <div className="absolute top-0 left-0 w-full h-1 bg-green-500"/>
             <div className="flex items-center gap-3 mb-3">
-              <div className="w-9 h-9 rounded-xl bg-green-100 flex items-center justify-center"><CheckCircle className="w-4 h-4 text-green-600"/></div>
-              <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Total Pago</span>
+              <div className="w-9 h-9 rounded-xl bg-green-50 flex items-center justify-center"><CheckCircle className="w-4 h-4 text-green-600"/></div>
+              <span className="text-xs font-bold text-gray-400 uppercase tracking-wide">Total Pago</span>
             </div>
-            <p className="text-2xl font-bold text-green-600">{fmt(totalPago)}</p>
+            <p className="text-2xl font-black text-green-600">{fmt(totalPago)}</p>
           </div>
-          <div className={cardCls}>
+          <div className={`${cardCls} relative overflow-hidden`}>
+            <div className="absolute top-0 left-0 w-full h-1" style={{ background: '#193654' }}/>
             <div className="flex items-center gap-3 mb-3">
-              <div className="w-9 h-9 rounded-xl bg-blue-100 flex items-center justify-center"><Clock className="w-4 h-4 text-blue-600"/></div>
-              <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Em Aberto</span>
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background:'rgba(25,54,84,0.08)' }}><Clock className="w-4 h-4" style={{ color:'#193654' }}/></div>
+              <span className="text-xs font-bold text-gray-400 uppercase tracking-wide">Em Aberto</span>
             </div>
-            <p className="text-2xl font-bold text-blue-600">{fmt(totalAberto)}</p>
+            <p className="text-2xl font-black" style={{ color:'#193654' }}>{fmt(totalAberto)}</p>
           </div>
-          <div className={cardCls}>
+          <div className={`${cardCls} relative overflow-hidden`}>
+            <div className="absolute top-0 left-0 w-full h-1" style={{ background:'#6F2738' }}/>
             <div className="flex items-center gap-3 mb-3">
-              <div className="w-9 h-9 rounded-xl bg-red-100 flex items-center justify-center"><AlertCircle className="w-4 h-4 text-red-500"/></div>
-              <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Em Atraso</span>
+              <div className="w-9 h-9 rounded-xl bg-[#6F2738]/10 flex items-center justify-center"><AlertCircle className="w-4 h-4 text-[#6F2738]"/></div>
+              <span className="text-xs font-bold text-gray-400 uppercase tracking-wide">Em Atraso</span>
             </div>
-            <p className="text-2xl font-bold text-red-500">{fmt(totalAtrasado)}</p>
+            <p className="text-2xl font-black text-[#6F2738]">{fmt(totalAtrasado)}</p>
           </div>
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-1 bg-gray-100 p-1 rounded-xl w-fit">
+        <div className="flex gap-1 bg-white border border-[#f0e6e0] p-1 rounded-2xl w-fit shadow-sm">
           {([
             { id: 'faturas', label: 'Faturas', icon: Receipt, count: invoices.length },
             { id: 'orcamentos', label: 'Orçamentos', icon: FileText, count: estimates.length },
             { id: 'pagamentos', label: 'Pagamentos', icon: DollarSign, count: pagamentos.length },
+            ...(consignacoes.length > 0 ? [{ id: 'consignacao' as const, label: 'Consignação', icon: Package, count: consignacoes.length }] : []),
           ] as const).map(t => (
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${tab === t.id ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all"
+              style={tab === t.id
+                ? { background: 'linear-gradient(135deg,#6F2738 0%,#8B3348 45%,#4A1A26 100%)', color: '#fff', boxShadow: '0 4px 14px rgba(111,39,56,0.3)' }
+                : { color: '#9ca3af' }}
             >
               <t.icon className="w-4 h-4"/>
               {t.label}
-              <span className={`text-xs rounded-full px-1.5 py-0.5 ${tab === t.id ? 'bg-[#C9A227]/15 text-[#C9A227]' : 'bg-gray-200 text-gray-500'}`}>{t.count}</span>
+              <span className={`text-xs rounded-full px-1.5 py-0.5 ${tab === t.id ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-500'}`}>{t.count}</span>
             </button>
           ))}
         </div>
 
         {loading ? (
-          <div className="flex justify-center py-12"><div className="w-6 h-6 border-2 border-[#C9A227] border-t-transparent rounded-full animate-spin"/></div>
+          <div className="flex justify-center py-12"><div className="w-6 h-6 border-2 border-[#6F2738] border-t-transparent rounded-full animate-spin"/></div>
         ) : (
           <>
             {/* FATURAS */}
@@ -278,6 +295,9 @@ export function PortalDashboard() {
                             <div className="flex items-center gap-2 flex-wrap">
                               <p className="font-semibold text-gray-900 text-sm">Fatura #{inv.numero || inv.id.slice(-6).toUpperCase()}</p>
                               {statusBadge(inv.status)}
+                              {isConsignacao(inv) && (
+                                <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-purple-100 text-purple-700">Consignação</span>
+                              )}
                             </div>
                             <div className="flex flex-wrap gap-3 mt-1 text-xs text-gray-400">
                               <span className="flex items-center gap-1"><Calendar className="w-3 h-3"/> Emissão: {fmtDate(inv.data_emissao)}</span>
@@ -313,7 +333,7 @@ export function PortalDashboard() {
                           </div>
                         )}
                         {/* Totals */}
-                        <div className="flex justify-between text-sm font-semibold text-gray-900 bg-[#C9A227]/8 rounded-lg px-3 py-2">
+                        <div className="flex justify-between text-sm font-semibold text-gray-900 bg-[#6F2738]/8 rounded-lg px-3 py-2">
                           <span>Total</span>
                           <span>{fmt(inv.total || 0)}</span>
                         </div>
@@ -336,7 +356,7 @@ export function PortalDashboard() {
                         <button
                           onClick={e => { e.stopPropagation(); downloadInvoicePDF(inv); }}
                           disabled={generatingPdf === inv.id}
-                          className="flex items-center gap-2 text-xs text-[#C9A227] hover:text-[#9A7B1A] font-medium disabled:opacity-50"
+                          className="flex items-center gap-2 text-xs text-[#6F2738] hover:text-[#4A1A26] font-medium disabled:opacity-50"
                         >
                           {generatingPdf === inv.id ? <Loader2 className="w-3.5 h-3.5 animate-spin"/> : <Download className="w-3.5 h-3.5"/>}
                           {generatingPdf === inv.id ? 'Gerando PDF...' : 'Baixar PDF da fatura'}
@@ -359,8 +379,8 @@ export function PortalDashboard() {
                 ) : estimates.map((est: any) => (
                   <div key={est.id} className={cardCls}>
                     <div className="flex items-start gap-4">
-                      <div className="w-10 h-10 rounded-xl bg-[#C9A227]/10 flex items-center justify-center flex-shrink-0">
-                        <FileText className="w-5 h-5 text-[#C9A227]"/>
+                      <div className="w-10 h-10 rounded-xl bg-[#6F2738]/10 flex items-center justify-center flex-shrink-0">
+                        <FileText className="w-5 h-5 text-[#6F2738]"/>
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-start justify-between gap-2">
@@ -389,7 +409,7 @@ export function PortalDashboard() {
                         <button
                           onClick={() => downloadEstimatePDF(est)}
                           disabled={generatingPdf === est.id}
-                          className="inline-flex items-center gap-1.5 text-xs text-[#C9A227] hover:text-[#9A7B1A] font-medium mt-2 disabled:opacity-50"
+                          className="inline-flex items-center gap-1.5 text-xs text-[#6F2738] hover:text-[#4A1A26] font-medium mt-2 disabled:opacity-50"
                         >
                           {generatingPdf === est.id ? <Loader2 className="w-3 h-3 animate-spin"/> : <Download className="w-3 h-3"/>}
                           {generatingPdf === est.id ? 'Gerando PDF...' : 'Baixar orçamento em PDF'}
@@ -432,10 +452,49 @@ export function PortalDashboard() {
                   </div>
                 ))}
                 {pagamentos.length > 0 && (
-                  <div className="bg-[#C9A227]/8 border border-[#C9A227]/20 rounded-xl p-4 flex justify-between items-center">
+                  <div className="bg-[#6F2738]/8 border border-[#6F2738]/20 rounded-xl p-4 flex justify-between items-center">
                     <span className="text-sm font-semibold text-gray-700">Total pago</span>
                     <span className="text-lg font-bold text-green-600">{fmt(pagamentos.reduce((s: number, p: any) => s + (p.valor || 0), 0))}</span>
                   </div>
+                )}
+              </div>
+            )}
+
+            {tab === 'consignacao' && (
+              <div className="space-y-3">
+                {consignacoes.length === 0 ? (
+                  <div className={`${cardCls} text-center py-12`}>
+                    <Package className="w-10 h-10 text-gray-300 mx-auto mb-3"/>
+                    <p className="text-gray-500 text-sm">Nenhum produto em consignação</p>
+                  </div>
+                ) : (
+                  <>
+                    <div className="bg-purple-50 border border-purple-100 rounded-xl p-3.5 text-xs text-purple-700">
+                      Produtos entregues para venda no seu salão. Você só é cobrado quando o produto é vendido.
+                    </div>
+                    {consignacoes.map((c: any) => (
+                      <div key={c.id} className={cardCls}>
+                        <div className="flex items-center gap-4">
+                          <div className="w-10 h-10 rounded-xl bg-purple-100 flex items-center justify-center flex-shrink-0">
+                            <Package className="w-5 h-5 text-purple-600"/>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-semibold text-gray-900 text-sm">{c.produto_nome}</p>
+                            <p className="text-xs text-gray-400 mt-0.5">
+                              {c.quantidade_em_consignacao} unidade{c.quantidade_em_consignacao === 1 ? '' : 's'} em seu poder · {fmt(c.preco_unitario || 0)}/un.
+                            </p>
+                          </div>
+                          <p className="text-base font-bold text-purple-700 flex-shrink-0">{fmt((c.preco_unitario || 0) * (c.quantidade_em_consignacao || 0))}</p>
+                        </div>
+                      </div>
+                    ))}
+                    <div className="bg-[#6F2738]/8 border border-[#6F2738]/20 rounded-xl p-4 flex justify-between items-center">
+                      <span className="text-sm font-semibold text-gray-700">Valor potencial em consignação</span>
+                      <span className="text-lg font-bold text-purple-700">
+                        {fmt(consignacoes.reduce((s: number, c: any) => s + (c.preco_unitario || 0) * (c.quantidade_em_consignacao || 0), 0))}
+                      </span>
+                    </div>
+                  </>
                 )}
               </div>
             )}
@@ -444,7 +503,8 @@ export function PortalDashboard() {
       </main>
 
       {/* Footer */}
-      <footer className="text-center py-8 mt-8">
+      <footer className="text-center py-8 mt-8 border-t border-[#eee1da]">
+        <img src="/bbvic-logo-new.png" alt="BBVIC" className="h-8 w-auto object-contain mx-auto mb-2 opacity-70"/>
         <p className="text-xs text-gray-400">BBVIC Hair Care · Portal do Cliente</p>
       </footer>
     </div>

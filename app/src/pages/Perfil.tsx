@@ -87,7 +87,7 @@ export function Perfil() {
       {/* Foto de perfil */}
       <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
         <h2 className="font-semibold text-gray-900 mb-5 flex items-center gap-2">
-          <Camera className="w-4 h-4 text-[#C9A227]" /> Foto de Perfil
+          <Camera className="w-4 h-4 text-[#6F2738]" /> Foto de Perfil
         </h2>
         <div className="flex items-center gap-6">
           <div className="relative">
@@ -95,10 +95,10 @@ export function Perfil() {
               <img
                 src={fotoUrl}
                 alt={nome}
-                className="w-24 h-24 rounded-full object-cover border-2 border-[#C9A227]/30"
+                className="w-24 h-24 rounded-full object-cover border-2 border-[#6F2738]/30"
               />
             ) : (
-              <div className="w-24 h-24 rounded-full bg-gradient-to-br from-[#C9A227] to-[#9A7B1A] flex items-center justify-center">
+              <div className="w-24 h-24 rounded-full bg-gradient-to-br from-[#6F2738] to-[#4A1A26] flex items-center justify-center">
                 <span className="text-white text-2xl font-bold">
                   {nome?.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() || '?'}
                 </span>
@@ -128,12 +128,12 @@ export function Perfil() {
       {/* Dados pessoais */}
       <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 space-y-4">
         <h2 className="font-semibold text-gray-900 flex items-center gap-2">
-          <User className="w-4 h-4 text-[#C9A227]" /> Dados Pessoais
+          <User className="w-4 h-4 text-[#6F2738]" /> Dados Pessoais
         </h2>
 
         {/* Role badge */}
         <div className="flex items-center gap-2">
-          <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold ${isAdmin ? 'bg-[#C9A227]/15 text-[#9A7B1A]' : 'bg-blue-100 text-blue-700'}`}>
+          <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold ${isAdmin ? 'bg-[#6F2738]/15 text-[#4A1A26]' : 'bg-blue-100 text-blue-700'}`}>
             <Shield className="w-3 h-3" />
             {isAdmin ? 'Administrador' : 'Vendedor'}
           </div>
@@ -145,7 +145,7 @@ export function Perfil() {
             <input
               value={nome}
               onChange={e => setNome(e.target.value)}
-              className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-gray-900 focus:outline-none focus:border-[#C9A227]"
+              className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-gray-900 focus:outline-none focus:border-[#6F2738]"
               placeholder="Seu nome"
             />
           </div>
@@ -168,7 +168,7 @@ export function Perfil() {
             <input
               value={telefone}
               onChange={e => setTelefone(e.target.value)}
-              className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-gray-900 focus:outline-none focus:border-[#C9A227]"
+              className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-gray-900 focus:outline-none focus:border-[#6F2738]"
               placeholder="(555) 000-0000"
             />
           </div>
@@ -178,7 +178,7 @@ export function Perfil() {
           <button
             onClick={handleSave}
             disabled={saving}
-            className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-[#C9A227] text-white font-medium text-sm hover:bg-[#b8911f] disabled:opacity-60 transition"
+            className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-[#6F2738] text-white font-medium text-sm hover:bg-[#b8911f] disabled:opacity-60 transition"
           >
             {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
             {saving ? 'Salvando...' : 'Salvar alterações'}
@@ -189,7 +189,7 @@ export function Perfil() {
       {/* Acesso ao sistema */}
       <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
         <h2 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
-          <UserCircle className="w-4 h-4 text-[#C9A227]" /> Acesso ao Sistema
+          <UserCircle className="w-4 h-4 text-[#6F2738]" /> Acesso ao Sistema
         </h2>
         <div className="bg-gray-50 rounded-xl p-4 space-y-2 text-sm">
           <div className="flex justify-between">
@@ -198,7 +198,7 @@ export function Perfil() {
           </div>
           <div className="flex justify-between">
             <span className="text-gray-500">Nível de acesso</span>
-            <span className={`font-semibold ${isAdmin ? 'text-[#C9A227]' : 'text-blue-600'}`}>
+            <span className={`font-semibold ${isAdmin ? 'text-[#6F2738]' : 'text-blue-600'}`}>
               {isAdmin ? 'Administrador' : 'Vendedor'}
             </span>
           </div>

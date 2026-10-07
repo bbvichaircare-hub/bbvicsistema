@@ -32,25 +32,31 @@ export function InvoicePublic() {
   const fetchAll = async (publicToken: string) => {
     try {
       setLoading(true)
-      // Busca direta pelo ID do documento (mais confiável para usuários não autenticados)
-      const [configSnap, directSnap] = await Promise.all([
-        getDoc(doc(db, 'configuracoes', 'pagamentos')),
-        getDoc(doc(db, 'invoices', publicToken))
-      ])
-      if (configSnap.exists()) setPagConfig(configSnap.data() as PagConfig)
 
+      // Configurações de pagamento: busca separada e não-bloqueante
+      // (se falhar, a fatura ainda deve ser exibida ao cliente)
+      getDoc(doc(db, 'configuracoes', 'pagamentos'))
+        .then(configSnap => { if (configSnap.exists()) setPagConfig(configSnap.data() as PagConfig) })
+        .catch(() => {})
+
+      // Busca principal: pelo campo public_token (é assim que o link é gerado)
       let invoiceDoc: any = null
-      if (directSnap.exists()) {
-        invoiceDoc = directSnap
-      } else {
-        // Fallback: busca pelo campo public_token (links antigos)
+      try {
         const invoicesSnap = await getDocs(query(collection(db, 'invoices'), where('public_token', '==', publicToken)))
-        if (!invoicesSnap.empty) {
-          invoiceDoc = invoicesSnap.docs[0]
-        } else {
-          setError('Fatura não encontrada')
-          return
-        }
+        if (!invoicesSnap.empty) invoiceDoc = invoicesSnap.docs[0]
+      } catch { /* ignora e tenta o fallback abaixo */ }
+
+      // Fallback: tenta pelo ID do documento (compatibilidade com links antigos)
+      if (!invoiceDoc) {
+        try {
+          const directSnap = await getDoc(doc(db, 'invoices', publicToken))
+          if (directSnap.exists()) invoiceDoc = directSnap
+        } catch { /* documento inexistente ou sem permissão nesse formato */ }
+      }
+
+      if (!invoiceDoc) {
+        setError('Fatura não encontrada')
+        return
       }
 
       const d = invoiceDoc
@@ -140,7 +146,7 @@ export function InvoicePublic() {
     navigator.clipboard.writeText(text).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000) })
   }
 
-  if (loading) return <div className="min-h-screen bg-gray-50 flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-[#C9A227]" /></div>
+  if (loading) return <div className="min-h-screen bg-gray-50 flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-[#6F2738]" /></div>
   if (error || !invoice) return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
       <div className="text-center bg-white rounded-2xl p-10 shadow-sm max-w-sm w-full">
@@ -183,7 +189,7 @@ export function InvoicePublic() {
           </div>
           <div className="text-right flex-shrink-0">
             <p className="text-[10px] text-gray-400 uppercase tracking-wide">Fatura</p>
-            <p className="text-sm font-bold text-[#C9A227]">{invoice.numero}</p>
+            <p className="text-sm font-bold text-[#6F2738]">{invoice.numero}</p>
           </div>
         </div>
       </div>
@@ -213,9 +219,9 @@ export function InvoicePublic() {
 
         {/* Instruções pós-seleção (Venmo/Zelle/Cash) */}
         {instrucoesPagamento && metodoSelecionado && (
-          <div className="bg-white rounded-2xl border border-[#C9A227]/30 p-5 shadow-sm space-y-4">
+          <div className="bg-white rounded-2xl border border-[#6F2738]/30 p-5 shadow-sm space-y-4">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-[#C9A227]/10 flex items-center justify-center flex-shrink-0">
+              <div className="w-10 h-10 rounded-xl bg-[#6F2738]/10 flex items-center justify-center flex-shrink-0">
                 {metodoSelecionado === 'venmo' && <span className="text-lg">💙</span>}
                 {metodoSelecionado === 'zelle' && <span className="text-lg">💜</span>}
                 {metodoSelecionado === 'cash' && <span className="text-lg">💵</span>}
@@ -375,13 +381,13 @@ export function InvoicePublic() {
             <div className="border-t border-gray-100 pt-3">
               <div className="flex justify-between">
                 <span className="text-lg font-bold text-gray-900">Total</span>
-                <span className="text-xl font-bold text-[#C9A227]">{formatCurrency(invoice.total)}</span>
+                <span className="text-xl font-bold text-[#6F2738]">{formatCurrency(invoice.total)}</span>
               </div>
             </div>
             {depositAmt > 0 && (
               <>
                 <div className="flex justify-between text-green-600 text-sm"><span>Adiantamento</span><span>-{formatCurrency(depositAmt)}</span></div>
-                <div className="flex justify-between font-bold border-t pt-2"><span>Saldo Restante</span><span className="text-[#C9A227]">{formatCurrency(balanceDue)}</span></div>
+                <div className="flex justify-between font-bold border-t pt-2"><span>Saldo Restante</span><span className="text-[#6F2738]">{formatCurrency(balanceDue)}</span></div>
               </>
             )}
           </div>

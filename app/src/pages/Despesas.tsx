@@ -111,7 +111,7 @@ export function Despesas() {
 
   const total = filtered.reduce((a,d) => a+d.valor, 0);
 
-  if (loading) return <div className="flex items-center justify-center h-96"><div className="w-8 h-8 border-2 border-[#C9A227] border-t-transparent rounded-full animate-spin"/></div>;
+  if (loading) return <div className="flex items-center justify-center h-96"><div className="w-8 h-8 border-2 border-[#6F2738] border-t-transparent rounded-full animate-spin"/></div>;
 
   return (
     <div className="space-y-6">
@@ -120,7 +120,7 @@ export function Despesas() {
           <h1 className="text-2xl font-semibold text-gray-900">Despesas</h1>
           <p className="text-gray-500 text-sm">Controle suas despesas (últimos 90 dias)</p>
         </div>
-        <button onClick={() => setShowForm(!showForm)} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#C9A227] text-white hover:bg-[#9A7B1A] text-sm font-medium">
+        <button onClick={() => setShowForm(!showForm)} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#6F2738] text-white hover:bg-[#4A1A26] text-sm font-medium">
           <Plus className="w-4 h-4"/> {showForm ? 'Cancelar' : 'Nova Despesa'}
         </button>
       </div>
@@ -138,29 +138,29 @@ export function Despesas() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Descrição *</label>
-              <input type="text" value={descricao} onChange={e => setDescricao(e.target.value)} placeholder="Descrição da despesa" className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-gray-900 focus:outline-none focus:border-[#C9A227]"/>
+              <input type="text" value={descricao} onChange={e => setDescricao(e.target.value)} placeholder="Descrição da despesa" className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-gray-900 focus:outline-none focus:border-[#6F2738]"/>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Valor *</label>
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
-                <input type="number" step="0.01" min="0" value={valor} onChange={e => setValor(e.target.value)} placeholder="0.00" className="w-full pl-7 pr-4 py-2.5 rounded-xl border border-gray-200 text-gray-900 focus:outline-none focus:border-[#C9A227]"/>
+                <input type="number" step="0.01" min="0" value={valor} onChange={e => setValor(e.target.value)} placeholder="0.00" className="w-full pl-7 pr-4 py-2.5 rounded-xl border border-gray-200 text-gray-900 focus:outline-none focus:border-[#6F2738]"/>
               </div>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Categoria</label>
-              <select value={categoria} onChange={e => setCategoria(e.target.value)} className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-gray-900 focus:outline-none focus:border-[#C9A227]">
+              <select value={categoria} onChange={e => setCategoria(e.target.value)} className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-gray-900 focus:outline-none focus:border-[#6F2738]">
                 {CATEGORIAS_DESPESA.map(c => <option key={c} value={c}>{c}</option>)}
               </select>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Data</label>
-              <input type="date" value={data} onChange={e => setData(e.target.value)} className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-gray-900 focus:outline-none focus:border-[#C9A227]"/>
+              <input type="date" value={data} onChange={e => setData(e.target.value)} className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-gray-900 focus:outline-none focus:border-[#6F2738]"/>
             </div>
           </div>
           <div className="flex gap-3 justify-end">
             <button type="button" onClick={() => setShowForm(false)} className="px-4 py-2 rounded-xl border border-gray-200 text-gray-600 text-sm hover:bg-gray-50">Cancelar</button>
-            <button type="submit" disabled={saving} className="px-4 py-2 rounded-xl bg-[#C9A227] text-white text-sm font-medium hover:bg-[#9A7B1A] disabled:opacity-60 flex items-center gap-2">
+            <button type="submit" disabled={saving} className="px-4 py-2 rounded-xl bg-[#6F2738] text-white text-sm font-medium hover:bg-[#4A1A26] disabled:opacity-60 flex items-center gap-2">
               {saving && <Loader2 className="w-4 h-4 animate-spin"/>} Salvar
             </button>
           </div>
@@ -170,9 +170,9 @@ export function Despesas() {
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400"/>
-          <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar despesa..." className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#C9A227]"/>
+          <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar despesa..." className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#6F2738]"/>
         </div>
-        <select value={categoriaFilter} onChange={e => setCategoriaFilter(e.target.value)} className="px-4 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-700 focus:outline-none focus:border-[#C9A227]">
+        <select value={categoriaFilter} onChange={e => setCategoriaFilter(e.target.value)} className="px-4 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-700 focus:outline-none focus:border-[#6F2738]">
           <option value="todas">Todas Categorias</option>
           {CATEGORIAS_DESPESA.map(c => <option key={c} value={c}>{c}</option>)}
         </select>
@@ -259,7 +259,7 @@ export function Despesas() {
             </div>
 
             {compraModal.loading || loadingCompra ? (
-              <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-[#C9A227]"/></div>
+              <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-[#6F2738]"/></div>
             ) : (
               <div className="px-6 py-5 space-y-5">
                 {/* Supplier Info */}

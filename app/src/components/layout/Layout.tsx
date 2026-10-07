@@ -78,7 +78,7 @@ export function Layout() {
                 placeholder="Buscar clientes, faturas..."
                 className="w-full h-10 pl-10 pr-4 rounded-lg bg-gray-100 border border-gray-200
                 text-gray-900 text-sm placeholder:text-gray-400
-                focus:outline-none focus:ring-2 focus:ring-[#C9A227]/30"
+                focus:outline-none focus:ring-2 focus:ring-[#6F2738]/30"
               />
             </div>
           </div>
@@ -95,10 +95,10 @@ export function Layout() {
                   <img
                     src={(user as any).foto_url}
                     alt={user.nome}
-                    className="w-9 h-9 rounded-full object-cover border-2 border-[#C9A227]/30 shadow"
+                    className="w-9 h-9 rounded-full object-cover border-2 border-[#6F2738]/30 shadow"
                   />
                 ) : (
-                  <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#C9A227] to-[#9A7B1A] flex items-center justify-center shadow">
+                  <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#6F2738] to-[#4A1A26] flex items-center justify-center shadow">
                     <span className="text-white text-xs font-bold">
                       {user.nome?.split(' ')
                         .map((n: string) => n[0])

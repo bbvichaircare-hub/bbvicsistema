@@ -99,7 +99,7 @@ function VarList({ vars }: { vars: { var: string; desc: string }[] }) {
   const [open, setOpen] = useState(false)
   return (
     <div className="mt-2">
-      <button type="button" onClick={() => setOpen(o => !o)} className="flex items-center gap-1 text-xs text-[#C9A227] hover:underline">
+      <button type="button" onClick={() => setOpen(o => !o)} className="flex items-center gap-1 text-xs text-[#6F2738] hover:underline">
         {open ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
         Ver variáveis disponíveis
       </button>
@@ -107,7 +107,7 @@ function VarList({ vars }: { vars: { var: string; desc: string }[] }) {
         <div className="mt-2 p-3 bg-gray-50 rounded-xl border border-gray-100 grid grid-cols-2 gap-1.5">
           {vars.map(v => (
             <div key={v.var} className="flex items-start gap-1.5">
-              <code className="text-xs bg-white border border-gray-200 rounded px-1.5 py-0.5 text-[#C9A227] font-mono flex-shrink-0">{v.var}</code>
+              <code className="text-xs bg-white border border-gray-200 rounded px-1.5 py-0.5 text-[#6F2738] font-mono flex-shrink-0">{v.var}</code>
               <span className="text-xs text-gray-500 mt-0.5">{v.desc}</span>
             </div>
           ))}
@@ -175,7 +175,7 @@ export function Configuracoes() {
 
   const toggle = (field: keyof PagamentoConfig) => setConfig(c => ({ ...c, [field]: !c[field] }))
 
-  if (loading) return <div className="flex justify-center p-10"><Loader2 className="w-6 h-6 animate-spin text-[#C9A227]" /></div>
+  if (loading) return <div className="flex justify-center p-10"><Loader2 className="w-6 h-6 animate-spin text-[#6F2738]" /></div>
   if (!isAdmin) return <div className="text-center p-10 text-gray-400">Acesso restrito a administradores.</div>
 
   return (
@@ -208,45 +208,45 @@ export function Configuracoes() {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Nome da empresa</label>
               <input value={empresa.nome} onChange={e => setEmpresa(m => ({ ...m, nome: e.target.value }))}
-                className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#C9A227]" />
+                className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#6F2738]" />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Telefone</label>
               <input value={empresa.telefone} onChange={e => setEmpresa(m => ({ ...m, telefone: e.target.value }))}
-                className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#C9A227]" />
+                className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#6F2738]" />
             </div>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Endereço</label>
             <input value={empresa.endereco} onChange={e => setEmpresa(m => ({ ...m, endereco: e.target.value }))}
-              className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#C9A227]" />
+              className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#6F2738]" />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Cidade / Estado</label>
             <input value={empresa.cidade_estado} onChange={e => setEmpresa(m => ({ ...m, cidade_estado: e.target.value }))}
-              placeholder="Ex: Framingham MA" className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#C9A227]" />
+              placeholder="Ex: Framingham MA" className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#6F2738]" />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Email (opcional)</label>
               <input value={empresa.email} onChange={e => setEmpresa(m => ({ ...m, email: e.target.value }))}
-                className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#C9A227]" />
+                className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#6F2738]" />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Website (opcional)</label>
               <input value={empresa.website} onChange={e => setEmpresa(m => ({ ...m, website: e.target.value }))}
-                placeholder="https://..." className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#C9A227]" />
+                placeholder="https://..." className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#6F2738]" />
             </div>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Mensagem de rodapé do PDF</label>
             <input value={empresa.footer} onChange={e => setEmpresa(m => ({ ...m, footer: e.target.value }))}
-              placeholder="Thank you for your business!" className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#C9A227]" />
+              placeholder="Thank you for your business!" className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#6F2738]" />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">URL da logo (opcional)</label>
             <input value={empresa.logo_url} onChange={e => setEmpresa(m => ({ ...m, logo_url: e.target.value }))}
-              placeholder="https://... (deixe em branco para usar a logo padrão)" className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#C9A227]" />
+              placeholder="https://... (deixe em branco para usar a logo padrão)" className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#6F2738]" />
             <p className="text-xs text-gray-400 mt-1">Cole a URL direta de uma imagem hospedada online. Se deixar em branco, usa a logo /logo-bbvic.jpg do sistema.</p>
           </div>
         </div>
@@ -279,7 +279,7 @@ export function Configuracoes() {
               value={mensagens.fatura}
               onChange={e => setMensagens(m => ({ ...m, fatura: e.target.value }))}
               rows={6}
-              className="w-full px-3 py-2 rounded-xl border border-gray-200 text-gray-900 text-sm focus:outline-none focus:border-[#C9A227] resize-y font-mono"
+              className="w-full px-3 py-2 rounded-xl border border-gray-200 text-gray-900 text-sm focus:outline-none focus:border-[#6F2738] resize-y font-mono"
             />
             <VarList vars={VARIAVEIS_FATURA} />
           </div>
@@ -292,7 +292,7 @@ export function Configuracoes() {
               value={mensagens.orcamento}
               onChange={e => setMensagens(m => ({ ...m, orcamento: e.target.value }))}
               rows={5}
-              className="w-full px-3 py-2 rounded-xl border border-gray-200 text-gray-900 text-sm focus:outline-none focus:border-[#C9A227] resize-y font-mono"
+              className="w-full px-3 py-2 rounded-xl border border-gray-200 text-gray-900 text-sm focus:outline-none focus:border-[#6F2738] resize-y font-mono"
             />
             <VarList vars={VARIAVEIS_ORCAMENTO} />
           </div>
@@ -305,7 +305,7 @@ export function Configuracoes() {
               value={mensagens.cobranca}
               onChange={e => setMensagens(m => ({ ...m, cobranca: e.target.value }))}
               rows={4}
-              className="w-full px-3 py-2 rounded-xl border border-gray-200 text-gray-900 text-sm focus:outline-none focus:border-[#C9A227] resize-y font-mono"
+              className="w-full px-3 py-2 rounded-xl border border-gray-200 text-gray-900 text-sm focus:outline-none focus:border-[#6F2738] resize-y font-mono"
             />
             <VarList vars={VARIAVEIS_COBRANCA} />
           </div>
@@ -334,7 +334,7 @@ export function Configuracoes() {
               <p className="text-xs text-gray-400">Link de pagamento por cartão</p>
             </div>
           </div>
-          <button onClick={() => toggle('square_ativo')} className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${config.square_ativo ? 'bg-[#C9A227]' : 'bg-gray-200'}`}>
+          <button onClick={() => toggle('square_ativo')} className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${config.square_ativo ? 'bg-[#6F2738]' : 'bg-gray-200'}`}>
             <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${config.square_ativo ? 'translate-x-6' : 'translate-x-1'}`} />
           </button>
         </div>
@@ -342,7 +342,7 @@ export function Configuracoes() {
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Link Square padrão (opcional)</label>
             <input value={config.square_link_padrao} onChange={e => setConfig(c => ({ ...c, square_link_padrao: e.target.value }))}
-              placeholder="https://square.link/..." className="w-full px-3 py-2 rounded-xl border border-gray-200 text-gray-900 text-sm focus:outline-none focus:border-[#C9A227]" />
+              placeholder="https://square.link/..." className="w-full px-3 py-2 rounded-xl border border-gray-200 text-gray-900 text-sm focus:outline-none focus:border-[#6F2738]" />
           </div>
         )}
       </div>
@@ -359,7 +359,7 @@ export function Configuracoes() {
               <p className="text-xs text-gray-400">Pagamento via app Venmo</p>
             </div>
           </div>
-          <button onClick={() => toggle('venmo_ativo')} className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${config.venmo_ativo ? 'bg-[#C9A227]' : 'bg-gray-200'}`}>
+          <button onClick={() => toggle('venmo_ativo')} className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${config.venmo_ativo ? 'bg-[#6F2738]' : 'bg-gray-200'}`}>
             <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${config.venmo_ativo ? 'translate-x-6' : 'translate-x-1'}`} />
           </button>
         </div>
@@ -369,7 +369,7 @@ export function Configuracoes() {
             <div className="relative">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm font-medium">@</span>
               <input value={config.venmo_username} onChange={e => setConfig(c => ({ ...c, venmo_username: e.target.value.replace('@', '') }))}
-                placeholder="seu_usuario" className="w-full pl-7 pr-4 py-2 rounded-xl border border-gray-200 text-gray-900 text-sm focus:outline-none focus:border-[#C9A227]" />
+                placeholder="seu_usuario" className="w-full pl-7 pr-4 py-2 rounded-xl border border-gray-200 text-gray-900 text-sm focus:outline-none focus:border-[#6F2738]" />
             </div>
           </div>
         )}
@@ -387,7 +387,7 @@ export function Configuracoes() {
               <p className="text-xs text-gray-400">Transferência bancária via Zelle</p>
             </div>
           </div>
-          <button onClick={() => toggle('zelle_ativo')} className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${config.zelle_ativo ? 'bg-[#C9A227]' : 'bg-gray-200'}`}>
+          <button onClick={() => toggle('zelle_ativo')} className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${config.zelle_ativo ? 'bg-[#6F2738]' : 'bg-gray-200'}`}>
             <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${config.zelle_ativo ? 'translate-x-6' : 'translate-x-1'}`} />
           </button>
         </div>
@@ -398,7 +398,7 @@ export function Configuracoes() {
               <div className="flex gap-3">
                 {(['telefone', 'email'] as const).map(t => (
                   <button key={t} onClick={() => setConfig(c => ({ ...c, zelle_tipo: t }))}
-                    className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors ${config.zelle_tipo === t ? 'bg-[#C9A227] text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                    className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors ${config.zelle_tipo === t ? 'bg-[#6F2738] text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
                     {t === 'telefone' ? '📱 Telefone' : '📧 Email'}
                   </button>
                 ))}
@@ -408,7 +408,7 @@ export function Configuracoes() {
               <label className="block text-sm font-medium text-gray-700 mb-1">{config.zelle_tipo === 'telefone' ? 'Número de Telefone' : 'Email'}</label>
               <input value={config.zelle_info} onChange={e => setConfig(c => ({ ...c, zelle_info: e.target.value }))}
                 placeholder={config.zelle_tipo === 'telefone' ? '(555) 123-4567' : 'seu@email.com'}
-                className="w-full px-3 py-2 rounded-xl border border-gray-200 text-gray-900 text-sm focus:outline-none focus:border-[#C9A227]" />
+                className="w-full px-3 py-2 rounded-xl border border-gray-200 text-gray-900 text-sm focus:outline-none focus:border-[#6F2738]" />
             </div>
           </div>
         )}
@@ -426,7 +426,7 @@ export function Configuracoes() {
               <p className="text-xs text-gray-400">Pagamento em dinheiro</p>
             </div>
           </div>
-          <button onClick={() => toggle('cash_ativo')} className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${config.cash_ativo ? 'bg-[#C9A227]' : 'bg-gray-200'}`}>
+          <button onClick={() => toggle('cash_ativo')} className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${config.cash_ativo ? 'bg-[#6F2738]' : 'bg-gray-200'}`}>
             <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${config.cash_ativo ? 'translate-x-6' : 'translate-x-1'}`} />
           </button>
         </div>
@@ -434,14 +434,14 @@ export function Configuracoes() {
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Instruções para o cliente</label>
             <textarea value={config.cash_instrucoes} onChange={e => setConfig(c => ({ ...c, cash_instrucoes: e.target.value }))}
-              rows={2} className="w-full px-3 py-2 rounded-xl border border-gray-200 text-gray-900 text-sm focus:outline-none focus:border-[#C9A227] resize-none"
+              rows={2} className="w-full px-3 py-2 rounded-xl border border-gray-200 text-gray-900 text-sm focus:outline-none focus:border-[#6F2738] resize-none"
               placeholder="Ex: Pague no salão no dia do serviço." />
           </div>
         )}
       </div>
 
       <div className="flex justify-end pb-8">
-        <button onClick={handleSave} disabled={saving} className="flex items-center gap-2 px-6 py-2.5 bg-[#C9A227] text-white rounded-xl font-medium hover:bg-[#b8911f] disabled:opacity-60">
+        <button onClick={handleSave} disabled={saving} className="flex items-center gap-2 px-6 py-2.5 bg-[#6F2738] text-white rounded-xl font-medium hover:bg-[#b8911f] disabled:opacity-60">
           {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Salvar Pagamentos
         </button>
       </div>

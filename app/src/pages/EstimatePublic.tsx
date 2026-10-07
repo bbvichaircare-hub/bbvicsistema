@@ -20,7 +20,7 @@ function openWhatsApp(url: string) {
   setTimeout(() => document.body.removeChild(a), 100)
 }
 
-export default function EstimatePublic() {
+export function EstimatePublic() {
   const { token } = useParams()
   const [estimate, setEstimate] = useState<any>(null)
   const [loading, setLoading] = useState(true)
@@ -35,27 +35,34 @@ export default function EstimatePublic() {
 
   const loadEstimate = async () => {
     try {
-      // Busca direta pelo ID do documento (mais confiável para usuários não autenticados)
-      const directSnap = await getDoc(doc(db, 'estimates', token!))
-
+      // Busca principal: pelo campo public_token (é assim que o link é gerado)
       let docId = ''
       let data: any = null
 
-      if (directSnap.exists()) {
-        docId = directSnap.id
-        data = directSnap.data()
-      } else {
-        // Fallback: busca pelo campo public_token (links antigos)
+      try {
         const q = query(collection(db, 'estimates'), where('public_token', '==', token))
         const snap = await getDocs(q)
         if (!snap.empty) {
           const d = snap.docs[0]
           docId = d.id
           data = d.data()
-        } else {
-          setErrorMsg('Orçamento não encontrado')
-          return
         }
+      } catch { /* ignora e tenta o fallback abaixo */ }
+
+      // Fallback: tenta pelo ID do documento (compatibilidade com links antigos)
+      if (!data) {
+        try {
+          const directSnap = await getDoc(doc(db, 'estimates', token!))
+          if (directSnap.exists()) {
+            docId = directSnap.id
+            data = directSnap.data()
+          }
+        } catch { /* documento inexistente ou sem permissão nesse formato */ }
+      }
+
+      if (!data) {
+        setErrorMsg('Orçamento não encontrado')
+        return
       }
 
       setEstimate({ id: docId, ...data })
@@ -85,6 +92,7 @@ export default function EstimatePublic() {
       }).catch(() => {})
     } catch (e) {
       console.error(e)
+      setErrorMsg('Erro ao carregar orçamento')
     } finally {
       setLoading(false)
     }
@@ -208,7 +216,7 @@ export default function EstimatePublic() {
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-[#C9A227]" />
+        <Loader2 className="w-8 h-8 animate-spin text-[#6F2738]" />
       </div>
     )
   }
@@ -250,7 +258,7 @@ export default function EstimatePublic() {
           </div>
           <div className="text-right flex-shrink-0">
             <p className="text-[10px] text-gray-400 uppercase tracking-wide">Orçamento</p>
-            <p className="text-sm font-bold text-[#C9A227]">{estimate.numero}</p>
+            <p className="text-sm font-bold text-[#6F2738]">{estimate.numero}</p>
           </div>
         </div>
       </div>
@@ -283,7 +291,7 @@ export default function EstimatePublic() {
                 observacoes: estimate.observacoes || undefined,
                 termos_condicoes: estimate.termos_condicoes || undefined,
               })}
-              className="w-full py-3 rounded-2xl border-2 border-[#C9A227] text-[#C9A227] font-semibold text-sm flex items-center justify-center gap-2 hover:bg-[#C9A227]/10 transition-colors"
+              className="w-full py-3 rounded-2xl border-2 border-[#6F2738] text-[#6F2738] font-semibold text-sm flex items-center justify-center gap-2 hover:bg-[#6F2738]/10 transition-colors"
             >
               <FileDown className="w-4 h-4" /> Baixar Orçamento em PDF
             </button>
@@ -368,7 +376,7 @@ export default function EstimatePublic() {
             <div className="border-t border-gray-100 pt-3 mt-2">
               <div className="flex justify-between">
                 <span className="text-lg font-bold text-gray-900">Total</span>
-                <span className="text-xl font-bold text-[#C9A227]">{currency(total)}</span>
+                <span className="text-xl font-bold text-[#6F2738]">{currency(total)}</span>
               </div>
             </div>
           </div>
@@ -403,7 +411,7 @@ export default function EstimatePublic() {
             <button
               onClick={handleApprove}
               disabled={approving}
-              className="w-full py-4 rounded-2xl bg-[#C9A227] text-white font-bold text-base hover:bg-[#b8911f] active:bg-[#a07e18] transition-colors disabled:opacity-60 flex items-center justify-center gap-3 shadow-md"
+              className="w-full py-4 rounded-2xl bg-[#6F2738] text-white font-bold text-base hover:bg-[#b8911f] active:bg-[#a07e18] transition-colors disabled:opacity-60 flex items-center justify-center gap-3 shadow-md"
             >
               {approving ? <Loader2 className="w-5 h-5 animate-spin" /> : <CheckCircle className="w-5 h-5" />}
               {approving ? 'Aprovando...' : 'Aprovar Orçamento'}

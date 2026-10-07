@@ -80,7 +80,7 @@ className="flex justify-between border-b py-2"
 
 <span>Total</span>
 
-<span className="text-[#C9A227]">
+<span className="text-[#6F2738]">
 {formatCurrency(estimate.total)}
 </span>
 

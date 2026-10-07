@@ -1,0 +1,32 @@
+# Logs
+logs
+*.log
+
+# Dependencies
+node_modules/
+
+# Build outputs
+app/dist/
+app/dist-ssr/
+functions/dist/
+
+# Firebase
+.firebase/
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Editor
+.vscode/
+.idea/
+.DS_Store
+
+# Build info
+app/tsconfig.tsbuildinfo
+app/tsconfig.node.tsbuildinfo
+functions/tsconfig.tsbuildinfo
+
+# OS
+Thumbs.db

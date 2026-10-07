@@ -50,7 +50,7 @@ export function Projetos() {
   const totalDespesas  = projetos.reduce((s,p) => s+(p.total_despesas||0), 0)
   const totalLucro     = totalReceitas - totalDespesas
 
-  if (loading) return <div className="flex items-center justify-center h-96"><div className="w-8 h-8 border-2 border-[#C9A227] border-t-transparent rounded-full animate-spin"/></div>
+  if (loading) return <div className="flex items-center justify-center h-96"><div className="w-8 h-8 border-2 border-[#6F2738] border-t-transparent rounded-full animate-spin"/></div>
 
   return (
     <div className="space-y-6">
@@ -59,7 +59,7 @@ export function Projetos() {
           <h1 className="text-2xl font-semibold text-gray-900">Projetos</h1>
           <p className="text-gray-500 text-sm">Controle de receitas e despesas por projeto</p>
         </div>
-        <button onClick={() => navigate("/projetos/novo")} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[#C9A227] text-white hover:bg-[#9A7B1A] text-sm">
+        <button onClick={() => navigate("/projetos/novo")} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[#6F2738] text-white hover:bg-[#4A1A26] text-sm">
           <Plus className="w-4 h-4"/> Novo Projeto
         </button>
       </div>
@@ -67,19 +67,19 @@ export function Projetos() {
       <div className="grid grid-cols-3 gap-4">
         <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm"><p className="text-sm text-gray-500">Total Receitas</p><p className="text-xl font-bold text-green-600 mt-1">{formatCurrency(totalReceitas)}</p></div>
         <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm"><p className="text-sm text-gray-500">Total Despesas</p><p className="text-xl font-bold text-red-500 mt-1">{formatCurrency(totalDespesas)}</p></div>
-        <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm"><p className="text-sm text-gray-500">Lucro Total</p><p className={`text-xl font-bold mt-1 ${totalLucro>=0?"text-[#C9A227]":"text-red-600"}`}>{formatCurrency(totalLucro)}</p></div>
+        <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm"><p className="text-sm text-gray-500">Lucro Total</p><p className={`text-xl font-bold mt-1 ${totalLucro>=0?"text-[#6F2738]":"text-red-600"}`}>{formatCurrency(totalLucro)}</p></div>
       </div>
 
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400"/>
-        <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar projeto ou cliente..." className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 bg-white text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#C9A227]"/>
+        <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar projeto ou cliente..." className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 bg-white text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#6F2738]"/>
       </div>
 
       {filtered.length === 0 ? (
         <div className="text-center py-16 bg-white rounded-xl border border-gray-200">
           <Briefcase className="w-10 h-10 text-gray-300 mx-auto mb-3"/>
           <p className="text-gray-500">Nenhum projeto encontrado</p>
-          <button onClick={() => navigate("/projetos/novo")} className="mt-4 text-sm text-[#C9A227] hover:underline">Criar primeiro projeto</button>
+          <button onClick={() => navigate("/projetos/novo")} className="mt-4 text-sm text-[#6F2738] hover:underline">Criar primeiro projeto</button>
         </div>
       ) : (
         <div className="space-y-3">
@@ -87,11 +87,11 @@ export function Projetos() {
             const margem = p.total_receitas > 0 ? ((p.lucro/p.total_receitas)*100).toFixed(1) : "0"
             const progresso = p.orcamento_estimado > 0 ? Math.min((p.total_receitas/p.orcamento_estimado)*100,100) : 0
             return (
-              <div key={p.id} onClick={() => navigate(`/projetos/${p.id}`)} className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm hover:shadow-md hover:border-[#C9A227]/40 transition cursor-pointer">
+              <div key={p.id} onClick={() => navigate(`/projetos/${p.id}`)} className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm hover:shadow-md hover:border-[#6F2738]/40 transition cursor-pointer">
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex items-start gap-4 flex-1">
-                    <div className="w-10 h-10 rounded-xl bg-[#C9A227]/15 flex items-center justify-center flex-shrink-0">
-                      <Briefcase className="w-5 h-5 text-[#C9A227]"/>
+                    <div className="w-10 h-10 rounded-xl bg-[#6F2738]/15 flex items-center justify-center flex-shrink-0">
+                      <Briefcase className="w-5 h-5 text-[#6F2738]"/>
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
@@ -107,7 +107,7 @@ export function Projetos() {
                             <span>{formatCurrency(p.total_receitas)} / {formatCurrency(p.orcamento_estimado)}</span>
                           </div>
                           <div className="h-1.5 bg-gray-100 rounded-full">
-                            <div className="h-1.5 bg-[#C9A227] rounded-full transition-all" style={{ width:`${progresso}%` }}/>
+                            <div className="h-1.5 bg-[#6F2738] rounded-full transition-all" style={{ width:`${progresso}%` }}/>
                           </div>
                         </div>
                       )}

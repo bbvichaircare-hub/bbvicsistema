@@ -91,7 +91,7 @@ export function NotificationsDropdown() {
             {unreadCount > 0 && (
               <button
                 onClick={markAllAsRead}
-                className="text-sm text-[#C9A227] hover:underline flex items-center gap-1"
+                className="text-sm text-[#6F2738] hover:underline flex items-center gap-1"
               >
                 <Check className="w-3 h-3" />
                 Marcar todas
@@ -140,7 +140,7 @@ export function NotificationsDropdown() {
                       </p>
                     </div>
                     {!notification.lida && (
-                      <span className="w-2 h-2 bg-[#C9A227] rounded-full flex-shrink-0 mt-1" />
+                      <span className="w-2 h-2 bg-[#6F2738] rounded-full flex-shrink-0 mt-1" />
                     )}
                   </div>
                 </div>

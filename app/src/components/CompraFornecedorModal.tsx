@@ -294,7 +294,7 @@ export function CompraFornecedorModal({ onClose, onSaved }: Props) {
     }
   }
 
-  const inputCls = "w-full px-3 py-2.5 rounded-xl border border-gray-200 text-gray-900 text-sm focus:outline-none focus:border-[#C9A227]"
+  const inputCls = "w-full px-3 py-2.5 rounded-xl border border-gray-200 text-gray-900 text-sm focus:outline-none focus:border-[#6F2738]"
   const labelCls = "block text-xs font-medium text-gray-600 mb-1"
 
   const filteredProdutos = produtos.filter(p =>
@@ -313,7 +313,7 @@ export function CompraFornecedorModal({ onClose, onSaved }: Props) {
             <div className="flex items-center gap-1 mt-1">
               {(['pdf','info','itens','review'] as const).map((s, i) => (
                 <div key={s} className="flex items-center gap-1">
-                  <div className={`w-2 h-2 rounded-full ${step === s ? 'bg-[#C9A227]' : ['pdf','info','itens','review'].indexOf(step) > i ? 'bg-green-500' : 'bg-gray-200'}`} />
+                  <div className={`w-2 h-2 rounded-full ${step === s ? 'bg-[#6F2738]' : ['pdf','info','itens','review'].indexOf(step) > i ? 'bg-green-500' : 'bg-gray-200'}`} />
                   {i < 3 && <div className="w-4 h-0.5 bg-gray-200" />}
                 </div>
               ))}
@@ -333,24 +333,24 @@ export function CompraFornecedorModal({ onClose, onSaved }: Props) {
             <div className="space-y-4">
               <div
                 onClick={() => fileRef.current?.click()}
-                className="border-2 border-dashed border-gray-300 rounded-2xl p-10 text-center cursor-pointer hover:border-[#C9A227] hover:bg-amber-50 transition-all"
+                className="border-2 border-dashed border-gray-300 rounded-2xl p-10 text-center cursor-pointer hover:border-[#6F2738] hover:bg-amber-50 transition-all"
               >
                 {pdfLoading ? (
                   <div className="flex flex-col items-center gap-3">
-                    <Loader2 className="w-10 h-10 text-[#C9A227] animate-spin" />
+                    <Loader2 className="w-10 h-10 text-[#6F2738] animate-spin" />
                     <p className="text-sm text-gray-500">Lendo PDF...</p>
                   </div>
                 ) : (
                   <div className="flex flex-col items-center gap-3">
                     <div className="w-14 h-14 bg-amber-100 rounded-2xl flex items-center justify-center">
-                      <FileText className="w-7 h-7 text-[#C9A227]" />
+                      <FileText className="w-7 h-7 text-[#6F2738]" />
                     </div>
                     <div>
                       <p className="font-semibold text-gray-800">Clique para enviar o PDF</p>
                       <p className="text-sm text-gray-400 mt-1">Nota fiscal / invoice do fornecedor</p>
                       <p className="text-xs text-gray-300 mt-1">O sistema tentará preencher os dados automaticamente</p>
                     </div>
-                    <div className="flex items-center gap-2 px-4 py-2 bg-[#C9A227] rounded-xl text-white text-sm font-medium">
+                    <div className="flex items-center gap-2 px-4 py-2 bg-[#6F2738] rounded-xl text-white text-sm font-medium">
                       <Upload className="w-4 h-4" /> Selecionar PDF
                     </div>
                   </div>
@@ -421,7 +421,7 @@ export function CompraFornecedorModal({ onClose, onSaved }: Props) {
                               step="0.01"
                               value={it.preco_venda}
                               onChange={e => updateItemVenda(i, parseFloat(e.target.value) || 0)}
-                              className="w-16 border-b border-gray-300 focus:outline-none focus:border-[#C9A227] ml-0.5 bg-transparent"
+                              className="w-16 border-b border-gray-300 focus:outline-none focus:border-[#6F2738] ml-0.5 bg-transparent"
                             />
                           </span>
                           <span className={`font-semibold ${it.margem >= 30 ? 'text-green-600' : it.margem >= 15 ? 'text-amber-600' : 'text-red-600'}`}>
@@ -434,7 +434,7 @@ export function CompraFornecedorModal({ onClose, onSaved }: Props) {
                   ))}
                   <div className="flex justify-between text-sm font-semibold border-t border-gray-200 pt-2">
                     <span>Total calculado:</span>
-                    <span className="text-[#C9A227]">${calcTotal().toFixed(2)}</span>
+                    <span className="text-[#6F2738]">${calcTotal().toFixed(2)}</span>
                   </div>
                 </div>
               )}
@@ -490,13 +490,13 @@ export function CompraFornecedorModal({ onClose, onSaved }: Props) {
                   )}
                   <div className="flex gap-2">
                     <button onClick={() => { setAddingItem(false); setProdSearch(''); setNovoItemProdId('') }} className="flex-1 py-2 rounded-xl border border-gray-200 text-gray-600 text-sm">Cancelar</button>
-                    <button onClick={addItem} className="flex-[2] py-2 rounded-xl bg-[#C9A227] text-white text-sm font-semibold">+ Adicionar</button>
+                    <button onClick={addItem} className="flex-[2] py-2 rounded-xl bg-[#6F2738] text-white text-sm font-semibold">+ Adicionar</button>
                   </div>
                 </div>
               ) : (
                 <button
                   onClick={() => { setAddingItem(true); loadProdutos() }}
-                  className="w-full py-3 border-2 border-dashed border-gray-300 rounded-xl text-gray-500 text-sm hover:border-[#C9A227] hover:text-[#C9A227] transition-colors flex items-center justify-center gap-2"
+                  className="w-full py-3 border-2 border-dashed border-gray-300 rounded-xl text-gray-500 text-sm hover:border-[#6F2738] hover:text-[#6F2738] transition-colors flex items-center justify-center gap-2"
                 >
                   <Plus className="w-4 h-4" /> Adicionar Produto
                 </button>
@@ -514,7 +514,7 @@ export function CompraFornecedorModal({ onClose, onSaved }: Props) {
                 <div className="flex justify-between"><span className="text-gray-500">Vencimento</span><span>{dataVencimento ? new Date(dataVencimento + 'T12:00:00').toLocaleDateString('pt-BR') : '-'}</span></div>
                 <div className="flex justify-between text-base font-bold border-t border-gray-200 pt-2">
                   <span>Total</span>
-                  <span className="text-[#C9A227]">${(parseFloat(valorTotal) || calcTotal()).toFixed(2)}</span>
+                  <span className="text-[#6F2738]">${(parseFloat(valorTotal) || calcTotal()).toFixed(2)}</span>
                 </div>
               </div>
               {itens.length > 0 && (
@@ -553,7 +553,7 @@ export function CompraFornecedorModal({ onClose, onSaved }: Props) {
           {step === 'info' && (
             <button
               onClick={() => { if (!fornecedor) { toast.error('Informe o nome do fornecedor'); return } setStep('itens') }}
-              className="flex-1 py-3 rounded-xl bg-[#C9A227] text-white text-sm font-bold hover:bg-[#9A7B1A] flex items-center justify-center gap-2"
+              className="flex-1 py-3 rounded-xl bg-[#6F2738] text-white text-sm font-bold hover:bg-[#4A1A26] flex items-center justify-center gap-2"
             >
               Próximo — Adicionar Produtos <ChevronRight className="w-4 h-4" />
             </button>
@@ -561,7 +561,7 @@ export function CompraFornecedorModal({ onClose, onSaved }: Props) {
           {step === 'itens' && (
             <button
               onClick={() => setStep('review')}
-              className="flex-1 py-3 rounded-xl bg-[#C9A227] text-white text-sm font-bold hover:bg-[#9A7B1A] flex items-center justify-center gap-2"
+              className="flex-1 py-3 rounded-xl bg-[#6F2738] text-white text-sm font-bold hover:bg-[#4A1A26] flex items-center justify-center gap-2"
             >
               Revisar e Confirmar <ChevronRight className="w-4 h-4" />
             </button>

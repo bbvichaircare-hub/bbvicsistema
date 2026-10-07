@@ -106,11 +106,11 @@ export function AgendaAlertChecker() {
           className={`rounded-2xl shadow-2xl border-2 p-4 flex gap-3 items-start animate-in slide-in-from-right-5 duration-300 ${
             alerta.tipo === 'agora'
               ? 'bg-red-50 border-red-400'
-              : 'bg-amber-50 border-[#C9A227]'
+              : 'bg-amber-50 border-[#6F2738]'
           }`}
         >
           <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
-            alerta.tipo === 'agora' ? 'bg-red-500' : 'bg-[#C9A227]'
+            alerta.tipo === 'agora' ? 'bg-red-500' : 'bg-[#6F2738]'
           }`}>
             {alerta.tipo === 'agora'
               ? <Calendar className="w-5 h-5 text-white" />

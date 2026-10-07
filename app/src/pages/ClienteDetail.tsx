@@ -4,15 +4,19 @@ import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firesto
 import { db } from '@/lib/firebase';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { toast } from 'sonner';
-import { ArrowLeft, Edit, Phone, Mail, MapPin, FileText, FilePlus, Receipt } from 'lucide-react';
-import type { Cliente, Invoice, Estimate } from '@/types';
+import { ArrowLeft, Edit, Phone, Mail, MapPin, FileText, FilePlus, Receipt, PackageCheck } from 'lucide-react';
+import type { Cliente, Invoice, Estimate, ConsignacaoItem } from '@/types';
+import { useAuth } from '@/contexts/AuthContext';
+import { buscarConsignacoesPorCliente } from '@/services/consignmentService';
 
 export function ClienteDetail() {
   const navigate = useNavigate();
   const { id } = useParams();
+  const { isAdmin } = useAuth();
   const [cliente, setCliente] = useState<Cliente | null>(null);
   const [faturas, setFaturas] = useState<Invoice[]>([]);
   const [orcamentos, setOrcamentos] = useState<Estimate[]>([]);
+  const [consignacoes, setConsignacoes] = useState<ConsignacaoItem[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => { if (id) fetchCliente(id); }, [id]);
@@ -29,6 +33,9 @@ export function ClienteDetail() {
         ]);
         setFaturas(fatSnap.docs.map(d => ({ id:d.id,...d.data() })) as Invoice[]);
         setOrcamentos(orcSnap.docs.map(d => ({ id:d.id,...d.data() })) as Estimate[]);
+        if (isAdmin) {
+          try { setConsignacoes(await buscarConsignacoesPorCliente(clienteId)); } catch { /* sem dados */ }
+        }
       }
     } catch { toast.error('Erro ao carregar cliente'); }
     finally { setLoading(false); }
@@ -39,7 +46,7 @@ export function ClienteDetail() {
     return cls[status] || 'bg-gray-100 text-gray-600';
   };
 
-  if (loading) return <div className="flex items-center justify-center h-96"><div className="w-8 h-8 border-2 border-[#C9A227] border-t-transparent rounded-full animate-spin"/></div>;
+  if (loading) return <div className="flex items-center justify-center h-96"><div className="w-8 h-8 border-2 border-[#6F2738] border-t-transparent rounded-full animate-spin"/></div>;
   if (!cliente) return <div className="text-center py-12 text-gray-400">Cliente não encontrado</div>;
 
   const totalGasto = faturas.filter(f => f.status === 'pago').reduce((a,f) => a+f.total, 0);
@@ -61,7 +68,7 @@ export function ClienteDetail() {
           <button onClick={() => navigate(`/invoices/novo?cliente_id=${cliente.id}&cliente_nome=${encodeURIComponent(cliente.nome)}`)} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-green-600 text-white hover:bg-green-700 text-sm font-medium">
             <Receipt className="w-4 h-4"/> Nova Fatura
           </button>
-          <button onClick={() => navigate(`/clientes/${cliente.id}/editar`)} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#C9A227] text-white hover:bg-[#9A7B1A] text-sm font-medium">
+          <button onClick={() => navigate(`/clientes/${cliente.id}/editar`)} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#6F2738] text-white hover:bg-[#4A1A26] text-sm font-medium">
             <Edit className="w-4 h-4"/> Editar
           </button>
         </div>
@@ -82,39 +89,63 @@ export function ClienteDetail() {
         </div>
       </div>
 
-      <div className="bg-white rounded-xl border border-[#C9A227]/30 p-5 shadow-sm">
+      <div className="bg-white rounded-xl border border-[#6F2738]/30 p-5 shadow-sm">
         <p className="text-sm text-gray-500 mb-1">Total gasto (faturas pagas)</p>
-        <p className="text-2xl font-bold text-[#C9A227]">{formatCurrency(totalGasto)}</p>
+        <p className="text-2xl font-bold text-[#6F2738]">{formatCurrency(totalGasto)}</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
-          <div className="p-5 border-b border-gray-100 flex items-center gap-2"><FileText className="w-4 h-4 text-[#C9A227]"/><h3 className="font-semibold text-gray-900">Faturas ({faturas.length})</h3></div>
+          <div className="p-5 border-b border-gray-100 flex items-center gap-2"><FileText className="w-4 h-4 text-[#6F2738]"/><h3 className="font-semibold text-gray-900">Faturas ({faturas.length})</h3></div>
           {faturas.length === 0 ? <p className="text-center text-gray-400 text-sm py-8">Nenhuma fatura</p> : (
             <div className="divide-y divide-gray-100">
               {faturas.map(f => (
                 <div key={f.id} className="flex items-center justify-between px-5 py-3 hover:bg-gray-50 cursor-pointer transition" onClick={() => navigate(`/invoices/${f.id}/editar`)}>
                   <div><p className="font-medium text-gray-900 text-sm">{f.numero}</p><p className="text-xs text-gray-400">{formatDate(f.data_emissao)}</p></div>
-                  <div className="text-right"><p className="font-semibold text-[#C9A227] text-sm">{formatCurrency(f.total)}</p><span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusBadge(f.status)}`}>{f.status}</span></div>
+                  <div className="text-right"><p className="font-semibold text-[#6F2738] text-sm">{formatCurrency(f.total)}</p><span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusBadge(f.status)}`}>{f.status}</span></div>
                 </div>
               ))}
             </div>
           )}
         </div>
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
-          <div className="p-5 border-b border-gray-100 flex items-center gap-2"><FileText className="w-4 h-4 text-[#C9A227]"/><h3 className="font-semibold text-gray-900">Orçamentos ({orcamentos.length})</h3></div>
+          <div className="p-5 border-b border-gray-100 flex items-center gap-2"><FileText className="w-4 h-4 text-[#6F2738]"/><h3 className="font-semibold text-gray-900">Orçamentos ({orcamentos.length})</h3></div>
           {orcamentos.length === 0 ? <p className="text-center text-gray-400 text-sm py-8">Nenhum orçamento</p> : (
             <div className="divide-y divide-gray-100">
               {orcamentos.map(o => (
                 <div key={o.id} className="flex items-center justify-between px-5 py-3 hover:bg-gray-50 cursor-pointer transition" onClick={() => navigate(`/estimates/${o.id}/editar`)}>
                   <div><p className="font-medium text-gray-900 text-sm">{o.numero}</p><p className="text-xs text-gray-400">{formatDate(o.data_emissao)}</p></div>
-                  <div className="text-right"><p className="font-semibold text-[#C9A227] text-sm">{formatCurrency(o.total)}</p><span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusBadge(o.status)}`}>{o.status}</span></div>
+                  <div className="text-right"><p className="font-semibold text-[#6F2738] text-sm">{formatCurrency(o.total)}</p><span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusBadge(o.status)}`}>{o.status}</span></div>
                 </div>
               ))}
             </div>
           )}
         </div>
       </div>
+
+      {isAdmin && (
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
+          <div className="p-5 border-b border-gray-100 flex items-center justify-between">
+            <div className="flex items-center gap-2"><PackageCheck className="w-4 h-4 text-[#6F2738]"/><h3 className="font-semibold text-gray-900">Consignação ({consignacoes.length})</h3></div>
+            <button onClick={() => navigate('/consignacao')} className="text-xs text-[#6F2738] font-medium hover:underline">Ver tudo</button>
+          </div>
+          {consignacoes.length === 0 ? (
+            <p className="text-center text-gray-400 text-sm py-8">Nenhum produto em consignação com este cliente</p>
+          ) : (
+            <div className="divide-y divide-gray-100">
+              {consignacoes.map(c => (
+                <div key={c.id} className="flex items-center justify-between px-5 py-3">
+                  <div><p className="font-medium text-gray-900 text-sm">{c.produto_nome}</p><p className="text-xs text-gray-400">{formatCurrency(c.preco_unitario)}/un.</p></div>
+                  <div className="text-right">
+                    <p className="font-semibold text-gray-900 text-sm">{c.quantidade_em_consignacao} un.</p>
+                    <p className="text-xs text-[#6F2738]">{formatCurrency(c.quantidade_em_consignacao * c.preco_unitario)}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

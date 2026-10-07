@@ -120,6 +120,7 @@ export function ClienteForm() {
         ...formData,
         vendedor_id: vendedorFinal,
         vendedor_nome: vendedorNomeFinal,
+        ativo: true,
         updated_at: Timestamp.now(),
       };
 
@@ -147,12 +148,12 @@ export function ClienteForm() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
-        <div className="w-8 h-8 border-2 border-[#C9A227] border-t-transparent rounded-full animate-spin" />
+        <div className="w-8 h-8 border-2 border-[#6F2738] border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
 
-  const inputClass = "w-full px-4 py-3 rounded-xl bg-white border border-gray-200 text-gray-900 placeholder-gray-400 focus:border-[#C9A227] focus:outline-none text-sm";
+  const inputClass = "w-full px-4 py-3 rounded-xl bg-white border border-gray-200 text-gray-900 placeholder-gray-400 focus:border-[#6F2738] focus:outline-none text-sm";
   const labelClass = "block text-sm font-medium text-gray-700 mb-1.5";
 
   return (
@@ -186,7 +187,7 @@ export function ClienteForm() {
               onClick={() => setFormData(prev => ({ ...prev, tipo: 'pessoa' }))}
               className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl border-2 transition-colors text-sm font-medium ${
                 formData.tipo === 'pessoa'
-                  ? 'border-[#C9A227] bg-[#C9A227]/10 text-[#C9A227]'
+                  ? 'border-[#6F2738] bg-[#6F2738]/10 text-[#6F2738]'
                   : 'border-gray-200 text-gray-500 hover:bg-gray-50'
               }`}
             >
@@ -197,7 +198,7 @@ export function ClienteForm() {
               onClick={() => setFormData(prev => ({ ...prev, tipo: 'empresa' }))}
               className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl border-2 transition-colors text-sm font-medium ${
                 formData.tipo === 'empresa'
-                  ? 'border-[#C9A227] bg-[#C9A227]/10 text-[#C9A227]'
+                  ? 'border-[#6F2738] bg-[#6F2738]/10 text-[#6F2738]'
                   : 'border-gray-200 text-gray-500 hover:bg-gray-50'
               }`}
             >
@@ -215,7 +216,7 @@ export function ClienteForm() {
               <button
                 type="button"
                 onClick={() => setVendedorIdSelecionado('')}
-                className={`py-2 px-3 rounded-xl border text-xs font-medium transition ${!vendedorIdSelecionado ? 'bg-[#C9A227] text-white border-[#C9A227]' : 'bg-white text-gray-600 border-gray-200 hover:border-[#C9A227]'}`}
+                className={`py-2 px-3 rounded-xl border text-xs font-medium transition ${!vendedorIdSelecionado ? 'bg-[#6F2738] text-white border-[#6F2738]' : 'bg-white text-gray-600 border-gray-200 hover:border-[#6F2738]'}`}
               >
                 Sem vendedor
               </button>
@@ -224,7 +225,7 @@ export function ClienteForm() {
                   key={v.uid}
                   type="button"
                   onClick={() => setVendedorIdSelecionado(v.uid)}
-                  className={`py-2 px-3 rounded-xl border text-xs font-medium transition truncate ${vendedorIdSelecionado === v.uid ? 'bg-[#C9A227] text-white border-[#C9A227]' : 'bg-white text-gray-600 border-gray-200 hover:border-[#C9A227]'}`}
+                  className={`py-2 px-3 rounded-xl border text-xs font-medium transition truncate ${vendedorIdSelecionado === v.uid ? 'bg-[#6F2738] text-white border-[#6F2738]' : 'bg-white text-gray-600 border-gray-200 hover:border-[#6F2738]'}`}
                 >
                   {v.nome}
                 </button>
@@ -379,7 +380,7 @@ export function ClienteForm() {
               <button type="button" onClick={() => navigate(`/invoices/novo?cliente_id=${savedCliente.id}&cliente_nome=${encodeURIComponent(savedCliente.nome)}`)} className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-green-600 text-white text-sm font-medium hover:bg-green-700">
                 Criar Fatura
               </button>
-              <button type="button" onClick={() => navigate(`/clientes/${savedCliente.id}`)} className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[#C9A227] text-white text-sm font-medium hover:bg-[#9A7B1A]">
+              <button type="button" onClick={() => navigate(`/clientes/${savedCliente.id}`)} className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[#6F2738] text-white text-sm font-medium hover:bg-[#4A1A26]">
                 Ver Cliente
               </button>
               <button type="button" onClick={() => navigate('/clientes')} className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-gray-300 text-gray-700 text-sm font-medium hover:bg-gray-50">
@@ -399,7 +400,7 @@ export function ClienteForm() {
             <button
               type="submit"
               disabled={saving}
-              className="flex-[2] px-4 py-3 rounded-xl bg-[#C9A227] text-white font-bold hover:bg-[#9A7B1A] flex items-center justify-center gap-2 transition-colors disabled:opacity-50 text-sm"
+              className="flex-[2] px-4 py-3 rounded-xl bg-[#6F2738] text-white font-bold hover:bg-[#4A1A26] flex items-center justify-center gap-2 transition-colors disabled:opacity-50 text-sm"
             >
               {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
               {saving ? 'Salvando...' : 'Salvar Cliente'}

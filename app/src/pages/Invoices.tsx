@@ -102,36 +102,36 @@ export function Invoices() {
     if (!user) return
     try {
       setLoading(true)
-      const snap = await getDocs(isAdmin
+      const verTodos = isAdmin || user?.ver_todos_clientes === true
+      let q = verTodos
         ? query(collection(db, 'invoices'), orderBy('created_at', 'desc'))
-        : collection(db, 'invoices')
-      )
-      let list = snap.docs.map(d => ({ id: d.id, ...d.data() })) as Invoice[]
-
-      if (!isAdmin) {
-        const uid = user.uid
-        const nome = ((user as any)?.nome || '').toLowerCase().trim()
-        list = list.filter(inv => {
-          const invVendId = ((inv as any).vendedor_id || '').trim()
-          const invVendNome = ((inv as any).vendedor_nome || '').toLowerCase().trim()
-          return invVendId === uid || (nome && invVendNome === nome)
-        })
-        // Auto-corrigir documentos com vendedor_id errado/vazio
-        list.forEach(inv => {
-          if ((inv as any).vendedor_id !== uid) {
-            updateDoc(doc(db, 'invoices', inv.id!), { vendedor_id: uid }).catch(() => {})
-          }
-        })
-        list.sort((a, b) => {
+        : query(collection(db, 'invoices'), where('vendedor_id', '==', user.uid), orderBy('created_at', 'desc'))
+      let snap = await getDocs(q)
+      const list = snap.docs.map(d => ({ id: d.id, ...d.data() })) as Invoice[]
+      setInvoices(list)
+    } catch (error: any) {
+      console.error('Erro ao buscar faturas:', error)
+      // Fallback sem orderBy se faltar índice
+      try {
+        const verTodos = isAdmin || user?.ver_todos_clientes === true
+        const q2 = verTodos
+          ? collection(db, 'invoices')
+          : query(collection(db, 'invoices'), where('vendedor_id', '==', user.uid))
+        const snap2 = await getDocs(q2)
+        let list2 = snap2.docs.map(d => ({ id: d.id, ...d.data() })) as Invoice[]
+        list2.sort((a, b) => {
           const ta = (a as any).created_at?.toDate?.() ?? new Date(0)
           const tb = (b as any).created_at?.toDate?.() ?? new Date(0)
           return tb.getTime() - ta.getTime()
         })
+        setInvoices(list2)
+        toast.warning('Faturas carregadas sem ordenação (índice pendente)')
+      } catch (error2: any) {
+        toast.error('Erro ao carregar faturas: ' + (error2.message || 'verifique permissões'))
       }
-
-      setInvoices(list)
-    } catch (err) { console.error('fetchInvoices error:', err) }
-    finally { setLoading(false) }
+    } finally {
+      setLoading(false)
+    }
   }
 
   const handleMarcarPago = (inv: Invoice) => {
@@ -520,7 +520,7 @@ export function Invoices() {
     mesLabel: (filtroDataInicio || filtroDataFim) ? `${filtroDataInicio || ''}${filtroDataInicio && filtroDataFim ? ' – ' : ''}${filtroDataFim || ''}` : `${MESES_PT[mesFiltro - 1]} ${anoFiltro}`,
   }
 
-  if (loading) return <div className="flex items-center justify-center h-96"><div className="w-8 h-8 border-2 border-[#C9A227] border-t-transparent rounded-full animate-spin" /></div>
+  if (loading) return <div className="flex items-center justify-center h-96"><div className="w-8 h-8 border-2 border-[#6F2738] border-t-transparent rounded-full animate-spin" /></div>
 
   const handlePagarParcelaItem = async () => {
     if (!modalParcelas?.id || pagandoParcelaIdx === null) return
@@ -688,7 +688,7 @@ export function Invoices() {
           <h1 className="text-2xl font-semibold text-gray-900">Faturas</h1>
           <p className="text-gray-500 text-sm">Gerencie as faturas dos seus clientes</p>
         </div>
-        <button onClick={() => navigate('/invoices/novo')} className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#C9A227] text-white hover:bg-[#9A7B1A] text-sm font-medium">
+        <button onClick={() => navigate('/invoices/novo')} className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#6F2738] text-white hover:bg-[#4A1A26] text-sm font-medium">
           <Plus className="w-4 h-4" /> Nova Fatura
         </button>
         {isAdmin && (
@@ -808,21 +808,21 @@ export function Invoices() {
       <div className="flex gap-3 flex-wrap">
         <div className="relative flex-1 min-w-40">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-          <input type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Buscar fatura ou cliente..." className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-gray-200 bg-white text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#C9A227] text-sm" />
+          <input type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Buscar fatura ou cliente..." className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-gray-200 bg-white text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#6F2738] text-sm" />
         </div>
         <div className="flex gap-2 flex-wrap items-center">
           <input type="date" value={filtroDataInicio} onChange={e => setFiltroDataInicio(e.target.value)}
-            className="px-2 py-1.5 rounded-xl border border-gray-200 text-xs text-gray-700 focus:outline-none focus:border-[#C9A227]" />
+            className="px-2 py-1.5 rounded-xl border border-gray-200 text-xs text-gray-700 focus:outline-none focus:border-[#6F2738]" />
           <span className="text-xs text-gray-400">–</span>
           <input type="date" value={filtroDataFim} onChange={e => setFiltroDataFim(e.target.value)}
-            className="px-2 py-1.5 rounded-xl border border-gray-200 text-xs text-gray-700 focus:outline-none focus:border-[#C9A227]" />
+            className="px-2 py-1.5 rounded-xl border border-gray-200 text-xs text-gray-700 focus:outline-none focus:border-[#6F2738]" />
           {(filtroDataInicio || filtroDataFim) && (
             <button onClick={() => { setFiltroDataInicio(''); setFiltroDataFim('') }}
               className="px-2 py-1.5 rounded-xl border border-gray-200 text-xs text-gray-500 hover:bg-gray-50">
               Limpar datas
             </button>
           )}
-          <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className="pl-9 pr-8 py-2.5 rounded-xl border border-gray-200 bg-white text-gray-700 focus:outline-none focus:border-[#C9A227] appearance-none text-sm">
+          <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className="pl-9 pr-8 py-2.5 rounded-xl border border-gray-200 bg-white text-gray-700 focus:outline-none focus:border-[#6F2738] appearance-none text-sm">
             <option value="all">Todos</option>
             <option value="rascunho">Rascunho</option>
             <option value="enviado">Enviado</option>
@@ -864,7 +864,7 @@ export function Invoices() {
                       <p className="text-xs text-gray-400">{inv.data_emissao ? new Date((inv.data_emissao as any)?.toDate ? (inv.data_emissao as any).toDate() : inv.data_emissao).toLocaleDateString('pt-BR') : ''}</p>
                     </td>
                     <td className="px-5 py-4">
-                      <button onClick={() => navigate(`/invoices/${inv.id}/editar`)} className="text-sm font-medium text-[#C9A227] hover:underline text-left">
+                      <button onClick={() => navigate(`/invoices/${inv.id}/editar`)} className="text-sm font-medium text-[#6F2738] hover:underline text-left">
                         {inv.cliente_nome}
                       </button>
                     </td>
@@ -873,7 +873,7 @@ export function Invoices() {
                       <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${statusCls[inv.status] ?? 'bg-gray-100 text-gray-600'}`}>{statusLabel[inv.status] ?? inv.status}</span>
                     </td>
                     <td className="px-5 py-4 text-right">
-                      <p className="font-semibold text-[#C9A227]">{formatCurrency(inv.total)}</p>
+                      <p className="font-semibold text-[#6F2738]">{formatCurrency(inv.total)}</p>
                       {inv.status === 'parcial' && (inv as any).valor_pago > 0 && (
                         <div className="text-xs mt-0.5 text-right">
                           <span className="text-green-600">Pago: {formatCurrency((inv as any).valor_pago)}</span>
@@ -946,7 +946,7 @@ export function Invoices() {
                 <div className="flex items-start justify-between mb-2">
                   <div>
                     <p className="font-semibold text-gray-900 text-sm">{inv.numero}</p>
-                    <button onClick={() => navigate(`/invoices/${inv.id}/editar`)} className="text-sm font-medium text-[#C9A227] hover:underline text-left">
+                    <button onClick={() => navigate(`/invoices/${inv.id}/editar`)} className="text-sm font-medium text-[#6F2738] hover:underline text-left">
                       {inv.cliente_nome}
                     </button>
                     {(inv as any).vendedor_nome && <p className="text-gray-400 text-xs mt-0.5">Vendedor: {(inv as any).vendedor_nome}</p>}
@@ -955,7 +955,7 @@ export function Invoices() {
                 </div>
                 <div className="pt-2 border-t border-gray-100">
                   <div className="flex items-center justify-between mb-1">
-                    <span className="font-bold text-[#C9A227]">{formatCurrency(inv.total)}</span>
+                    <span className="font-bold text-[#6F2738]">{formatCurrency(inv.total)}</span>
                     <div className="flex gap-2 flex-wrap">
                       {inv.status !== 'pago' && inv.status !== 'cancelado' && (
                         <>
@@ -1043,7 +1043,7 @@ export function Invoices() {
                           setParcelaForma('')
                           setParcelaDataPgto(new Date().toISOString().split('T')[0])
                         }}
-                        className="px-3 py-1.5 rounded-xl bg-[#C9A227] text-white text-xs font-bold hover:bg-[#9A7B1A]"
+                        className="px-3 py-1.5 rounded-xl bg-[#6F2738] text-white text-xs font-bold hover:bg-[#4A1A26]"
                       >
                         {p.status === 'parcialmente_pago' ? 'Completar' : 'Pagar'}
                       </button>
@@ -1063,7 +1063,7 @@ export function Invoices() {
                             type="number" step="0.01" min="0.01"
                             value={parcelaValorInput}
                             onChange={e => setParcelaValorInput(e.target.value)}
-                            className="w-full pl-7 pr-3 py-2 rounded-xl border border-gray-200 text-sm text-gray-900 focus:outline-none focus:border-[#C9A227]"
+                            className="w-full pl-7 pr-3 py-2 rounded-xl border border-gray-200 text-sm text-gray-900 focus:outline-none focus:border-[#6F2738]"
                           />
                         </div>
                       </div>
@@ -1072,7 +1072,7 @@ export function Invoices() {
                         <div className="grid grid-cols-3 gap-1.5">
                           {['Zelle','Venmo','Cash','Square','Cartão','Outro'].map(f => (
                             <button key={f} onClick={() => setParcelaForma(f)}
-                              className={`py-1.5 px-2 rounded-lg border text-xs font-medium transition ${parcelaForma === f ? 'bg-[#C9A227] text-white border-[#C9A227]' : 'bg-white text-gray-600 border-gray-200 hover:border-[#C9A227]'}`}>
+                              className={`py-1.5 px-2 rounded-lg border text-xs font-medium transition ${parcelaForma === f ? 'bg-[#6F2738] text-white border-[#6F2738]' : 'bg-white text-gray-600 border-gray-200 hover:border-[#6F2738]'}`}>
                               {f}
                             </button>
                           ))}
@@ -1081,7 +1081,7 @@ export function Invoices() {
                       <div>
                         <label className="block text-xs font-medium text-gray-600 mb-1">Data do Pagamento</label>
                         <input type="date" value={parcelaDataPgto} onChange={e => setParcelaDataPgto(e.target.value)}
-                          className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#C9A227]" />
+                          className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#6F2738]" />
                       </div>
                       <div className="flex gap-2">
                         <button onClick={() => setPagandoParcelaIdx(null)}
@@ -1089,7 +1089,7 @@ export function Invoices() {
                           Cancelar
                         </button>
                         <button onClick={handlePagarParcelaItem} disabled={salvandoParcelaItem || !parcelaForma}
-                          className="flex-[2] py-2 rounded-xl bg-[#C9A227] text-white text-xs font-bold hover:bg-[#9A7B1A] disabled:opacity-50 flex items-center justify-center gap-1">
+                          className="flex-[2] py-2 rounded-xl bg-[#6F2738] text-white text-xs font-bold hover:bg-[#4A1A26] disabled:opacity-50 flex items-center justify-center gap-1">
                           {salvandoParcelaItem ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
                           Confirmar Pagamento
                         </button>
@@ -1137,7 +1137,7 @@ export function Invoices() {
               <div className="grid grid-cols-2 gap-2">
                 {['Zelle', 'Venmo', 'Cash', 'Link', 'Cartão', 'Outro'].map(f => (
                   <button key={f} onClick={() => { setBaixaFormaPgto(f); setBaixaSubOpcao('') }}
-                    className={`py-2 px-3 rounded-xl border text-sm font-medium transition ${baixaFormaPgto === f ? 'bg-[#C9A227] text-white border-[#C9A227]' : 'bg-white text-gray-600 border-gray-200 hover:border-[#C9A227]'}`}>
+                    className={`py-2 px-3 rounded-xl border text-sm font-medium transition ${baixaFormaPgto === f ? 'bg-[#6F2738] text-white border-[#6F2738]' : 'bg-white text-gray-600 border-gray-200 hover:border-[#6F2738]'}`}>
                     {f}
                   </button>
                 ))}
@@ -1149,7 +1149,7 @@ export function Invoices() {
                 <div className="grid grid-cols-2 gap-2">
                   {['Brazilian Touch', 'Julieth'].map(op => (
                     <button key={op} onClick={() => setBaixaSubOpcao(op)}
-                      className={`py-2 px-3 rounded-xl border text-sm font-medium transition ${baixaSubOpcao === op ? 'bg-[#C9A227] text-white border-[#C9A227]' : 'bg-white text-gray-600 border-gray-200 hover:border-[#C9A227]'}`}>
+                      className={`py-2 px-3 rounded-xl border text-sm font-medium transition ${baixaSubOpcao === op ? 'bg-[#6F2738] text-white border-[#6F2738]' : 'bg-white text-gray-600 border-gray-200 hover:border-[#6F2738]'}`}>
                       {op}
                     </button>
                   ))}
@@ -1162,7 +1162,7 @@ export function Invoices() {
                 <div className="flex flex-col gap-2">
                   {['Hair Body', 'BBVIC Hair Care', 'Julieth'].map(op => (
                     <button key={op} onClick={() => setBaixaSubOpcao(op)}
-                      className={`py-2 px-3 rounded-xl border text-sm font-medium transition ${baixaSubOpcao === op ? 'bg-[#C9A227] text-white border-[#C9A227]' : 'bg-white text-gray-600 border-gray-200 hover:border-[#C9A227]'}`}>
+                      className={`py-2 px-3 rounded-xl border text-sm font-medium transition ${baixaSubOpcao === op ? 'bg-[#6F2738] text-white border-[#6F2738]' : 'bg-white text-gray-600 border-gray-200 hover:border-[#6F2738]'}`}>
                       {op}
                     </button>
                   ))}
@@ -1175,7 +1175,7 @@ export function Invoices() {
                 <div className="grid grid-cols-1 gap-2">
                   {['Julieth'].map(op => (
                     <button key={op} onClick={() => setBaixaSubOpcao(op)}
-                      className={`py-2 px-3 rounded-xl border text-sm font-medium transition ${baixaSubOpcao === op ? 'bg-[#C9A227] text-white border-[#C9A227]' : 'bg-white text-gray-600 border-gray-200 hover:border-[#C9A227]'}`}>
+                      className={`py-2 px-3 rounded-xl border text-sm font-medium transition ${baixaSubOpcao === op ? 'bg-[#6F2738] text-white border-[#6F2738]' : 'bg-white text-gray-600 border-gray-200 hover:border-[#6F2738]'}`}>
                       {op}
                     </button>
                   ))}
@@ -1188,7 +1188,7 @@ export function Invoices() {
                 <div className="grid grid-cols-2 gap-2">
                   {['Afterpay', 'Klarna'].map(op => (
                     <button key={op} onClick={() => setBaixaSubOpcao(op)}
-                      className={`py-2 px-3 rounded-xl border text-sm font-medium transition ${baixaSubOpcao === op ? 'bg-[#C9A227] text-white border-[#C9A227]' : 'bg-white text-gray-600 border-gray-200 hover:border-[#C9A227]'}`}>
+                      className={`py-2 px-3 rounded-xl border text-sm font-medium transition ${baixaSubOpcao === op ? 'bg-[#6F2738] text-white border-[#6F2738]' : 'bg-white text-gray-600 border-gray-200 hover:border-[#6F2738]'}`}>
                       {op}
                     </button>
                   ))}
@@ -1199,12 +1199,12 @@ export function Invoices() {
               <label className="block text-sm font-medium text-gray-700 mb-1">Observação (opcional)</label>
               <input type="text" value={baixaObservacao} onChange={e => setBaixaObservacao(e.target.value)}
                 placeholder="Ex: transferido dia 5, ref: pedido 123..."
-                className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-gray-900 text-sm focus:outline-none focus:border-[#C9A227]" />
+                className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-gray-900 text-sm focus:outline-none focus:border-[#6F2738]" />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">Data do Pagamento</label>
               <input type="date" value={baixaData} onChange={e => setBaixaData(e.target.value)}
-                className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-gray-900 text-sm focus:outline-none focus:border-[#C9A227]" />
+                className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-gray-900 text-sm focus:outline-none focus:border-[#6F2738]" />
             </div>
             <div className="flex gap-3">
               <button onClick={() => setModalBaixa(null)}
@@ -1212,7 +1212,7 @@ export function Invoices() {
                 Cancelar
               </button>
               <button onClick={handleConfirmarBaixa} disabled={salvandoBaixa || !baixaFormaPgto}
-                className="flex-[2] py-3 rounded-xl bg-[#C9A227] text-white font-bold hover:bg-[#9A7B1A] disabled:opacity-50 text-sm flex items-center justify-center gap-2">
+                className="flex-[2] py-3 rounded-xl bg-[#6F2738] text-white font-bold hover:bg-[#4A1A26] disabled:opacity-50 text-sm flex items-center justify-center gap-2">
                 {salvandoBaixa ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
                 {salvandoBaixa ? 'Salvando...' : 'Confirmar Pagamento'}
               </button>
@@ -1304,7 +1304,7 @@ export function Invoices() {
                   onChange={e => setValorParcial(e.target.value)}
                   placeholder="0.00"
                   autoFocus
-                  className="w-full pl-7 pr-4 py-3 rounded-xl border border-gray-200 text-gray-900 text-lg font-semibold focus:outline-none focus:border-[#C9A227]"
+                  className="w-full pl-7 pr-4 py-3 rounded-xl border border-gray-200 text-gray-900 text-lg font-semibold focus:outline-none focus:border-[#6F2738]"
                 />
               </div>
               <p className="text-xs text-gray-400 mt-1">O valor será registrado na receita do mês automaticamente</p>
@@ -1314,7 +1314,7 @@ export function Invoices() {
               <div className="grid grid-cols-3 gap-2">
                 {['Zelle', 'Venmo', 'Cash', 'Square', 'Cartão', 'Outro'].map(f => (
                   <button key={f} onClick={() => setParcialFormaPgto(f)}
-                    className={`py-2 px-2 rounded-xl border text-xs font-medium transition ${parcialFormaPgto === f ? 'bg-[#C9A227] text-white border-[#C9A227]' : 'bg-white text-gray-600 border-gray-200 hover:border-[#C9A227]'}`}>
+                    className={`py-2 px-2 rounded-xl border text-xs font-medium transition ${parcialFormaPgto === f ? 'bg-[#6F2738] text-white border-[#6F2738]' : 'bg-white text-gray-600 border-gray-200 hover:border-[#6F2738]'}`}>
                     {f}
                   </button>
                 ))}
@@ -1323,7 +1323,7 @@ export function Invoices() {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">Data do Pagamento</label>
               <input type="date" value={parcialData} onChange={e => setParcialData(e.target.value)}
-                className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-gray-900 text-sm focus:outline-none focus:border-[#C9A227]" />
+                className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-gray-900 text-sm focus:outline-none focus:border-[#6F2738]" />
             </div>
 
             {/* Opção de parcelar saldo restante */}
@@ -1332,11 +1332,11 @@ export function Invoices() {
               const jaRecebido = (modalParcial as any).valor_pago || 0
               const saldoAposEste = modalParcial.total - jaRecebido - valorAtual
               return saldoAposEste > 0.01 ? (
-                <div className="border border-dashed border-[#C9A227] rounded-xl overflow-hidden">
+                <div className="border border-dashed border-[#6F2738] rounded-xl overflow-hidden">
                   <button
                     type="button"
                     onClick={() => setParcelarSaldoAtivo(v => !v)}
-                    className={`w-full flex items-center justify-between px-4 py-3 text-sm font-medium transition ${parcelarSaldoAtivo ? 'bg-[#C9A227] text-white' : 'bg-[#C9A227]/5 text-[#C9A227] hover:bg-[#C9A227]/10'}`}
+                    className={`w-full flex items-center justify-between px-4 py-3 text-sm font-medium transition ${parcelarSaldoAtivo ? 'bg-[#6F2738] text-white' : 'bg-[#6F2738]/5 text-[#6F2738] hover:bg-[#6F2738]/10'}`}
                   >
                     <span>📋 Parcelar saldo restante ({formatCurrency(saldoAposEste)})</span>
                     <span>{parcelarSaldoAtivo ? '▲' : '▼'}</span>
@@ -1348,18 +1348,18 @@ export function Invoices() {
                         <div className="flex gap-2">
                           {[2, 3, 4, 6].map(n => (
                             <button key={n} type="button" onClick={() => setNumParcelasSaldo(n)}
-                              className={`flex-1 py-2 rounded-lg border text-xs font-semibold transition ${numParcelasSaldo === n ? 'bg-[#C9A227] text-white border-[#C9A227]' : 'bg-white text-gray-600 border-gray-200 hover:border-[#C9A227]'}`}>
+                              className={`flex-1 py-2 rounded-lg border text-xs font-semibold transition ${numParcelasSaldo === n ? 'bg-[#6F2738] text-white border-[#6F2738]' : 'bg-white text-gray-600 border-gray-200 hover:border-[#6F2738]'}`}>
                               {n}x
                             </button>
                           ))}
                           <input type="number" min={2} max={24} value={numParcelasSaldo} onChange={e => setNumParcelasSaldo(Math.max(2, parseInt(e.target.value) || 2))}
-                            className="w-14 px-2 py-2 rounded-lg border border-gray-200 text-xs text-center focus:outline-none focus:border-[#C9A227]" />
+                            className="w-14 px-2 py-2 rounded-lg border border-gray-200 text-xs text-center focus:outline-none focus:border-[#6F2738]" />
                         </div>
                       </div>
                       <div>
                         <label className="block text-xs font-medium text-gray-600 mb-1">Data da 1ª parcela</label>
                         <input type="date" value={primeiraDataSaldo} onChange={e => setPrimeiraDataSaldo(e.target.value)}
-                          className="w-full px-3 py-2 rounded-lg border border-gray-200 text-xs focus:outline-none focus:border-[#C9A227]" />
+                          className="w-full px-3 py-2 rounded-lg border border-gray-200 text-xs focus:outline-none focus:border-[#6F2738]" />
                       </div>
                       <div className="text-xs text-gray-500 bg-white rounded-lg p-2">
                         {Array.from({ length: Math.min(numParcelasSaldo, 6) }, (_, i) => {
@@ -1386,7 +1386,7 @@ export function Invoices() {
               <button
                 onClick={handleRegistrarParcial}
                 disabled={salvandoParcial || !valorParcial || parseFloat(valorParcial) <= 0}
-                className="flex-[2] py-3 rounded-xl bg-[#C9A227] text-white font-bold hover:bg-[#9A7B1A] disabled:opacity-50 text-sm flex items-center justify-center gap-2"
+                className="flex-[2] py-3 rounded-xl bg-[#6F2738] text-white font-bold hover:bg-[#4A1A26] disabled:opacity-50 text-sm flex items-center justify-center gap-2"
               >
                 {salvandoParcial ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
                 {salvandoParcial ? 'Salvando...' : 'Confirmar Recebimento'}

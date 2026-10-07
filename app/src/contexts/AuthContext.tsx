@@ -142,7 +142,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       const userData = userDoc.data();
       
-      if (!userData.ativo) {
+      // Tolerância para ativo como boolean ou string
+      const ativo = userData.ativo === true || userData.ativo === 'true';
+      if (!ativo) {
         await signOut(auth);
         throw new Error('Conta desativada. Contate o administrador.');
       }
@@ -152,9 +154,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         last_login: Timestamp.now()
       });
       
-      setUser(convertToUser(result.user, userData));
+      setUser(convertToUser(result.user, { ...userData, ativo: true }));
       toast.success(`Bem-vindo, ${userData.nome}!`);
     } catch (error: any) {
+      console.error('Login error:', error);
       if (error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password') {
         throw new Error('Email ou senha incorretos');
       } else if (error.code === 'auth/user-not-found') {
@@ -199,7 +202,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         ativo: true,
         telefone: data.telefone,
         comissao_percentual: data.comissao_percentual || 10,
-        permissoes: data.permissoes || null,
+        permissoes: data.permissoes || undefined,
         avatar_url: `https://ui-avatars.com/api/?name=${encodeURIComponent(data.nome)}&background=22c55e&color=fff`,
         created_at: new Date(),
         created_by: user.uid,
@@ -234,7 +237,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             ativo: true,
             telefone: data.telefone,
             comissao_percentual: data.comissao_percentual || 10,
-            permissoes: data.permissoes || null,
+            permissoes: data.permissoes || undefined,
             avatar_url: `https://ui-avatars.com/api/?name=${encodeURIComponent(data.nome)}&background=22c55e&color=fff`,
             created_at: new Date(),
             created_by: user.uid,

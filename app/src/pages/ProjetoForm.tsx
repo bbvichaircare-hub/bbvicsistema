@@ -87,23 +87,23 @@ export function ProjetoForm() {
       <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-5 shadow-sm">
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Nome do Projeto *</label>
-          <input type="text" value={form.nome} onChange={e => f("nome",e.target.value)} placeholder="Ex: Casamento Maria, Reforma do Salão..." className="w-full px-4 py-3 rounded-xl border border-gray-200 text-gray-900 focus:outline-none focus:border-[#C9A227]"/>
+          <input type="text" value={form.nome} onChange={e => f("nome",e.target.value)} placeholder="Ex: Casamento Maria, Reforma do Salão..." className="w-full px-4 py-3 rounded-xl border border-gray-200 text-gray-900 focus:outline-none focus:border-[#6F2738]"/>
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Cliente *</label>
-          <select value={form.cliente_id} onChange={e => f("cliente_id",e.target.value)} className="w-full px-4 py-3 rounded-xl border border-gray-200 text-gray-900 focus:outline-none focus:border-[#C9A227]">
+          <select value={form.cliente_id} onChange={e => f("cliente_id",e.target.value)} className="w-full px-4 py-3 rounded-xl border border-gray-200 text-gray-900 focus:outline-none focus:border-[#6F2738]">
             <option value="">Selecione o cliente...</option>
             {clientes.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
           </select>
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Descrição</label>
-          <textarea value={form.descricao} onChange={e => f("descricao",e.target.value)} rows={3} placeholder="Detalhes do projeto..." className="w-full px-4 py-3 rounded-xl border border-gray-200 text-gray-900 focus:outline-none focus:border-[#C9A227] resize-none"/>
+          <textarea value={form.descricao} onChange={e => f("descricao",e.target.value)} rows={3} placeholder="Detalhes do projeto..." className="w-full px-4 py-3 rounded-xl border border-gray-200 text-gray-900 focus:outline-none focus:border-[#6F2738] resize-none"/>
         </div>
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-            <select value={form.status} onChange={e => f("status",e.target.value)} className="w-full px-4 py-3 rounded-xl border border-gray-200 text-gray-900 focus:outline-none focus:border-[#C9A227]">
+            <select value={form.status} onChange={e => f("status",e.target.value)} className="w-full px-4 py-3 rounded-xl border border-gray-200 text-gray-900 focus:outline-none focus:border-[#6F2738]">
               <option value="ativo">Ativo</option>
               <option value="pausado">Pausado</option>
               <option value="concluido">Concluído</option>
@@ -112,24 +112,24 @@ export function ProjetoForm() {
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Orçamento Estimado ($)</label>
-            <input type="number" step="0.01" min="0" value={form.orcamento_estimado} onChange={e => f("orcamento_estimado",e.target.value)} placeholder="0.00" className="w-full px-4 py-3 rounded-xl border border-gray-200 text-gray-900 focus:outline-none focus:border-[#C9A227]"/>
+            <input type="number" step="0.01" min="0" value={form.orcamento_estimado} onChange={e => f("orcamento_estimado",e.target.value)} placeholder="0.00" className="w-full px-4 py-3 rounded-xl border border-gray-200 text-gray-900 focus:outline-none focus:border-[#6F2738]"/>
           </div>
         </div>
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Data de Início</label>
-            <input type="date" value={form.data_inicio} onChange={e => f("data_inicio",e.target.value)} className="w-full px-4 py-3 rounded-xl border border-gray-200 text-gray-900 focus:outline-none focus:border-[#C9A227]"/>
+            <input type="date" value={form.data_inicio} onChange={e => f("data_inicio",e.target.value)} className="w-full px-4 py-3 rounded-xl border border-gray-200 text-gray-900 focus:outline-none focus:border-[#6F2738]"/>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Data de Conclusão</label>
-            <input type="date" value={form.data_fim} onChange={e => f("data_fim",e.target.value)} className="w-full px-4 py-3 rounded-xl border border-gray-200 text-gray-900 focus:outline-none focus:border-[#C9A227]"/>
+            <input type="date" value={form.data_fim} onChange={e => f("data_fim",e.target.value)} className="w-full px-4 py-3 rounded-xl border border-gray-200 text-gray-900 focus:outline-none focus:border-[#6F2738]"/>
           </div>
         </div>
       </div>
 
       <div className="flex gap-3">
         <button onClick={() => navigate("/projetos")} className="flex-1 py-3 rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50">Cancelar</button>
-        <button onClick={handleSave} disabled={saving} className="flex-1 py-3 rounded-xl bg-[#C9A227] text-white hover:bg-[#9A7B1A] font-medium flex items-center justify-center gap-2">
+        <button onClick={handleSave} disabled={saving} className="flex-1 py-3 rounded-xl bg-[#6F2738] text-white hover:bg-[#4A1A26] font-medium flex items-center justify-center gap-2">
           <Save className="w-4 h-4"/>{saving ? "Salvando..." : (isEditing ? "Atualizar" : "Criar Projeto")}
         </button>
       </div>

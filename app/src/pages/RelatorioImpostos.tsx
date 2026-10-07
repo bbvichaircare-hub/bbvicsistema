@@ -55,7 +55,7 @@ export function RelatorioImpostos() {
     toast.success('Exportado!');
   };
 
-  if (loading) return <div className="flex items-center justify-center h-96"><div className="w-8 h-8 border-2 border-[#C9A227] border-t-transparent rounded-full animate-spin"/></div>;
+  if (loading) return <div className="flex items-center justify-center h-96"><div className="w-8 h-8 border-2 border-[#6F2738] border-t-transparent rounded-full animate-spin"/></div>;
 
   return (
     <div className="space-y-6">
@@ -68,7 +68,7 @@ export function RelatorioImpostos() {
           </div>
         </div>
         <div className="flex gap-3">
-          <select value={ano} onChange={e => setAno(parseInt(e.target.value))} className="px-4 py-2 rounded-xl border border-gray-200 text-sm text-gray-700 focus:outline-none focus:border-[#C9A227]">
+          <select value={ano} onChange={e => setAno(parseInt(e.target.value))} className="px-4 py-2 rounded-xl border border-gray-200 text-sm text-gray-700 focus:outline-none focus:border-[#6F2738]">
             {[2023,2024,2025,2026].map(a => <option key={a} value={a}>{a}</option>)}
           </select>
           <button onClick={handleExportCSV} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-green-600 text-white text-sm font-medium hover:bg-green-700">
@@ -82,7 +82,7 @@ export function RelatorioImpostos() {
           { label:'Total Vendas', val:formatCurrency(totais.totalVendas), icon:DollarSign, cls:'bg-green-100 text-green-600' },
           { label:'Total Taxas', val:formatCurrency(totais.totalTaxas), icon:Calculator, cls:'bg-purple-100 text-purple-600' },
           { label:'Taxa Média', val:`${totais.taxaMedia.toFixed(2)}%`, icon:Percent, cls:'bg-blue-100 text-blue-600' },
-          { label:'Total Faturas', val:String(totais.totalFaturas), icon:Receipt, cls:'bg-[#C9A227]/15 text-[#C9A227]' },
+          { label:'Total Faturas', val:String(totais.totalFaturas), icon:Receipt, cls:'bg-[#6F2738]/15 text-[#6F2738]' },
         ].map(c => (
           <div key={c.label} className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
             <div className="flex items-center gap-3 mb-3"><div className={`w-9 h-9 rounded-lg flex items-center justify-center ${c.cls}`}><c.icon className="w-4 h-4"/></div></div>
@@ -93,7 +93,7 @@ export function RelatorioImpostos() {
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-        <div className="p-5 border-b border-gray-100 flex items-center gap-2"><BarChart3 className="w-5 h-5 text-[#C9A227]"/><h2 className="font-semibold text-gray-900">Resumo Mensal</h2></div>
+        <div className="p-5 border-b border-gray-100 flex items-center gap-2"><BarChart3 className="w-5 h-5 text-[#6F2738]"/><h2 className="font-semibold text-gray-900">Resumo Mensal</h2></div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-gray-50">
@@ -115,7 +115,7 @@ export function RelatorioImpostos() {
                   <td className="px-5 py-3 text-right text-blue-600">{d.taxaMedia.toFixed(2)}%</td>
                 </tr>
               ))}
-              <tr className="bg-[#C9A227]/5 font-semibold border-t-2 border-[#C9A227]/20">
+              <tr className="bg-[#6F2738]/5 font-semibold border-t-2 border-[#6F2738]/20">
                 <td className="px-5 py-3 text-gray-900">TOTAL</td>
                 <td className="px-5 py-3 text-right text-gray-700">{totais.totalFaturas}</td>
                 <td className="px-5 py-3 text-right text-green-600">{formatCurrency(totais.totalVendas)}</td>

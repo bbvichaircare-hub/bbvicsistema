@@ -11,14 +11,14 @@ export type Permissao =
   | 'agenda' | 'estoque' | 'compras' | 'despesas' 
   | 'contas_pagar' | 'contas_receber' | 'relatorios' 
   | 'comissoes' | 'vendedores' | 'configuracoes' | 'caixa'
-  | 'quilometragem' | 'projetos'
+  | 'quilometragem' | 'projetos' | 'crm'
 
 export const TODAS_PERMISSOES: Permissao[] = [
   'dashboard', 'clientes', 'faturas', 'orcamentos',
   'agenda', 'estoque', 'compras', 'despesas',
   'contas_pagar', 'contas_receber', 'relatorios',
   'comissoes', 'vendedores', 'configuracoes', 'caixa',
-  'quilometragem', 'projetos'
+  'quilometragem', 'projetos', 'crm'
 ]
 
 export const LABEL_PERMISSOES: Record<Permissao, string> = {
@@ -38,7 +38,88 @@ export const LABEL_PERMISSOES: Record<Permissao, string> = {
   configuracoes: 'Configurações',
   caixa: 'Caixa',
   quilometragem: 'Quilometragem',
-  projetos: 'Projetos'
+  projetos: 'Projetos',
+  crm: 'CRM - Visitas'
+}
+
+// ----------------------------------------
+// CRM - VISITAS A SALÕES
+// ----------------------------------------
+
+export type ResultadoVisita = 'muito_interessado' | 'interessado' | 'neutro' | 'nao_interessado' | 'fechou_venda'
+
+export const LABEL_RESULTADO_VISITA: Record<ResultadoVisita, string> = {
+  muito_interessado: 'Muito Interessado',
+  interessado: 'Interessado',
+  neutro: 'Neutro / Vai Pensar',
+  nao_interessado: 'Não Interessado',
+  fechou_venda: 'Fechou Venda',
+}
+
+export interface VisitaCRM {
+  id?: string;
+  cliente_id?: string;
+  salao_nome: string;
+  salao_telefone?: string;
+  salao_endereco?: string;
+  vendedor_id: string;
+  vendedor_nome?: string;
+  data_visita: Date;
+  produtos_oferecidos?: string;
+  feedback?: string;
+  resultado: ResultadoVisita;
+  proxima_visita?: Date | null;
+  observacoes?: string;
+  tags?: string[];
+  created_at?: Date;
+  updated_at?: Date;
+}
+
+export interface CampanhaCRM {
+  id?: string;
+  nome: string;
+  mensagem: string;
+  segmento: string;
+  quantidade_enviada: number;
+  criado_por?: string;
+  created_at?: Date;
+}
+
+// ----------------------------------------
+// CONSIGNAÇÃO
+// ----------------------------------------
+
+export type TipoMovimentoConsignacao = 'entrega' | 'reposicao' | 'venda' | 'devolucao'
+
+export interface ConsignacaoItem {
+  id?: string;
+  cliente_id: string;
+  cliente_nome: string;
+  produto_id: string;
+  produto_nome: string;
+  preco_unitario: number;
+  quantidade_em_consignacao: number;
+  vendedor_id: string;
+  vendedor_nome?: string;
+  created_at?: Date;
+  atualizado_em?: Date;
+}
+
+export interface ConsignacaoMovimento {
+  id?: string;
+  consignacao_id: string;
+  cliente_id: string;
+  cliente_nome?: string;
+  produto_id: string;
+  produto_nome?: string;
+  tipo: TipoMovimentoConsignacao;
+  quantidade: number;
+  observacao?: string;
+  fatura_gerada_id?: string;
+  fatura_gerada_numero?: string;
+  vendedor_id: string;
+  vendedor_nome?: string;
+  created_at?: Date;
 }
 
 // ----------------------------------------
@@ -87,6 +168,7 @@ export interface Cliente {
   estado?: string;
   cep?: string;
   tipo?: 'pessoa' | 'empresa';
+  empresa?: string;
   documento?: string;
   observacoes?: string;
   notas?: string;
@@ -170,6 +252,7 @@ export interface Invoice {
   data_vencimento: any;
   data_pagamento?: any;
   valor_pago?: number;
+  valor_restante?: number;
   observacoes?: string;
   vendedor_id?: string;
   vendedor_nome?: string;
@@ -177,12 +260,17 @@ export interface Invoice {
   comissao_total?: number;
   public_token?: string;
   visualizado?: boolean;
+  visualizado_em?: any;
   visualizado_count?: number;
   notificacao_enviada?: boolean;
   lembretes_enviados?: number;
   tipo_pagamento?: 'avista' | 'parcelado';
   numero_parcelas?: number;
   parcelas?: Parcela[];
+  recorrente_id?: string;
+  eh_recorrente?: boolean;
+  estimate_id?: string;
+  notificacao_enviada_em?: any;
   created_at?: Date;
   updated_at?: Date;
   created_by?: string;
@@ -229,6 +317,7 @@ export interface Estimate {
   visualizado_em?: Date;
   visualizado_count?: number;
   invoice_id?: string;
+  convertido_em?: any;
   created_at?: Date;
   updated_at?: Date;
 }
@@ -363,4 +452,66 @@ export interface Compromisso {
   vendedor_nome: string;
   created_at?: Date;
   updated_at?: Date;
+}
+
+// ----------------------------------------
+// ITEM DE FATURA RECORRENTE
+// ----------------------------------------
+
+export interface InvoiceItem {
+  produto_id: string;
+  descricao: string;
+  quantidade: number;
+  preco: number;
+  total: number;
+}
+
+// ----------------------------------------
+// ATIVIDADE (FEED DE ATIVIDADES DO SISTEMA)
+// ----------------------------------------
+
+export interface Atividade {
+  id?: string;
+  tipo: string;
+  descricao: string;
+  usuario_id: string;
+  usuario_nome: string;
+  documento_id?: string;
+  documento_tipo?: 'invoice' | 'estimate';
+  documento_numero?: string;
+  cliente_id?: string;
+  cliente_nome?: string;
+  valor?: number;
+  created_at?: any;
+}
+
+// ----------------------------------------
+// METRICAS DO DASHBOARD
+// ----------------------------------------
+
+export interface MetricasDashboard {
+  vendasHoje: number;
+  vendasSemana: number;
+  vendasMes: number;
+  vendasAno: number;
+  invoicesTotal: number;
+  invoicesRascunho: number;
+  invoicesEnviados: number;
+  invoicesPagos: number;
+  invoicesAtrasados: number;
+  valorPendente: number;
+  valorAtrasado: number;
+  estimatesTotal: number;
+  estimatesRascunho: number;
+  estimatesEnviados: number;
+  estimatesAprovados: number;
+  estimatesConvertidos: number;
+  taxaConversao: number;
+  totalClientes: number;
+  clientesNovosMes: number;
+  clientesAtivos: number;
+  totalProdutos: number;
+  produtosEstoqueBaixo: number;
+  comissoesPendentes: number;
+  comissoesPagas: number;
 }

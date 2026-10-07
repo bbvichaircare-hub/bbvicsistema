@@ -16,7 +16,7 @@ interface Movimento {
 }
 
 const CONTAS_DEFAULT: Omit<Conta, "id">[] = [
-  { nome: "Caixa", tipo: "caixa", saldo: 0, cor: "#C9A227" },
+  { nome: "Caixa", tipo: "caixa", saldo: 0, cor: "#6F2738" },
   { nome: "Conta Bancária", tipo: "banco", saldo: 0, cor: "#3b82f6" },
   { nome: "Square", tipo: "square", saldo: 0, cor: "#10b981" },
 ]
@@ -82,7 +82,7 @@ export function Caixa() {
   const totalEntradas = movimentos.filter(m => m.tipo==="entrada").reduce((s,m) => s+m.valor, 0)
   const totalSaidas   = movimentos.filter(m => m.tipo==="saida").reduce((s,m) => s+m.valor, 0)
 
-  if (loading) return <div className="flex items-center justify-center h-96"><div className="w-8 h-8 border-2 border-[#C9A227] border-t-transparent rounded-full animate-spin"/></div>
+  if (loading) return <div className="flex items-center justify-center h-96"><div className="w-8 h-8 border-2 border-[#6F2738] border-t-transparent rounded-full animate-spin"/></div>
 
   const tipoLabel: Record<string,string> = { entrada:"Entrada", saida:"Saída", transferencia:"Transferência" }
 
@@ -95,13 +95,13 @@ export function Caixa() {
         </div>
         <div className="flex gap-2">
           {isAdmin && <button onClick={() => setShowContaModal(true)} className="flex items-center gap-2 px-3 py-2 text-sm rounded-lg bg-white border border-gray-200 text-gray-700 hover:bg-gray-50"><Plus className="w-4 h-4"/> Nova Conta</button>}
-          <button onClick={() => setShowModal(true)} className="flex items-center gap-2 px-3 py-2 text-sm rounded-lg bg-[#C9A227] text-white hover:bg-[#9A7B1A]"><Plus className="w-4 h-4"/> Novo Lançamento</button>
+          <button onClick={() => setShowModal(true)} className="flex items-center gap-2 px-3 py-2 text-sm rounded-lg bg-[#6F2738] text-white hover:bg-[#4A1A26]"><Plus className="w-4 h-4"/> Novo Lançamento</button>
         </div>
       </div>
 
       <div className="grid grid-cols-3 gap-4">
         {[
-          { label:"Saldo Total", valor:totalSaldo, icon:DollarSign, cor:"text-[#C9A227]" },
+          { label:"Saldo Total", valor:totalSaldo, icon:DollarSign, cor:"text-[#6F2738]" },
           { label:"Total Entradas", valor:totalEntradas, icon:TrendingUp, cor:"text-green-500" },
           { label:"Total Saídas", valor:totalSaidas, icon:TrendingDown, cor:"text-red-500" },
         ].map(c => (
@@ -183,13 +183,13 @@ export function Caixa() {
                 <label className="block text-sm text-gray-600 mb-1">Tipo</label>
                 <div className="flex gap-2">
                   {(["entrada","saida","transferencia"] as const).map(t => (
-                    <button key={t} onClick={() => setForm({...form,tipo:t,categoria:""})} className={`flex-1 py-2 text-sm rounded-lg border transition ${form.tipo===t?"bg-[#C9A227] text-white border-[#C9A227]":"border-gray-200 text-gray-600 hover:bg-gray-50"}`}>{tipoLabel[t]}</button>
+                    <button key={t} onClick={() => setForm({...form,tipo:t,categoria:""})} className={`flex-1 py-2 text-sm rounded-lg border transition ${form.tipo===t?"bg-[#6F2738] text-white border-[#6F2738]":"border-gray-200 text-gray-600 hover:bg-gray-50"}`}>{tipoLabel[t]}</button>
                   ))}
                 </div>
               </div>
               <div>
                 <label className="block text-sm text-gray-600 mb-1">Conta *</label>
-                <select value={form.conta_id} onChange={e => setForm({...form,conta_id:e.target.value})} className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-gray-900 focus:outline-none focus:border-[#C9A227]">
+                <select value={form.conta_id} onChange={e => setForm({...form,conta_id:e.target.value})} className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-gray-900 focus:outline-none focus:border-[#6F2738]">
                   <option value="">Selecione a conta...</option>
                   {contas.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
                 </select>
@@ -197,7 +197,7 @@ export function Caixa() {
               {form.tipo==="transferencia" && (
                 <div>
                   <label className="block text-sm text-gray-600 mb-1">Conta Destino *</label>
-                  <select value={form.conta_destino_id} onChange={e => setForm({...form,conta_destino_id:e.target.value})} className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-gray-900 focus:outline-none focus:border-[#C9A227]">
+                  <select value={form.conta_destino_id} onChange={e => setForm({...form,conta_destino_id:e.target.value})} className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-gray-900 focus:outline-none focus:border-[#6F2738]">
                     <option value="">Selecione a conta...</option>
                     {contas.filter(c => c.id!==form.conta_id).map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
                   </select>
@@ -205,16 +205,16 @@ export function Caixa() {
               )}
               <div>
                 <label className="block text-sm text-gray-600 mb-1">Valor *</label>
-                <input type="number" step="0.01" min="0" value={form.valor} onChange={e => setForm({...form,valor:e.target.value})} placeholder="0.00" className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-gray-900 focus:outline-none focus:border-[#C9A227]"/>
+                <input type="number" step="0.01" min="0" value={form.valor} onChange={e => setForm({...form,valor:e.target.value})} placeholder="0.00" className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-gray-900 focus:outline-none focus:border-[#6F2738]"/>
               </div>
               <div>
                 <label className="block text-sm text-gray-600 mb-1">Descrição *</label>
-                <input type="text" value={form.descricao} onChange={e => setForm({...form,descricao:e.target.value})} placeholder="Descrição..." className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-gray-900 focus:outline-none focus:border-[#C9A227]"/>
+                <input type="text" value={form.descricao} onChange={e => setForm({...form,descricao:e.target.value})} placeholder="Descrição..." className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-gray-900 focus:outline-none focus:border-[#6F2738]"/>
               </div>
               {form.tipo!=="transferencia" && (
                 <div>
                   <label className="block text-sm text-gray-600 mb-1">Categoria</label>
-                  <select value={form.categoria} onChange={e => setForm({...form,categoria:e.target.value})} className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-gray-900 focus:outline-none focus:border-[#C9A227]">
+                  <select value={form.categoria} onChange={e => setForm({...form,categoria:e.target.value})} className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-gray-900 focus:outline-none focus:border-[#6F2738]">
                     <option value="">Selecione...</option>
                     {(form.tipo==="entrada"?CATS_ENTRADA:CATS_SAIDA).map(c => <option key={c} value={c}>{c}</option>)}
                   </select>
@@ -222,12 +222,12 @@ export function Caixa() {
               )}
               <div>
                 <label className="block text-sm text-gray-600 mb-1">Data</label>
-                <input type="date" value={form.data} onChange={e => setForm({...form,data:e.target.value})} className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-gray-900 focus:outline-none focus:border-[#C9A227]"/>
+                <input type="date" value={form.data} onChange={e => setForm({...form,data:e.target.value})} className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-gray-900 focus:outline-none focus:border-[#6F2738]"/>
               </div>
             </div>
             <div className="flex gap-3 mt-6">
               <button onClick={() => setShowModal(false)} className="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50">Cancelar</button>
-              <button onClick={handleSalvar} className="flex-1 py-2.5 rounded-xl bg-[#C9A227] text-white hover:bg-[#9A7B1A] font-medium">Salvar</button>
+              <button onClick={handleSalvar} className="flex-1 py-2.5 rounded-xl bg-[#6F2738] text-white hover:bg-[#4A1A26] font-medium">Salvar</button>
             </div>
           </div>
         </div>
@@ -244,11 +244,11 @@ export function Caixa() {
             <div className="space-y-4">
               <div>
                 <label className="block text-sm text-gray-600 mb-1">Nome *</label>
-                <input type="text" value={novaConta.nome} onChange={e => setNovaConta({...novaConta,nome:e.target.value})} placeholder="Ex: Conta Corrente" className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-gray-900 focus:outline-none focus:border-[#C9A227]"/>
+                <input type="text" value={novaConta.nome} onChange={e => setNovaConta({...novaConta,nome:e.target.value})} placeholder="Ex: Conta Corrente" className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-gray-900 focus:outline-none focus:border-[#6F2738]"/>
               </div>
               <div>
                 <label className="block text-sm text-gray-600 mb-1">Tipo</label>
-                <select value={novaConta.tipo} onChange={e => setNovaConta({...novaConta,tipo:e.target.value as Conta["tipo"]})} className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-gray-900 focus:outline-none focus:border-[#C9A227]">
+                <select value={novaConta.tipo} onChange={e => setNovaConta({...novaConta,tipo:e.target.value as Conta["tipo"]})} className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-gray-900 focus:outline-none focus:border-[#6F2738]">
                   <option value="caixa">Caixa</option>
                   <option value="banco">Banco</option>
                   <option value="square">Square</option>
@@ -259,7 +259,7 @@ export function Caixa() {
             </div>
             <div className="flex gap-3 mt-6">
               <button onClick={() => setShowContaModal(false)} className="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50">Cancelar</button>
-              <button onClick={handleAddConta} className="flex-1 py-2.5 rounded-xl bg-[#C9A227] text-white hover:bg-[#9A7B1A] font-medium">Criar</button>
+              <button onClick={handleAddConta} className="flex-1 py-2.5 rounded-xl bg-[#6F2738] text-white hover:bg-[#4A1A26] font-medium">Criar</button>
             </div>
           </div>
         </div>

@@ -20,10 +20,12 @@ interface FormData {
   comissao_percentual: number
   role: 'vendedor' | 'personalizado'
   permissoes: Permissao[]
+  ver_todos_clientes: boolean
 }
 const emptyForm: FormData = {
   nome: '', email: '', telefone: '', password: '', confirmPassword: '',
-    role: 'vendedor', permissoes: [], ver_todos_clientes: false
+  comissao_percentual: 10,
+  role: 'vendedor', permissoes: [], ver_todos_clientes: false
 }
 
 interface EditForm {
@@ -72,7 +74,7 @@ function PermissoesGrid({
         <button
           type="button"
           onClick={toggleAll}
-          className="text-xs text-[#C9A227] hover:underline font-medium"
+          className="text-xs text-[#6F2738] hover:underline font-medium"
         >
           {selected.length === TODAS_PERMISSOES.length ? 'Desmarcar todas' : 'Marcar todas'}
         </button>
@@ -86,7 +88,7 @@ function PermissoesGrid({
                 key={p}
                 className={`flex items-center gap-2 px-2.5 py-2 rounded-lg border cursor-pointer text-sm transition-all ${
                   selected.includes(p)
-                    ? 'border-[#C9A227] bg-[#C9A227]/8 text-[#9A7B1A] font-medium'
+                    ? 'border-[#6F2738] bg-[#6F2738]/8 text-[#4A1A26] font-medium'
                     : 'border-gray-200 text-gray-600 hover:border-gray-300'
                 }`}
               >
@@ -97,7 +99,7 @@ function PermissoesGrid({
                   onChange={() => toggle(p)}
                 />
                 <div className={`w-3.5 h-3.5 rounded flex-shrink-0 border flex items-center justify-center ${
-                  selected.includes(p) ? 'bg-[#C9A227] border-[#C9A227]' : 'border-gray-300'
+                  selected.includes(p) ? 'bg-[#6F2738] border-[#6F2738]' : 'border-gray-300'
                 }`}>
                   {selected.includes(p) && (
                     <svg className="w-2.5 h-2.5 text-white" viewBox="0 0 12 12" fill="none">
@@ -192,7 +194,7 @@ export function Vendedores() {
   const [form, setForm] = useState<FormData>(emptyForm)
   const [editForm, setEditForm] = useState<EditForm>({
     nome: '', telefone: '', email: '', comissao_percentual: 10,
-    role: 'vendedor', permissoes: []
+    role: 'vendedor', permissoes: [], ver_todos_clientes: false
   })
   const [showPwd, setShowPwd] = useState(false)
   const [showPwdCard, setShowPwdCard] = useState<Record<string, boolean>>({})
@@ -259,7 +261,7 @@ export function Vendedores() {
         password: form.password,
         comissao_percentual: form.comissao_percentual,
         role: form.role,
-        permissoes: form.role === 'personalizado' ? form.permissoes : null,
+        permissoes: form.role === 'personalizado' ? form.permissoes : undefined,
       })
       setShowNew(false)
       setForm(emptyForm)
@@ -279,7 +281,7 @@ export function Vendedores() {
         email: editForm.email.trim().toLowerCase(),
         comissao_percentual: editForm.comissao_percentual,
         role: editForm.role,
-        permissoes: editForm.role === 'personalizado' ? editForm.permissoes : null,
+        permissoes: editForm.role === 'personalizado' ? editForm.permissoes : undefined,
         ver_todos_clientes: editForm.ver_todos_clientes,
       })
       setEditingUser(null)
@@ -353,10 +355,10 @@ export function Vendedores() {
     v.email?.toLowerCase().includes(search.toLowerCase())
   )
 
-  const inputCls = 'w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-900 focus:outline-none focus:border-[#C9A227]'
+  const inputCls = 'w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-900 focus:outline-none focus:border-[#6F2738]'
   const labelCls = 'block text-xs font-medium text-gray-500 mb-1'
 
-  if (loading) return <div className="flex items-center justify-center h-96"><div className="w-8 h-8 border-2 border-[#C9A227] border-t-transparent rounded-full animate-spin" /></div>
+  if (loading) return <div className="flex items-center justify-center h-96"><div className="w-8 h-8 border-2 border-[#6F2738] border-t-transparent rounded-full animate-spin" /></div>
 
   return (
     <div className="space-y-6">
@@ -366,7 +368,7 @@ export function Vendedores() {
           <h1 className="text-2xl font-semibold text-gray-900">Vendedores</h1>
           <p className="text-gray-500 text-sm">{vendedores.length} usuário(s) cadastrado(s)</p>
         </div>
-        <button onClick={() => { setForm(emptyForm); setShowNew(true) }} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#C9A227] text-white text-sm font-medium hover:bg-[#9A7B1A]">
+        <button onClick={() => { setForm(emptyForm); setShowNew(true) }} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#6F2738] text-white text-sm font-medium hover:bg-[#4A1A26]">
           <Plus className="w-4 h-4" /> Novo Vendedor
         </button>
       </div>
@@ -374,7 +376,7 @@ export function Vendedores() {
       {/* Search */}
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar vendedor..." className="w-full pl-9 pr-9 py-2.5 rounded-xl border border-gray-200 bg-white text-sm focus:outline-none focus:border-[#C9A227]" />
+        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar vendedor..." className="w-full pl-9 pr-9 py-2.5 rounded-xl border border-gray-200 bg-white text-sm focus:outline-none focus:border-[#6F2738]" />
         {search && (
           <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
             <X className="w-4 h-4" />
@@ -394,12 +396,12 @@ export function Vendedores() {
           {filtered.map(v => {
             const s = stats[v.uid] || { totalVendas: 0, totalComissoes: 0, quantidadeFaturas: 0 }
             return (
-              <div key={v.uid} className={`bg-white rounded-2xl border shadow-sm p-5 transition-all ${v.ativo ? 'border-gray-200 hover:border-[#C9A227]/40' : 'border-gray-100 opacity-60'}`}>
+              <div key={v.uid} className={`bg-white rounded-2xl border shadow-sm p-5 transition-all ${v.ativo ? 'border-gray-200 hover:border-[#6F2738]/40' : 'border-gray-100 opacity-60'}`}>
                 {/* Top */}
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex items-center gap-3">
-                    <div className="w-11 h-11 rounded-xl bg-[#C9A227]/10 flex items-center justify-center">
-                      <span className="text-[#C9A227] font-bold text-lg">{(v.nome || '?').charAt(0).toUpperCase()}</span>
+                    <div className="w-11 h-11 rounded-xl bg-[#6F2738]/10 flex items-center justify-center">
+                      <span className="text-[#6F2738] font-bold text-lg">{(v.nome || '?').charAt(0).toUpperCase()}</span>
                     </div>
                     <div className="space-y-1">
                       <p className="font-semibold text-gray-900">{v.nome}</p>
@@ -426,8 +428,8 @@ export function Vendedores() {
                   <div className="flex items-center gap-2 text-gray-500 text-xs"><Mail className="w-3.5 h-3.5 flex-shrink-0" /><span className="truncate">{v.email}</span></div>
                   {v.telefone && <div className="flex items-center gap-2 text-gray-500 text-xs"><Phone className="w-3.5 h-3.5" /><span>{v.telefone}</span></div>}
                   <div className="flex items-center gap-2 text-xs">
-                    <Percent className="w-3.5 h-3.5 text-[#C9A227]" />
-                    <span className="text-[#C9A227] font-semibold">{v.comissao_percentual || 10}% de comissão</span>
+                    <Percent className="w-3.5 h-3.5 text-[#6F2738]" />
+                    <span className="text-[#6F2738] font-semibold">{v.comissao_percentual || 10}% de comissão</span>
                   </div>
                   {v.role === 'personalizado' && v.permissoes && v.permissoes.length > 0 && (
                     <div className="flex items-center gap-1.5 text-xs text-purple-600">
@@ -470,13 +472,13 @@ export function Vendedores() {
                     <p className="text-xs text-gray-400">Vendas</p>
                   </div>
                   <div className="text-center">
-                    <p className="text-sm font-bold text-[#C9A227]">{fmt(s.totalComissoes)}</p>
+                    <p className="text-sm font-bold text-[#6F2738]">{fmt(s.totalComissoes)}</p>
                     <p className="text-xs text-gray-400">Comissão (sobre subtotal)</p>
                   </div>
                 </div>
                 <button
                   onClick={() => abrirFaturasVendedor(v)}
-                  className="mt-3 w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl border border-[#C9A227] text-[#C9A227] hover:bg-[#C9A227] hover:text-white text-sm font-semibold transition-all"
+                  className="mt-3 w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl border border-[#6F2738] text-[#6F2738] hover:bg-[#6F2738] hover:text-white text-sm font-semibold transition-all"
                 >
                   <FileText className="w-4 h-4" /> Ver Faturas
                 </button>
@@ -560,7 +562,7 @@ export function Vendedores() {
                             <td className="px-4 py-3 font-medium text-gray-900">{inv.cliente_nome || '—'}</td>
                             <td className="px-4 py-3 text-right text-gray-700">{formatCurrencyV(inv.total)}</td>
                             <td className="px-4 py-3 text-right text-gray-600">{formatCurrencyV(sub)}</td>
-                            <td className="px-4 py-3 text-right font-semibold text-[#C9A227]">{formatCurrencyV(comissao)}</td>
+                            <td className="px-4 py-3 text-right font-semibold text-[#6F2738]">{formatCurrencyV(comissao)}</td>
                             <td className="px-4 py-3 text-center">
                               <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_COLOR[inv.status] || 'bg-gray-100 text-gray-500'}`}>
                                 {STATUS_LABEL[inv.status] || inv.status}
@@ -591,7 +593,7 @@ export function Vendedores() {
                 </div>
                 <div className="text-center">
                   <p className="text-xs text-gray-400 uppercase font-semibold">Comissão Total ({pct}% subtotal)</p>
-                  <p className="text-lg font-bold text-[#C9A227]">{formatCurrencyV(totalComissaoModal)}</p>
+                  <p className="text-lg font-bold text-[#6F2738]">{formatCurrencyV(totalComissaoModal)}</p>
                 </div>
               </div>
             </div>
@@ -749,7 +751,7 @@ export function Vendedores() {
             </div>
             <div className="px-5 py-4 border-t border-gray-100 flex gap-3">
               <button onClick={() => setShowNew(false)} className="flex-1 py-3 rounded-xl border border-gray-200 text-gray-600 text-sm">Cancelar</button>
-              <button onClick={handleCreate} disabled={saving} className="flex-[2] py-3 rounded-xl bg-[#C9A227] text-white text-sm font-bold disabled:opacity-50 flex items-center justify-center gap-2">
+              <button onClick={handleCreate} disabled={saving} className="flex-[2] py-3 rounded-xl bg-[#6F2738] text-white text-sm font-bold disabled:opacity-50 flex items-center justify-center gap-2">
                 {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
                 {saving ? 'Criando...' : 'Criar Vendedor'}
               </button>
@@ -833,7 +835,7 @@ export function Vendedores() {
             </div>
             <div className="px-5 py-4 border-t border-gray-100 flex gap-3">
               <button onClick={() => setEditingUser(null)} className="flex-1 py-3 rounded-xl border border-gray-200 text-gray-600 text-sm">Cancelar</button>
-              <button onClick={handleEdit} disabled={saving} className="flex-[2] py-3 rounded-xl bg-[#C9A227] text-white text-sm font-bold disabled:opacity-50 flex items-center justify-center gap-2">
+              <button onClick={handleEdit} disabled={saving} className="flex-[2] py-3 rounded-xl bg-[#6F2738] text-white text-sm font-bold disabled:opacity-50 flex items-center justify-center gap-2">
                 {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
                 {saving ? 'Salvando...' : 'Salvar Alterações'}
               </button>
@@ -848,7 +850,7 @@ export function Vendedores() {
           <div className="bg-white w-full sm:max-w-md sm:rounded-2xl rounded-t-2xl shadow-2xl" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
               <div>
-                <div className="flex items-center gap-2"><Key className="w-5 h-5 text-[#C9A227]" /><h2 className="text-lg font-bold text-gray-900">Gerenciar Senha</h2></div>
+                <div className="flex items-center gap-2"><Key className="w-5 h-5 text-[#6F2738]" /><h2 className="text-lg font-bold text-gray-900">Gerenciar Senha</h2></div>
                 <p className="text-xs text-gray-400 mt-0.5">{passwordUser.nome} · {passwordUser.email}</p>
               </div>
               <button onClick={() => { setPasswordUser(null); setNewPassword(''); setShowNewPwd(false) }} className="p-2 rounded-xl hover:bg-gray-100 text-gray-400"><X className="w-5 h-5" /></button>
@@ -881,7 +883,7 @@ export function Vendedores() {
                     value={newPassword}
                     onChange={e => setNewPassword(e.target.value)}
                     placeholder="Digite a nova senha..."
-                    className="w-full pl-3 pr-10 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#C9A227]"
+                    className="w-full pl-3 pr-10 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#6F2738]"
                   />
                   <button type="button" onClick={() => setShowNewPwd(v => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700">
                     {showNewPwd ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -909,7 +911,7 @@ export function Vendedores() {
                     finally { setSaving(false) }
                   }}
                   disabled={saving}
-                  className="w-full py-3 rounded-xl bg-[#C9A227] text-white text-sm font-bold disabled:opacity-50 flex items-center justify-center gap-2"
+                  className="w-full py-3 rounded-xl bg-[#6F2738] text-white text-sm font-bold disabled:opacity-50 flex items-center justify-center gap-2"
                 >
                   {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Key className="w-4 h-4" />}
                   {saving ? 'Salvando...' : 'Salvar Nova Senha'}

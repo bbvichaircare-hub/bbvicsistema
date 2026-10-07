@@ -557,11 +557,11 @@ export function Compras() {
           </h2>
           <div
             onClick={() => document.getElementById('pdf-input-compra')?.click()}
-            className={`border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-all ${pdfFile ? 'border-green-400 bg-green-50' : 'border-gray-300 hover:border-[#C9A227] hover:bg-amber-50'}`}
+            className={`border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-all ${pdfFile ? 'border-green-400 bg-green-50' : 'border-gray-300 hover:border-[#6F2738] hover:bg-amber-50'}`}
           >
             {pdfLoading ? (
               <div className="flex flex-col items-center gap-2">
-                <div className="w-6 h-6 border-2 border-[#C9A227] border-t-transparent rounded-full animate-spin"/>
+                <div className="w-6 h-6 border-2 border-[#6F2738] border-t-transparent rounded-full animate-spin"/>
                 <p className="text-sm text-gray-500">Lendo PDF e extraindo dados...</p>
               </div>
             ) : pdfFile ? (
@@ -588,24 +588,24 @@ export function Compras() {
 
         <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
           <h2 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
-            <Building2 className="w-4 h-4 text-[#C9A227]" /> Dados do Fornecedor
+            <Building2 className="w-4 h-4 text-[#6F2738]" /> Dados do Fornecedor
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Fornecedor *</label>
-              <input value={fornecedor} onChange={e => setFornecedor(e.target.value)} placeholder="Nome do fornecedor" className="w-full px-3 py-2 rounded-xl border border-gray-200 text-gray-900 focus:outline-none focus:border-[#C9A227]" />
+              <input value={fornecedor} onChange={e => setFornecedor(e.target.value)} placeholder="Nome do fornecedor" className="w-full px-3 py-2 rounded-xl border border-gray-200 text-gray-900 focus:outline-none focus:border-[#6F2738]" />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Nº Nota / Referência</label>
-              <input value={numeroNota} onChange={e => setNumeroNota(e.target.value)} placeholder="Ex: NF-001" className="w-full px-3 py-2 rounded-xl border border-gray-200 text-gray-900 focus:outline-none focus:border-[#C9A227]" />
+              <input value={numeroNota} onChange={e => setNumeroNota(e.target.value)} placeholder="Ex: NF-001" className="w-full px-3 py-2 rounded-xl border border-gray-200 text-gray-900 focus:outline-none focus:border-[#6F2738]" />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Data da Compra</label>
-              <input type="date" value={dataCompra} onChange={e => setDataCompra(e.target.value)} className="w-full px-3 py-2 rounded-xl border border-gray-200 text-gray-900 focus:outline-none focus:border-[#C9A227]" />
+              <input type="date" value={dataCompra} onChange={e => setDataCompra(e.target.value)} className="w-full px-3 py-2 rounded-xl border border-gray-200 text-gray-900 focus:outline-none focus:border-[#6F2738]" />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Data de Vencimento *</label>
-              <input type="date" value={dataVencimento} onChange={e => setDataVencimento(e.target.value)} className="w-full px-3 py-2 rounded-xl border border-gray-200 text-gray-900 focus:outline-none focus:border-[#C9A227]" />
+              <input type="date" value={dataVencimento} onChange={e => setDataVencimento(e.target.value)} className="w-full px-3 py-2 rounded-xl border border-gray-200 text-gray-900 focus:outline-none focus:border-[#6F2738]" />
             </div>
           </div>
         </div>
@@ -613,7 +613,7 @@ export function Compras() {
         <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
           <div className="flex items-center justify-between mb-4">
             <h2 className="font-semibold text-gray-900 flex items-center gap-2">
-              <Package className="w-4 h-4 text-[#C9A227]" /> Produtos Comprados
+              <Package className="w-4 h-4 text-[#6F2738]" /> Produtos Comprados
             </h2>
           </div>
 
@@ -624,7 +624,7 @@ export function Compras() {
               onChange={e => { setSearchProduto(e.target.value); setShowProdutoDropdown(e.target.value.length > 0) }}
               onFocus={() => searchProduto && setShowProdutoDropdown(true)}
               placeholder="Buscar produto para adicionar..."
-              className="w-full pl-9 pr-4 py-2 rounded-xl border border-gray-200 text-gray-900 focus:outline-none focus:border-[#C9A227]"
+              className="w-full pl-9 pr-4 py-2 rounded-xl border border-gray-200 text-gray-900 focus:outline-none focus:border-[#6F2738]"
             />
             {showProdutoDropdown && produtosFiltrados.length > 0 && (
               <div className="absolute top-full left-0 right-0 z-20 bg-white border border-gray-200 rounded-xl shadow-lg mt-1 max-h-48 overflow-y-auto">
@@ -656,7 +656,7 @@ export function Compras() {
                     <input
                       type="number" min="1" value={item.quantidade}
                       onChange={e => updateItemQty(item.tempId, parseInt(e.target.value) || 1)}
-                      className="w-16 text-center px-2 py-1 rounded-lg border border-gray-200 text-sm focus:outline-none focus:border-[#C9A227]"
+                      className="w-16 text-center px-2 py-1 rounded-lg border border-gray-200 text-sm focus:outline-none focus:border-[#6F2738]"
                     />
                   </div>
                   <div className="col-span-3 flex justify-center">
@@ -665,7 +665,7 @@ export function Compras() {
                       <input
                         type="number" step="0.01" min="0" value={item.preco_custo}
                         onChange={e => updateItemCost(item.tempId, parseFloat(e.target.value) || 0)}
-                        className="w-24 pl-5 pr-2 py-1 rounded-lg border border-gray-200 text-sm focus:outline-none focus:border-[#C9A227]"
+                        className="w-24 pl-5 pr-2 py-1 rounded-lg border border-gray-200 text-sm focus:outline-none focus:border-[#6F2738]"
                       />
                     </div>
                   </div>
@@ -682,7 +682,7 @@ export function Compras() {
         <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
           <div className="flex justify-between items-center text-lg font-bold text-gray-900">
             <span>Total da Compra</span>
-            <span className="text-[#C9A227]">{formatCurrency(total)}</span>
+            <span className="text-[#6F2738]">{formatCurrency(total)}</span>
           </div>
           <p className="text-xs text-gray-400 mt-2">
             Ao salvar: estoque será atualizado + custo médio recalculado + conta a pagar gerada automaticamente.
@@ -691,7 +691,7 @@ export function Compras() {
 
         <div className="flex gap-3 justify-end">
           <button onClick={() => { setView('list'); setEditingId(null); setFornecedor(''); setNumeroNota(''); setDataVencimento(''); setItems([]); setPdfFile(null); }} className="px-5 py-2.5 rounded-xl border border-gray-200 text-gray-600 text-sm hover:bg-gray-50">Cancelar</button>
-          <button onClick={handleSave} disabled={saving} className="px-6 py-2.5 rounded-xl bg-[#C9A227] text-white text-sm font-medium hover:bg-[#b8911f] disabled:opacity-60 flex items-center gap-2">
+          <button onClick={handleSave} disabled={saving} className="px-6 py-2.5 rounded-xl bg-[#6F2738] text-white text-sm font-medium hover:bg-[#b8911f] disabled:opacity-60 flex items-center gap-2">
             {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShoppingCart className="w-4 h-4" />}
             {saving ? 'Salvando...' : 'Registrar Compra'}
           </button>
@@ -707,7 +707,7 @@ export function Compras() {
           <h1 className="text-2xl font-semibold text-gray-900">Compras</h1>
           <p className="text-gray-500 text-sm mt-0.5">Notas fiscais e pedidos de fornecedores</p>
         </div>
-        <button onClick={() => setView('form')} className="flex items-center gap-2 px-4 py-2 bg-[#C9A227] text-white rounded-xl text-sm font-medium hover:bg-[#b8911f] transition-colors">
+        <button onClick={() => setView('form')} className="flex items-center gap-2 px-4 py-2 bg-[#6F2738] text-white rounded-xl text-sm font-medium hover:bg-[#b8911f] transition-colors">
           <Plus className="w-4 h-4" /> Nova Compra
         </button>
       </div>
@@ -716,12 +716,12 @@ export function Compras() {
         <div className="p-4 border-b border-gray-100">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar por fornecedor ou número..." className="w-full pl-9 pr-4 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#C9A227]" />
+            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar por fornecedor ou número..." className="w-full pl-9 pr-4 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#6F2738]" />
           </div>
         </div>
 
         {loading ? (
-          <div className="flex justify-center p-10"><Loader2 className="w-6 h-6 animate-spin text-[#C9A227]" /></div>
+          <div className="flex justify-center p-10"><Loader2 className="w-6 h-6 animate-spin text-[#6F2738]" /></div>
         ) : filtered.length === 0 ? (
           <div className="text-center p-10 text-gray-400">
             <ShoppingCart className="w-10 h-10 mx-auto mb-2 opacity-40" />
@@ -881,7 +881,7 @@ export function Compras() {
             <div className="flex items-center justify-between p-5 border-b border-gray-100">
               <div>
                 <h3 className="font-bold text-gray-900 text-lg flex items-center gap-2">
-                  <FileText className="w-5 h-5 text-[#C9A227]" />
+                  <FileText className="w-5 h-5 text-[#6F2738]" />
                   Produtos encontrados no PDF
                 </h3>
                 <p className="text-sm text-gray-500 mt-0.5">Confirme o match de cada produto com seu estoque. Produtos em verde foram identificados automaticamente.</p>
@@ -951,7 +951,7 @@ export function Compras() {
                                 value={match.buscaManual}
                                 onChange={e => setPdfMatches(prev => prev.map((m, i) => i === idx ? { ...m, buscaManual: e.target.value } : m))}
                                 placeholder="Buscar produto no estoque..."
-                                className="w-full pl-8 pr-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:border-[#C9A227]"
+                                className="w-full pl-8 pr-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:border-[#6F2738]"
                               />
                               {match.buscaManual.length > 1 && (
                                 <div className="absolute top-full left-0 right-0 z-30 bg-white border border-gray-200 rounded-xl shadow-lg mt-1 max-h-36 overflow-y-auto">
@@ -982,7 +982,7 @@ export function Compras() {
               </p>
               <div className="flex gap-3">
                 <button onClick={() => setShowMatchModal(false)} className="px-5 py-2.5 rounded-xl border border-gray-200 text-gray-600 text-sm hover:bg-gray-50">Cancelar</button>
-                <button onClick={aplicarMatches} className="px-6 py-2.5 rounded-xl bg-[#C9A227] text-white text-sm font-medium hover:bg-[#b8911f] flex items-center gap-2">
+                <button onClick={aplicarMatches} className="px-6 py-2.5 rounded-xl bg-[#6F2738] text-white text-sm font-medium hover:bg-[#b8911f] flex items-center gap-2">
                   <Check className="w-4 h-4" /> Adicionar Produtos Confirmados
                 </button>
               </div>

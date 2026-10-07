@@ -75,9 +75,10 @@ export function Clientes() {
         setClientes(list)
       }
 
-    } catch (error) {
+    } catch (error: any) {
 
       console.error("Erro ao buscar clientes:", error)
+      toast.error('Erro ao carregar clientes: ' + (error.message || 'verifique permissões'))
 
     } finally {
 
@@ -96,7 +97,7 @@ export function Clientes() {
 
     return (
       <div className="flex items-center justify-center h-96">
-        <div className="w-8 h-8 border-2 border-[#C9A227] border-t-transparent rounded-full animate-spin" />
+        <div className="w-8 h-8 border-2 border-[#6F2738] border-t-transparent rounded-full animate-spin" />
       </div>
     )
 
@@ -250,7 +251,7 @@ export function Clientes() {
           </button>
           <button
             onClick={handleDownloadTemplateCli}
-            className="flex items-center gap-2 px-3 py-2 rounded-xl border border-[#C9A227]/50 text-[#C9A227] text-sm hover:bg-[#C9A227]/5"
+            className="flex items-center gap-2 px-3 py-2 rounded-xl border border-[#6F2738]/50 text-[#6F2738] text-sm hover:bg-[#6F2738]/5"
           >
             <Download className="w-4 h-4"/> Baixar Modelo
           </button>
@@ -262,7 +263,7 @@ export function Clientes() {
           </button>
           <button
             onClick={() => navigate("/clientes/novo")}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[#C9A227] text-white hover:bg-[#9A7B1A]"
+            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[#6F2738] text-white hover:bg-[#4A1A26]"
           >
             <Plus className="w-5 h-5" />
             Novo Cliente
@@ -283,7 +284,7 @@ export function Clientes() {
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           placeholder="Buscar cliente..."
-          className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 bg-white text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#C9A227]"
+          className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 bg-white text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#6F2738]"
         />
 
       </div>
@@ -336,7 +337,7 @@ export function Clientes() {
 
                     <div className="flex items-center gap-3">
 
-                      <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#C9A227] to-[#9A7B1A] flex items-center justify-center">
+                      <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#6F2738] to-[#4A1A26] flex items-center justify-center">
 
                         <span className="text-white text-xs font-bold">
 
@@ -386,7 +387,7 @@ export function Clientes() {
                   <td className="px-6 py-4 text-right">
 
                     <button
-                      className="text-sm text-[#C9A227] hover:underline"
+                      className="text-sm text-[#6F2738] hover:underline"
                     >
                       Ver
                     </button>
@@ -413,7 +414,7 @@ export function Clientes() {
             {filteredClientes.map(cliente => (
               <div key={cliente.id} className="px-4 py-3 flex items-center justify-between gap-3">
                 <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#C9A227] to-[#9A7B1A] flex items-center justify-center flex-shrink-0">
+                  <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#6F2738] to-[#4A1A26] flex items-center justify-center flex-shrink-0">
                     <span className="text-white text-xs font-bold">{cliente.nome?.charAt(0).toUpperCase()}</span>
                   </div>
                   <div className="min-w-0">

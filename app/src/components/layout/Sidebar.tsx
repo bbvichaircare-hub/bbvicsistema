@@ -3,7 +3,7 @@ import {
   LayoutDashboard, Users, Package, Receipt, Settings, UserCircle,
   LogOut, Shield, ClipboardList, X, BarChart3,
   Calculator, Percent, TrendingDown,
-  TrendingUp, ShoppingCart, Calendar
+  TrendingUp, ShoppingCart, Calendar, Store, PackageCheck
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
@@ -23,6 +23,7 @@ const vendorItems = [
   { path: '/invoices',   icon: Receipt,         label: 'Faturas' },
   { path: '/agenda',     icon: Calendar,        label: 'Agenda' },
   { path: '/produtos',   icon: Package,         label: 'Produtos' },
+  { path: '/crm',        icon: Store,           label: 'CRM - Visitas' },
 ];
 
 // Items visible only to admin
@@ -30,6 +31,7 @@ const adminOnlyItems = [
   { path: '/contas-receber',  icon: TrendingUp,      label: 'Contas a Receber' },
   { path: '/despesas',        icon: TrendingDown,    label: 'Despesas' },
   { path: '/estoque',         icon: Package,         label: 'Estoque' },
+  { path: '/consignacao',     icon: PackageCheck,    label: 'Consignação' },
   { path: '/compras',         icon: ShoppingCart,    label: 'Compras' },
   { path: '/vendedores',      icon: Shield,          label: 'Vendedores' },
   { path: '/comissoes',       icon: Percent,         label: 'Comissões' },
@@ -57,11 +59,11 @@ export function Sidebar({ isOpen, onClose, isMobile }: SidebarProps) {
         className={cn(
           'flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-all',
           active
-            ? 'bg-[#C9A227]/12 text-[#9A7B1A] font-medium'
+            ? 'bg-[#6F2738]/12 text-[#4A1A26] font-medium'
             : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
         )}
       >
-        <Icon className={cn('w-4 h-4 flex-shrink-0', active ? 'text-[#C9A227]' : 'text-gray-400')} />
+        <Icon className={cn('w-4 h-4 flex-shrink-0', active ? 'text-[#6F2738]' : 'text-gray-400')} />
         <span className="truncate">{label}</span>
       </NavLink>
     );
@@ -75,9 +77,9 @@ export function Sidebar({ isOpen, onClose, isMobile }: SidebarProps) {
     )}>
 
       {/* Logo */}
-      <div className="h-16 flex items-center justify-between px-4 border-b border-gray-100">
+      <div className="h-24 flex items-center justify-between px-4 border-b border-gray-100">
         <div className="flex items-center justify-center flex-1">
-          <img src="/logo-bbvic.jpg" alt="BBVIC" className="h-14 w-auto object-contain" />
+          <img src="/bbvic-logo-new.png" alt="BBVIC" className="h-20 w-auto object-contain" />
         </div>
         {isMobile && (
           <button onClick={onClose} className="p-1 rounded-lg text-gray-400 hover:bg-gray-100">
@@ -110,7 +112,7 @@ export function Sidebar({ isOpen, onClose, isMobile }: SidebarProps) {
             {(user as any).foto_url ? (
               <img src={(user as any).foto_url} alt={user.nome} className="w-7 h-7 rounded-full object-cover flex-shrink-0 border border-gray-200" />
             ) : (
-              <div className="w-7 h-7 rounded-full bg-gradient-to-br from-[#C9A227] to-[#9A7B1A] flex items-center justify-center flex-shrink-0">
+              <div className="w-7 h-7 rounded-full bg-gradient-to-br from-[#6F2738] to-[#4A1A26] flex items-center justify-center flex-shrink-0">
                 <span className="text-white text-[10px] font-bold">
                   {user.nome?.split(' ').map((n: string) => n[0]).join('').substring(0, 2).toUpperCase()}
                 </span>
@@ -119,7 +121,7 @@ export function Sidebar({ isOpen, onClose, isMobile }: SidebarProps) {
             <div className="flex-1 min-w-0">
               <p className="text-xs font-medium text-gray-800 truncate">{user.nome}</p>
               {isAdmin
-                ? <span className="text-[9px] text-[#C9A227] font-bold">ADMIN</span>
+                ? <span className="text-[9px] text-[#6F2738] font-bold">ADMIN</span>
                 : <span className="text-[9px] text-blue-500 font-bold">VENDEDOR</span>
               }
             </div>

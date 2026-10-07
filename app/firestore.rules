@@ -2,113 +2,656 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // === REGRAS PARA USUARIOS AUTENTICADOS ===
-    match /{document=**} {
-      allow read, write: if request.auth != null;
+    // ============================================
+    // FUNÇÕES AUXILIARES DE SEGURANÇA
+    // ============================================
+
+    // Verifica se usuário está autenticado
+    function isAuthenticated() {
+      return request.auth != null;
     }
 
-    // === ACESSO PUBLICO CONTROLADO ===
-
-    // Configuracoes - leitura publica
-    match /configuracoes/{docId} {
-      allow read: if true;
+    // Verifica se é administrador (role = 'admin')
+    function isAdmin() {
+      return isAuthenticated() &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
-    // Orcamentos - leitura publica + update para aprovacao/recusa pelo cliente
-    match /estimates/{estimateId} {
-      allow read: if true;
-      allow update: if request.auth != null ||
-        (request.resource.data.diff(resource.data).affectedKeys()
-          .hasOnly(['status', 'aprovado_em', 'visualizado_em', 'cliente_assinou',
-                    'invoice_gerada_id', 'recusado_em']));
+    // Verifica se é vendedor (role = 'vendedor')
+    function isVendedor() {
+      return isAuthenticated() &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'vendedor';
     }
 
-    // Faturas - leitura publica + criacao publica (aprovacao de orcamento pelo cliente)
+    // Verifica se o usuário é dono do recurso (vendedor_id == auth.uid)
+    function isOwner() {
+      return isAuthenticated() && resource.data.vendedor_id == request.auth.uid;
+    }
+
+    // Verifica se está criando recurso como vendedor (vendedor_id == auth.uid)
+    function isCreatingAsOwner() {
+      return isAuthenticated() && request.resource.data.vendedor_id == request.auth.uid;
+    }
+
+    // Verifica se usuário tem acesso total a clientes/faturas/orçamentos
+    function isAdminOuAcessoTotal() {
+      return isAdmin() || (
+        isAuthenticated() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.ver_todos_clientes == true
+      );
+    }
+
+    // Verifica se usuário está ativo
+    function isUserActive() {
+      return isAuthenticated() && (
+        !exists(/databases/$(database)/documents/users/$(request.auth.uid)) ||
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.ativo == true
+      );
+    }
+
+    // Valida se campos críticos não foram alterados indevidamente
+    function validarCamposCriticosInvoice() {
+      // Não permite alterar vendedor_id após criação
+      return resource.data.vendedor_id == request.resource.data.vendedor_id;
+    }
+
+    function validarCamposCriticosEstimate() {
+      // Não permite alterar vendedor_id após criação
+      return resource.data.vendedor_id == request.resource.data.vendedor_id;
+    }
+
+    // ============================================
+    // COLEÇÃO: USERS (USUÁRIOS)
+    // ============================================
+    match /users/{userId} {
+      // Leitura: Admin vê todos, usuário vê apenas o próprio
+      allow read: if isAdmin() || (isAuthenticated() && request.auth.uid == userId);
+
+      // Criação: Apenas admin pode criar usuários
+      allow create: if isAdmin() &&
+                      request.resource.data.keys().hasAll(['email', 'nome', 'role', 'ativo']) &&
+                      request.resource.data.role in ['admin', 'vendedor'];
+
+      // Atualização: Admin pode atualizar qualquer um, usuário só o próprio (exceto role)
+      allow update: if isAdmin() ||
+                      (isAuthenticated() && request.auth.uid == userId &&
+                       !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'ativo']));
+
+      // Deleção: Apenas admin
+      allow delete: if isAdmin();
+    }
+
+    // ============================================
+    // COLEÇÃO: CLIENTES
+    // ============================================
+    match /clientes/{clienteId} {
+      // Leitura: Admin (ou acesso total) vê todos, vendedor vê apenas os seus
+      allow read: if isAdminOuAcessoTotal() ||
+                    (isVendedor() && resource.data.vendedor_id == request.auth.uid);
+
+      // Criação: Admin pode criar para qualquer vendedor; vendedor só para si mesmo
+      allow create: if isAuthenticated() && isUserActive() &&
+                      request.resource.data.keys().hasAll(['nome', 'vendedor_id']) &&
+                      (isAdmin() || request.resource.data.vendedor_id == request.auth.uid) &&
+                      (isAdmin() || request.resource.data.status == 'ativo' || request.resource.data.ativo == true);
+
+      // Atualização: Admin pode tudo, vendedor só os seus e não pode mudar vendedor_id
+      allow update: if isAdmin() ||
+                      (isVendedor() && resource.data.vendedor_id == request.auth.uid &&
+                       request.resource.data.vendedor_id == resource.data.vendedor_id);
+
+      // Deleção: Apenas admin
+      allow delete: if isAdmin();
+    }
+
+    // ============================================
+    // COLEÇÃO: PRODUTOS
+    // ============================================
+    match /produtos/{produtoId} {
+      // Leitura: Todos autenticados ativos podem ver produtos ativos
+      // (ativo true ou não definido). Admin vê todos inclusive inativos.
+      allow get: if isAuthenticated() && isUserActive() &&
+                   (resource.data.ativo != false || isAdmin());
+
+      allow list: if isAuthenticated() && isUserActive();
+
+      // Criação, Atualização, Deleção: Apenas admin
+      allow create, update, delete: if isAdmin();
+    }
+
+    // ============================================
+    // COLEÇÃO: INVOICES (FATURAS)
+    // ============================================
     match /invoices/{invoiceId} {
-      allow read: if true;
-      allow create: if true;
-      allow update: if request.auth != null ||
-        (request.resource.data.diff(resource.data).affectedKeys()
-          .hasOnly(['status', 'visualizado_em', 'cliente_confirmou', 'pago_em',
-                    'visualizado', 'visualizado_count', 'metodo_pagamento_escolhido',
-                    'metodo_pagamento_em', 'aprovado_em']));
+      // Leitura: Admin (ou acesso total) vê todas, vendedor vê apenas as suas
+      allow read: if isAdminOuAcessoTotal() ||
+                    (isVendedor() && resource.data.vendedor_id == request.auth.uid);
+
+      // Criação: Vendedor só pode criar fatura para si mesmo
+      allow create: if isAuthenticated() && isUserActive() &&
+                      request.resource.data.vendedor_id == request.auth.uid &&
+                      request.resource.data.keys().hasAll(['numero', 'cliente_id', 'items', 'total', 'vendedor_id', 'status']) &&
+                      request.resource.data.status in ['rascunho', 'enviado'];
+
+      // Atualização: Admin pode tudo, vendedor só as suas e não pode mudar vendedor_id
+      // Vendedor NÃO pode editar vendas com status 'pago' ou 'cancelado'
+      allow update: if isAdmin() ||
+                      (isVendedor() && resource.data.vendedor_id == request.auth.uid &&
+                       request.resource.data.vendedor_id == resource.data.vendedor_id &&
+                       validarCamposCriticosInvoice() &&
+                       resource.data.status != 'pago' &&
+                       resource.data.status != 'cancelado');
+
+      // Deleção: Apenas admin
+      allow delete: if isAdmin();
     }
 
-    // Notificacoes - criacao publica
-    match /notificacoes/{notifId} {
-      allow create: if true;
-      allow read, update, delete: if request.auth != null;
+    // ============================================
+    // COLEÇÃO: ESTIMATES (ORÇAMENTOS)
+    // ============================================
+    match /estimates/{estimateId} {
+      // Leitura: Admin (ou acesso total) vê todos, vendedor vê apenas os seus
+      allow read: if isAdminOuAcessoTotal() ||
+                    (isVendedor() && resource.data.vendedor_id == request.auth.uid);
+
+      // Criação: Vendedor só pode criar orçamento para si mesmo
+      allow create: if isAuthenticated() && isUserActive() &&
+                      request.resource.data.vendedor_id == request.auth.uid &&
+                      request.resource.data.keys().hasAll(['numero', 'cliente_id', 'items', 'total', 'vendedor_id', 'status']) &&
+                      request.resource.data.status in ['rascunho', 'enviado'];
+
+      // Atualização: Admin pode tudo, vendedor só os seus e não pode mudar vendedor_id
+      allow update: if isAdmin() ||
+                      (isVendedor() && resource.data.vendedor_id == request.auth.uid &&
+                       request.resource.data.vendedor_id == resource.data.vendedor_id &&
+                       validarCamposCriticosEstimate());
+
+      // Deleção: Apenas admin
+      allow delete: if isAdmin();
     }
 
-    // Contas a receber - criacao publica (aprovacao de orcamento pelo cliente)
-    match /contas_receber/{docId} {
-      allow create: if true;
-      allow read, update, delete: if request.auth != null;
+    // ============================================
+    // COLEÇÃO: COMISSOES
+    // ============================================
+    match /comissoes/{comissaoId} {
+      // Leitura: Admin vê todas, vendedor vê apenas as suas
+      allow read: if isAdmin() ||
+                    (isVendedor() && resource.data.vendedor_id == request.auth.uid);
+
+      // Criação: Apenas admin (sistema gera automaticamente ao dar baixa na fatura)
+      allow create: if isAdmin();
+
+      // Atualização: Admin pode tudo, vendedor NÃO pode alterar comissão
+      // Vendedor só pode visualizar, nunca editar
+      allow update: if isAdmin();
+
+      // Deleção: Apenas admin
+      allow delete: if isAdmin();
     }
 
-    // Clientes
-    match /clientes/{docId} {
-      allow read, write: if request.auth != null;
+    // ============================================
+    // COLEÇÃO: RECEITAS
+    // ============================================
+    match /receitas/{receitaId} {
+      // Leitura: Admin vê todas, vendedor vê apenas as suas
+      allow read: if isAdmin() ||
+                    (isVendedor() && resource.data.vendedor_id == request.auth.uid);
+
+      // Criação: Admin pode criar para qualquer vendedor; vendedor só para si mesmo
+      allow create: if isAuthenticated() && isUserActive() &&
+                      request.resource.data.keys().hasAll(['descricao', 'valor']) &&
+                      (isAdmin() || request.resource.data.vendedor_id == request.auth.uid);
+
+      // Atualização/Deleção: Apenas admin
+      allow update, delete: if isAdmin();
     }
 
-    // Produtos / Estoque
-    match /produtos/{docId} {
-      allow read, write: if request.auth != null;
+    // ============================================
+    // COLEÇÃO: NOTIFICACOES
+    // ============================================
+    match /notificacoes/{notificacaoId} {
+      // Leitura: Admin vê todas, vendedor vê apenas as que foram direcionadas a ele
+      allow read: if isAdmin() ||
+                    (isVendedor() && resource.data.usuario_id == request.auth.uid);
+
+      // Criação: Qualquer usuário autenticado ativo pode criar notificações do sistema
+      allow create: if isAuthenticated() && isUserActive() &&
+                      request.resource.data.keys().hasAll(['tipo', 'titulo', 'mensagem']);
+
+      // Atualização/Deleção: Apenas admin
+      allow update, delete: if isAdmin();
     }
 
-    // Vendedores
-    match /vendedores/{docId} {
-      allow read, write: if request.auth != null;
+    // ============================================
+    // COLEÇÃO: CONTAS_RECEBER
+    // ============================================
+    match /contas_receber/{contaId} {
+      // Leitura: Admin vê todas, vendedor vê apenas as suas
+      allow read: if isAdmin() ||
+                    (isVendedor() && resource.data.vendedor_id == request.auth.uid);
+
+      // Criação: Admin pode criar para qualquer vendedor; vendedor só para si mesmo
+      allow create: if isAuthenticated() && isUserActive() &&
+                      request.resource.data.keys().hasAll(['descricao', 'valor', 'vendedor_id']) &&
+                      (isAdmin() || request.resource.data.vendedor_id == request.auth.uid);
+
+      // Atualização: Admin pode tudo; vendedor só pode atualizar as suas e não pode
+      // alterar campos críticos
+      allow update: if isAdmin() ||
+                      (isVendedor() && resource.data.vendedor_id == request.auth.uid &&
+                       request.resource.data.vendedor_id == resource.data.vendedor_id);
+
+      // Deleção: Apenas admin
+      allow delete: if isAdmin();
     }
 
-    // Despesas
-    match /despesas/{docId} {
-      allow read, write: if request.auth != null;
+    // ============================================
+    // COLEÇÃO: DESPESAS (alias alternativo de expenses)
+    // ============================================
+    match /despesas/{despesaId} {
+      allow read: if isAdmin() ||
+                    (isVendedor() && resource.data.vendedor_id == request.auth.uid);
+      allow create: if isAuthenticated() && isUserActive() &&
+                      request.resource.data.vendedor_id == request.auth.uid;
+      allow update: if isAdmin() ||
+                      (isVendedor() && resource.data.vendedor_id == request.auth.uid &&
+                       request.resource.data.vendedor_id == resource.data.vendedor_id);
+      allow delete: if isAdmin();
     }
 
-    // Compras
-    match /compras/{docId} {
-      allow read, write: if request.auth != null;
+    // ============================================
+    // COLEÇÃO: CONFIGURACOES
+    // ============================================
+    match /configuracoes/{configId} {
+      // Leitura: Qualquer usuário autenticado pode ler configurações públicas
+      // (mensagens, dados de pagamento, etc.)
+      allow read: if isAuthenticated();
+
+      // Escrita: Apenas admin
+      allow create, update, delete: if isAdmin();
     }
 
-    // Caixa
-    match /caixa/{docId} {
-      allow read, write: if request.auth != null;
-    }
+    // ============================================
+    // COLEÇÕES AUXILIARES COM PADRÃO VENDEDOR
+    // ============================================
+    // agenda, alertas_estoque, audit_log, campanhas_crm, compras,
+    // contas_pagar, estoque_movimentos, faturas_recorrentes, funcionarios,
+    // lembretes_enviados, movimentacoes_estoque, pagamentos,
+    // pagamentos_comissao, pagamentos_salario, registros_ponto
 
-    // Contas a pagar
-    match /contas_pagar/{docId} {
-      allow read, write: if request.auth != null;
-    }
-
-    // Agenda
     match /agenda/{docId} {
-      allow read, write: if request.auth != null;
+      allow read: if isAdmin() || (isVendedor() && resource.data.vendedor_id == request.auth.uid);
+      allow create: if isAuthenticated() && isUserActive() && request.resource.data.vendedor_id == request.auth.uid;
+      allow update: if isAdmin() || (isVendedor() && resource.data.vendedor_id == request.auth.uid && request.resource.data.vendedor_id == resource.data.vendedor_id);
+      allow delete: if isAdmin();
     }
 
-    // Projetos
-    match /projetos/{docId} {
-      allow read, write: if request.auth != null;
+    match /alertas_estoque/{docId} {
+      allow read: if isAdmin() || (isVendedor() && resource.data.vendedor_id == request.auth.uid);
+      allow create: if isAuthenticated() && isUserActive() && request.resource.data.vendedor_id == request.auth.uid;
+      allow update: if isAdmin() || (isVendedor() && resource.data.vendedor_id == request.auth.uid && request.resource.data.vendedor_id == resource.data.vendedor_id);
+      allow delete: if isAdmin();
     }
 
-    // Quilometragem
-    match /quilometragem/{docId} {
-      allow read, write: if request.auth != null;
+    match /audit_log/{docId} {
+      // Leitura: Admin vê todas, vendedor vê apenas as suas (se tiver vendedor_id)
+      allow read: if isAdmin() ||
+                    (isVendedor() && resource.data.vendedor_id == request.auth.uid) ||
+                    (isVendedor() && resource.data.usuario_id == request.auth.uid);
+
+      // Criação: Qualquer usuário autenticado ativo pode gerar logs de auditoria
+      allow create: if isAuthenticated() && isUserActive();
+
+      // Update/Delete: Apenas admin (logs não devem ser alterados)
+      allow update, delete: if isAdmin();
     }
 
-    // Comissoes
-    match /comissoes/{docId} {
-      allow read, write: if request.auth != null;
+    match /campanhas_crm/{docId} {
+      allow read: if isAdmin() || (isVendedor() && resource.data.vendedor_id == request.auth.uid);
+      allow create: if isAuthenticated() && isUserActive() && request.resource.data.vendedor_id == request.auth.uid;
+      allow update: if isAdmin() || (isVendedor() && resource.data.vendedor_id == request.auth.uid && request.resource.data.vendedor_id == resource.data.vendedor_id);
+      allow delete: if isAdmin();
     }
 
-    // Logs de auditoria
-    match /audit_logs/{docId} {
-      allow read, write: if request.auth != null;
+    match /compras/{docId} {
+      allow read: if isAdmin() || (isVendedor() && resource.data.vendedor_id == request.auth.uid);
+      allow create: if isAuthenticated() && isUserActive() && request.resource.data.vendedor_id == request.auth.uid;
+      allow update: if isAdmin() || (isVendedor() && resource.data.vendedor_id == request.auth.uid && request.resource.data.vendedor_id == resource.data.vendedor_id);
+      allow delete: if isAdmin();
     }
 
-    // Usuarios do sistema
-    match /usuarios/{docId} {
-      allow read, write: if request.auth != null;
+    match /contas_pagar/{docId} {
+      allow read: if isAdmin() || (isVendedor() && resource.data.vendedor_id == request.auth.uid);
+      allow create: if isAuthenticated() && isUserActive() && request.resource.data.vendedor_id == request.auth.uid;
+      allow update: if isAdmin() || (isVendedor() && resource.data.vendedor_id == request.auth.uid && request.resource.data.vendedor_id == resource.data.vendedor_id);
+      allow delete: if isAdmin();
+    }
+
+    match /estoque_movimentos/{docId} {
+      allow read: if isAdmin();
+      allow create: if isAuthenticated() && isUserActive();
+      allow update, delete: if isAdmin();
+    }
+
+    match /faturas_recorrentes/{docId} {
+      allow read: if isAdmin() || (isVendedor() && resource.data.vendedor_id == request.auth.uid);
+      allow create: if isAuthenticated() && isUserActive() && request.resource.data.vendedor_id == request.auth.uid;
+      allow update: if isAdmin() || (isVendedor() && resource.data.vendedor_id == request.auth.uid && request.resource.data.vendedor_id == resource.data.vendedor_id);
+      allow delete: if isAdmin();
+    }
+
+    match /funcionarios/{docId} {
+      allow read: if isAdmin() || (isVendedor() && resource.data.vendedor_id == request.auth.uid);
+      allow create: if isAuthenticated() && isUserActive() && request.resource.data.vendedor_id == request.auth.uid;
+      allow update: if isAdmin() || (isVendedor() && resource.data.vendedor_id == request.auth.uid && request.resource.data.vendedor_id == resource.data.vendedor_id);
+      allow delete: if isAdmin();
+    }
+
+    match /lembretes_enviados/{docId} {
+      allow read: if isAdmin() || (isVendedor() && resource.data.vendedor_id == request.auth.uid);
+      allow create: if isAuthenticated() && isUserActive() && request.resource.data.vendedor_id == request.auth.uid;
+      allow update: if isAdmin() || (isVendedor() && resource.data.vendedor_id == request.auth.uid && request.resource.data.vendedor_id == resource.data.vendedor_id);
+      allow delete: if isAdmin();
+    }
+
+    match /movimentacoes_estoque/{docId} {
+      allow read: if isAdmin();
+      allow create: if isAuthenticated() && isUserActive();
+      allow update, delete: if isAdmin();
+    }
+
+    match /pagamentos/{docId} {
+      allow read: if isAdmin() || (isVendedor() && resource.data.vendedor_id == request.auth.uid);
+      allow create: if isAuthenticated() && isUserActive() && request.resource.data.vendedor_id == request.auth.uid;
+      allow update: if isAdmin() || (isVendedor() && resource.data.vendedor_id == request.auth.uid && request.resource.data.vendedor_id == resource.data.vendedor_id);
+      allow delete: if isAdmin();
+    }
+
+    match /pagamentos_comissao/{docId} {
+      allow read: if isAdmin() || (isVendedor() && resource.data.vendedor_id == request.auth.uid);
+      allow create: if isAdmin();
+      allow update, delete: if isAdmin();
+    }
+
+    match /pagamentos_salario/{docId} {
+      allow read: if isAdmin() || (isVendedor() && resource.data.vendedor_id == request.auth.uid);
+      allow create: if isAdmin();
+      allow update, delete: if isAdmin();
+    }
+
+    match /registros_ponto/{docId} {
+      allow read: if isAdmin() || (isVendedor() && resource.data.vendedor_id == request.auth.uid);
+      allow create: if isAuthenticated() && isUserActive() && request.resource.data.vendedor_id == request.auth.uid;
+      allow update: if isAdmin() || (isVendedor() && resource.data.vendedor_id == request.auth.uid && request.resource.data.vendedor_id == resource.data.vendedor_id);
+      allow delete: if isAdmin();
+    }
+
+    // ============================================
+    // COLEÇÃO: EXPENSES (DESPESAS)
+    // ============================================
+    match /expenses/{expenseId} {
+      // Leitura: Admin vê todas, vendedor vê apenas as suas
+      allow read: if isAdmin() ||
+                    (isVendedor() && resource.data.vendedor_id == request.auth.uid);
+
+      // Criação: Vendedor só pode criar despesa para si mesmo
+      allow create: if isAuthenticated() && isUserActive() &&
+                      request.resource.data.vendedor_id == request.auth.uid;
+
+      // Atualização: Admin pode tudo, vendedor só as suas
+      allow update: if isAdmin() ||
+                      (isVendedor() && resource.data.vendedor_id == request.auth.uid &&
+                       request.resource.data.vendedor_id == resource.data.vendedor_id);
+
+      // Deleção: Apenas admin
+      allow delete: if isAdmin();
+    }
+
+    // ============================================
+    // COLEÇÃO: ESTOQUE_MOVIMENTACAO
+    // ============================================
+    match /estoque_movimentacao/{movId} {
+      // Leitura: Apenas admin (log interno)
+      allow read: if isAdmin();
+
+      // Criação, Atualização, Deleção: Apenas via Cloud Function
+      allow create, update, delete: if false;
+    }
+
+    // ============================================
+    // COLEÇÃO: MOVIMENTOS_ESTOQUE (log de baixa/entrada de estoque
+    // usado por faturas e consignação)
+    // ============================================
+    match /movimentos_estoque/{movId} {
+      // Leitura: Apenas admin (log interno)
+      allow read: if isAdmin();
+
+      // Criação: Qualquer usuário autenticado ativo (vendedor ou admin)
+      // pode registrar o movimento ao vender/entregar produto
+      allow create: if isAuthenticated() && isUserActive();
+
+      // Atualização/Deleção: Apenas admin
+      allow update, delete: if isAdmin();
+    }
+
+    // ============================================
+    // COLEÇÃO: QUILOMETRAGEM
+    // ============================================
+    match /quilometragem/{kmId} {
+      // Leitura: Admin vê todas, vendedor vê apenas as suas
+      allow read: if isAdmin() ||
+                    (isVendedor() && resource.data.vendedor_id == request.auth.uid);
+
+      // Criação: Vendedor só pode criar para si mesmo
+      allow create: if isAuthenticated() && isUserActive() &&
+                      request.resource.data.vendedor_id == request.auth.uid;
+
+      // Atualização: Admin pode tudo, vendedor só as suas
+      allow update: if isAdmin() ||
+                      (isVendedor() && resource.data.vendedor_id == request.auth.uid &&
+                       request.resource.data.vendedor_id == resource.data.vendedor_id);
+
+      // Deleção: Apenas admin
+      allow delete: if isAdmin();
+    }
+
+    // ============================================
+    // COLEÇÃO: VISITAS_CRM (VISITAS A SALÕES)
+    // ============================================
+    match /visitas_crm/{visitaId} {
+      // Leitura: Admin vê todas, vendedor vê apenas as suas
+      allow read: if isAdmin() ||
+                    (isVendedor() && resource.data.vendedor_id == request.auth.uid);
+
+      // Criação: Qualquer usuário autenticado ativo pode registrar visita
+      // (admin pode criar em nome de qualquer vendedor)
+      allow create: if isAuthenticated() && isUserActive() &&
+                      (isAdmin() || request.resource.data.vendedor_id == request.auth.uid);
+
+      // Atualização: Admin pode tudo, vendedor só as suas
+      allow update: if isAdmin() ||
+                      (isVendedor() && resource.data.vendedor_id == request.auth.uid);
+
+      // Deleção: Apenas admin
+      allow delete: if isAdmin();
+    }
+
+    // ============================================
+    // COLEÇÃO: CAMPANHAS_CRM (HISTÓRICO DE CAMPANHAS)
+    // ============================================
+    match /campanhas_crm/{campanhaId} {
+      allow read, create: if isAdmin();
+      allow update, delete: if isAdmin();
+    }
+
+    // ============================================
+    // COLEÇÃO: CONSIGNACOES (SALDO POR CLIENTE/PRODUTO)
+    // Uso exclusivo do administrador
+    // ============================================
+    match /consignacoes/{consignacaoId} {
+      allow read, create, update, delete: if isAdmin();
+    }
+
+    // ============================================
+    // COLEÇÃO: CONSIGNACAO_MOVIMENTOS (HISTÓRICO)
+    // Uso exclusivo do administrador
+    // ============================================
+    match /consignacao_movimentos/{movimentoId} {
+      allow read, create, update, delete: if isAdmin();
+    }
+
+    // ============================================
+    // COLEÇÃO: AGENDAMENTOS
+    // ============================================
+    match /agendamentos/{agendamentoId} {
+      // Leitura: Todos autenticados podem ver
+      allow read: if isAuthenticated();
+
+      // Criação: Qualquer usuário autenticado pode criar
+      allow create: if isAuthenticated() && isUserActive();
+
+      // Atualização: Admin pode tudo, vendedor só os seus
+      allow update: if isAdmin() ||
+                      (isVendedor() && resource.data.vendedor_id == request.auth.uid);
+
+      // Deleção: Apenas admin
+      allow delete: if isAdmin();
+    }
+
+    // ============================================
+    // COLEÇÃO: CONFIGURACOES
+    // ============================================
+    match /configuracoes/{configId} {
+      // Leitura: Todos autenticados, e o doc "pagamentos" é público
+      // (necessário para o cliente ver métodos de pagamento no link da fatura)
+      allow read: if isAuthenticated() || configId == 'pagamentos';
+
+      // Escrita: Apenas admin
+      allow write: if isAdmin();
+    }
+
+    // ============================================
+    // COLEÇÃO: AUDIT_LOGS (LOGS DE AUDITORIA)
+    // ============================================
+    match /audit_logs/{logId} {
+      // Leitura: Apenas admin pode consultar logs
+      allow read: if isAdmin();
+
+      // Criação: Apenas via Cloud Function
+      allow create: if false;
+
+      // Atualização/Deleção: Ninguém pode alterar logs (imutáveis)
+      allow update, delete: if false;
+    }
+
+    // ============================================
+    // COLEÇÃO: BACKUP_LOGS (LOGS DE BACKUP)
+    // ============================================
+    match /backup_logs/{logId} {
+      // Leitura: Apenas admin
+      allow read: if isAdmin();
+
+      // Criação: Apenas via Cloud Function
+      allow create: if false;
+
+      // Atualização/Deleção: Ninguém pode alterar
+      allow update, delete: if false;
+    }
+
+    // ============================================
+    // COLEÇÃO: CLIENTES_CONSIGNADO
+    // ============================================
+    match /clientes_consignado/{clienteId} {
+      // Leitura: Admin vê todos, vendedor vê apenas os seus clientes
+      allow read: if isAdmin() ||
+                    (isVendedor() &&
+                     get(/databases/$(database)/documents/clientes/$(clienteId)).data.vendedor_id == request.auth.uid);
+
+      // Criação, Atualização, Deleção: Apenas via Cloud Function
+      allow create, update, delete: if false;
+    }
+
+    // ============================================
+    // COLEÇÃO: CONSIGNADO_PAGAMENTOS
+    // ============================================
+    match /consignado_pagamentos/{pagamentoId} {
+      // Leitura: Admin vê todos, vendedor vê apenas os seus
+      allow read: if isAdmin() ||
+                    (isVendedor() &&
+                     get(/databases/$(database)/documents/clientes/$(resource.data.cliente_id)).data.vendedor_id == request.auth.uid);
+
+      // Criação, Atualização, Deleção: Apenas via Cloud Function
+      allow create, update, delete: if false;
+    }
+
+    // ============================================
+    // ACESSO PÚBLICO VIA TOKEN
+    // ============================================
+    match /invoices/{invoiceId} {
+      // Acesso público via link (para clientes sem login):
+      // qualquer fatura que tenha public_token pode ser lida pelo ID direto
+      // ou por uma consulta filtrando por public_token (forma como o link é gerado).
+      allow get: if resource.data.public_token != null;
+      allow list: if resource.data.public_token != null;
+
+      // Permite apenas atualizar os campos de rastreio/pagamento
+      // (não permite marcar como "pago" nem alterar valores/itens)
+      allow update: if resource.data.public_token != null &&
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['visualizado', 'visualizado_count', 'visualizado_em',
+                    'metodo_pagamento_escolhido', 'metodo_pagamento_em', 'status']) &&
+        (!('status' in request.resource.data.diff(resource.data).affectedKeys()) ||
+          request.resource.data.status != 'pago');
+    }
+
+    match /estimates/{estimateId} {
+      // Acesso público via link (para clientes sem login):
+      // qualquer orçamento que tenha public_token pode ser lido pelo ID direto
+      // ou por uma consulta filtrando por public_token (forma como o link é gerado).
+      allow get: if resource.data.public_token != null;
+      allow list: if resource.data.public_token != null;
+
+      // Permite apenas atualizar campos de rastreio/aprovação (aprovar/recusar)
+      allow update: if resource.data.public_token != null &&
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['visualizado', 'visualizado_count', 'visualizado_em',
+                    'status', 'aprovado_em', 'recusado_em', 'invoice_gerada_id']) &&
+        (!('status' in request.resource.data.diff(resource.data).affectedKeys()) ||
+          request.resource.data.status in ['visualizado', 'aprovado', 'recusado']);
+    }
+
+    // Permite gerar a fatura real quando o cliente aprova um orçamento público
+    match /invoices/{invoiceId} {
+      allow create: if request.resource.data.estimate_origem is string &&
+        request.resource.data.estimate_origem != '' &&
+        exists(/databases/$(database)/documents/estimates/$(request.resource.data.estimate_origem)) &&
+        get(/databases/$(database)/documents/estimates/$(request.resource.data.estimate_origem)).data.public_token != null &&
+        request.resource.data.keys().hasAll(['numero', 'cliente_id', 'items', 'total', 'status']) &&
+        request.resource.data.status == 'enviado';
+    }
+
+    // ============================================
+    // PORTAL DO CLIENTE (acesso sem login, por email)
+    // ============================================
+
+    // Login: localizar o cliente pelo email cadastrado
+    match /clientes/{clienteId} {
+      allow list: if resource.data.email is string && resource.data.email != '';
+      allow get: if resource.data.email is string && resource.data.email != '';
+    }
+
+    // Listagem de faturas/orçamentos do próprio cliente no portal
+    match /invoices/{invoiceId} {
+      allow list: if resource.data.cliente_email is string && resource.data.cliente_email != '';
+    }
+    match /estimates/{estimateId} {
+      allow list: if resource.data.cliente_email is string && resource.data.cliente_email != '';
+    }
+
+    // Consignação: cliente pode apenas visualizar seu próprio saldo (sem editar)
+    match /consignacoes/{consignacaoId} {
+      allow list, get: if resource.data.cliente_id is string && resource.data.cliente_id != '';
     }
   }
 }

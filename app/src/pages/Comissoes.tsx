@@ -477,7 +477,7 @@ export function Comissoes() {
 
   if (loading) return (
     <div className="flex items-center justify-center h-96">
-      <div className="w-8 h-8 border-2 border-[#C9A227] border-t-transparent rounded-full animate-spin"/>
+      <div className="w-8 h-8 border-2 border-[#6F2738] border-t-transparent rounded-full animate-spin"/>
     </div>
   )
 
@@ -512,7 +512,7 @@ export function Comissoes() {
         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Total Geral</span>
-            <div className="w-8 h-8 rounded-lg bg-[#C9A227]/15 flex items-center justify-center"><TrendingUp className="w-4 h-4 text-[#C9A227]"/></div>
+            <div className="w-8 h-8 rounded-lg bg-[#6F2738]/15 flex items-center justify-center"><TrendingUp className="w-4 h-4 text-[#6F2738]"/></div>
           </div>
           <p className="text-2xl font-bold text-gray-900">{fmt(totalPendente + totalPago)}</p>
           <p className="text-xs text-gray-400 mt-1">{comissoes.length} registros</p>
@@ -523,11 +523,11 @@ export function Comissoes() {
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400"/>
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar vendedor..." className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#C9A227]"/>
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar vendedor..." className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#6F2738]"/>
         </div>
         <div className="flex gap-2">
           {(['todos','pendente','pago'] as const).map(s => (
-            <button key={s} onClick={() => setFiltroStatus(s)} className={`px-3 py-2 rounded-xl text-sm font-medium transition-colors ${filtroStatus===s?'bg-[#C9A227] text-white':'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+            <button key={s} onClick={() => setFiltroStatus(s)} className={`px-3 py-2 rounded-xl text-sm font-medium transition-colors ${filtroStatus===s?'bg-[#6F2738] text-white':'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
               {s === 'todos' ? 'Todos' : s === 'pago' ? 'Pagos' : 'Pendentes'}
             </button>
           ))}
@@ -546,12 +546,12 @@ export function Comissoes() {
           {filtered.map(s => {
             const isExp = expanded.has(s.key)
             return (
-              <div key={s.key} className={`bg-white rounded-2xl border shadow-sm overflow-hidden transition-all ${s.status==='pago'?'border-gray-200 opacity-90':'border-[#C9A227]/30 shadow-amber-50'}`}>
+              <div key={s.key} className={`bg-white rounded-2xl border shadow-sm overflow-hidden transition-all ${s.status==='pago'?'border-gray-200 opacity-90':'border-[#6F2738]/30 shadow-amber-50'}`}>
                 {/* Row header */}
                 <div className="flex items-center justify-between px-5 py-4">
                   <div className="flex items-center gap-4 flex-1 min-w-0">
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${s.status==='pago'?'bg-green-100':'bg-[#C9A227]/15'}`}>
-                      <span className={`font-bold text-base ${s.status==='pago'?'text-green-600':'text-[#C9A227]'}`}>{s.vendedor_nome.charAt(0).toUpperCase()}</span>
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${s.status==='pago'?'bg-green-100':'bg-[#6F2738]/15'}`}>
+                      <span className={`font-bold text-base ${s.status==='pago'?'text-green-600':'text-[#6F2738]'}`}>{s.vendedor_nome.charAt(0).toUpperCase()}</span>
                     </div>
                     <div className="min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
@@ -577,10 +577,10 @@ export function Comissoes() {
                   <div className="flex items-center gap-3 flex-shrink-0 ml-3">
                     <div className="text-right">
                       <p className="text-xs text-gray-400">Vendas: {fmt(s.total_vendas || 0)}</p>
-                      <p className={`font-bold text-lg ${s.status==='pago'?'text-green-600':'text-[#C9A227]'}`}>{fmt(s.total_comissao)}</p>
+                      <p className={`font-bold text-lg ${s.status==='pago'?'text-green-600':'text-[#6F2738]'}`}>{fmt(s.total_comissao)}</p>
                     </div>
                     {s.status === 'pendente' && (
-                      <button onClick={() => openPayModal(s)} className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#C9A227] text-white text-sm font-semibold hover:bg-[#9A7B1A] transition-colors">
+                      <button onClick={() => openPayModal(s)} className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#6F2738] text-white text-sm font-semibold hover:bg-[#4A1A26] transition-colors">
                         <DollarSign className="w-4 h-4"/> Pagar
                       </button>
                     )}
@@ -588,7 +588,7 @@ export function Comissoes() {
                       <>
                         <button
                           onClick={() => { setEditWeekModal(s); setEditMetodo((s.metodo_pagamento as any) || 'cash'); setEditComprovante(null) }}
-                          className="p-2 rounded-xl hover:bg-gray-100 text-[#C9A227]"
+                          className="p-2 rounded-xl hover:bg-gray-100 text-[#6F2738]"
                           title="Editar pagamento"
                         >
                           <Edit2 className="w-4 h-4"/>
@@ -633,13 +633,13 @@ export function Comissoes() {
                             <td className="px-5 py-3 text-sm text-gray-500">{c.cliente_nome}</td>
                             <td className="px-5 py-3 text-sm text-gray-400">{fmtDate(c.data_venda)}</td>
                             <td className="px-5 py-3 text-sm text-right font-medium text-gray-700">{fmt(c.valor_venda)}</td>
-                            <td className="px-5 py-3 text-sm text-right font-bold text-[#C9A227]">{fmt(c.valor_comissao)}</td>
+                            <td className="px-5 py-3 text-sm text-right font-bold text-[#6F2738]">{fmt(c.valor_comissao)}</td>
                           </tr>
                         ))}
                         <tr className="bg-gray-50">
                           <td colSpan={3} className="px-5 py-3 text-sm font-semibold text-gray-600">Total da Semana</td>
                           <td className="px-5 py-3 text-sm text-right font-bold text-gray-800">{fmt(s.total_vendas)}</td>
-                          <td className="px-5 py-3 text-sm text-right font-bold text-[#C9A227]">{fmt(s.total_comissao)}</td>
+                          <td className="px-5 py-3 text-sm text-right font-bold text-[#6F2738]">{fmt(s.total_comissao)}</td>
                         </tr>
                       </tbody>
                     </table>
@@ -666,7 +666,7 @@ export function Comissoes() {
               <p className="text-sm font-medium text-gray-700 mb-2">Método de pagamento</p>
               <div className="grid grid-cols-3 gap-2">
                 {(['cash', 'venmo', 'zelle'] as const).map(m => (
-                  <button key={m} onClick={() => setEditMetodo(m)} className={`py-3 rounded-xl border text-sm font-semibold transition-colors ${editMetodo === m ? 'bg-[#C9A227] text-white border-[#C9A227]' : 'bg-white text-gray-600 border-gray-200 hover:border-[#C9A227]'}`}>
+                  <button key={m} onClick={() => setEditMetodo(m)} className={`py-3 rounded-xl border text-sm font-semibold transition-colors ${editMetodo === m ? 'bg-[#6F2738] text-white border-[#6F2738]' : 'bg-white text-gray-600 border-gray-200 hover:border-[#6F2738]'}`}>
                     {m === 'cash' ? 'Cash' : m === 'venmo' ? 'Venmo' : 'Zelle'}
                   </button>
                 ))}
@@ -674,14 +674,14 @@ export function Comissoes() {
             </div>
             <div className="mb-6">
               <p className="text-sm font-medium text-gray-700 mb-2">Comprovante {editWeekModal.comprovante_url ? '(substituir)' : '(opcional)'}</p>
-              <div onClick={() => editComprovanteRef.current?.click()} className={`border-2 border-dashed rounded-xl p-4 text-center cursor-pointer ${editComprovante ? 'border-green-400 bg-green-50' : 'border-gray-300 hover:border-[#C9A227]'}`}>
+              <div onClick={() => editComprovanteRef.current?.click()} className={`border-2 border-dashed rounded-xl p-4 text-center cursor-pointer ${editComprovante ? 'border-green-400 bg-green-50' : 'border-gray-300 hover:border-[#6F2738]'}`}>
                 {editComprovante ? <p className="text-sm text-green-700 font-medium">✓ {editComprovante.name}</p> : <p className="text-sm text-gray-400">{editWeekModal.comprovante_url ? 'Clique para trocar comprovante' : 'Clique para anexar comprovante'}</p>}
               </div>
               <input ref={editComprovanteRef} type="file" className="hidden" accept="image/*,application/pdf" onChange={e => setEditComprovante(e.target.files?.[0] || null)}/>
             </div>
             <div className="flex gap-3">
               <button onClick={() => setEditWeekModal(null)} className="flex-1 py-3 rounded-xl border border-gray-200 text-gray-600 font-medium hover:bg-gray-50">Cancelar</button>
-              <button onClick={handleSaveEditWeek} disabled={savingEditWeek} className="flex-[2] py-3 rounded-xl bg-[#C9A227] text-white font-bold hover:bg-[#9A7B1A] disabled:opacity-60 flex items-center justify-center gap-2">
+              <button onClick={handleSaveEditWeek} disabled={savingEditWeek} className="flex-[2] py-3 rounded-xl bg-[#6F2738] text-white font-bold hover:bg-[#4A1A26] disabled:opacity-60 flex items-center justify-center gap-2">
                 {savingEditWeek ? <Loader2 className="w-4 h-4 animate-spin"/> : null}
                 {savingEditWeek ? 'Salvando...' : 'Salvar'}
               </button>
@@ -722,7 +722,7 @@ export function Comissoes() {
         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
           <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between flex-wrap gap-3">
             <div className="flex items-center gap-2">
-              <Briefcase className="w-5 h-5 text-[#C9A227]" />
+              <Briefcase className="w-5 h-5 text-[#6F2738]" />
               <h2 className="font-semibold text-gray-900">Salários Semanais</h2>
             </div>
             <div className="flex items-center gap-2">
@@ -735,7 +735,7 @@ export function Comissoes() {
                   setSalarioSemanaSelecionada(e.target.value)
                   fetchVendedoresSalarios(e.target.value)
                 }}
-                className="px-3 py-1.5 rounded-xl border border-gray-200 text-sm text-gray-700 focus:outline-none focus:border-[#C9A227]"
+                className="px-3 py-1.5 rounded-xl border border-gray-200 text-sm text-gray-700 focus:outline-none focus:border-[#6F2738]"
               />
               <button
                 onClick={() => {
@@ -743,7 +743,7 @@ export function Comissoes() {
                   setSalarioSemanaSelecionada(w)
                   fetchVendedoresSalarios(w)
                 }}
-                className="text-xs text-[#C9A227] font-semibold hover:underline"
+                className="text-xs text-[#6F2738] font-semibold hover:underline"
               >
                 Semana atual
               </button>
@@ -753,8 +753,8 @@ export function Comissoes() {
             {vendedoresSalario.map(v => (
               <div key={v.uid} className="flex items-center justify-between px-5 py-4">
                 <div className="flex items-center gap-3">
-                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${v.ja_pago ? 'bg-green-100' : 'bg-[#C9A227]/15'}`}>
-                    <span className={`font-bold text-base ${v.ja_pago ? 'text-green-600' : 'text-[#C9A227]'}`}>{v.nome.charAt(0).toUpperCase()}</span>
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${v.ja_pago ? 'bg-green-100' : 'bg-[#6F2738]/15'}`}>
+                    <span className={`font-bold text-base ${v.ja_pago ? 'text-green-600' : 'text-[#6F2738]'}`}>{v.nome.charAt(0).toUpperCase()}</span>
                   </div>
                   <div>
                     <div className="flex items-center gap-2">
@@ -769,7 +769,7 @@ export function Comissoes() {
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
-                  <p className={`font-bold text-lg ${v.ja_pago ? 'text-green-600' : 'text-[#C9A227]'}`}>{fmt(v.salario_semanal)}<span className="text-xs font-normal text-gray-400">/sem</span></p>
+                  <p className={`font-bold text-lg ${v.ja_pago ? 'text-green-600' : 'text-[#6F2738]'}`}>{fmt(v.salario_semanal)}<span className="text-xs font-normal text-gray-400">/sem</span></p>
                   <button
                     onClick={() => setEditSalarioModal({ uid: v.uid, nome: v.nome, valor: String(v.salario_semanal) })}
                     className="p-2 rounded-xl hover:bg-gray-100 text-gray-400"
@@ -780,7 +780,7 @@ export function Comissoes() {
                   {!v.ja_pago && (
                     <button
                       onClick={() => { setSalarioPayModal(v); setSalarioMetodo('cash'); setSalarioComprovante(null) }}
-                      className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#C9A227] text-white text-sm font-semibold hover:bg-[#9A7B1A] transition-colors"
+                      className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#6F2738] text-white text-sm font-semibold hover:bg-[#4A1A26] transition-colors"
                     >
                       <DollarSign className="w-4 h-4" /> Pagar
                     </button>
@@ -809,14 +809,14 @@ export function Comissoes() {
                   type="number" step="0.01" min="0"
                   value={editSalarioModal.valor}
                   onChange={e => setEditSalarioModal({ ...editSalarioModal, valor: e.target.value })}
-                  className="w-full pl-8 pr-4 py-3 rounded-xl border border-gray-200 text-gray-900 focus:outline-none focus:border-[#C9A227] text-lg font-semibold"
+                  className="w-full pl-8 pr-4 py-3 rounded-xl border border-gray-200 text-gray-900 focus:outline-none focus:border-[#6F2738] text-lg font-semibold"
                   autoFocus
                 />
               </div>
             </div>
             <div className="flex gap-3 mt-6">
               <button onClick={() => setEditSalarioModal(null)} className="flex-1 py-3 rounded-xl border border-gray-200 text-gray-600 font-medium hover:bg-gray-50">Cancelar</button>
-              <button onClick={handleSalvarSalario} disabled={savingEditSalario} className="flex-1 py-3 rounded-xl bg-[#C9A227] text-white font-semibold hover:bg-[#9A7B1A] disabled:opacity-60 flex items-center justify-center gap-2">
+              <button onClick={handleSalvarSalario} disabled={savingEditSalario} className="flex-1 py-3 rounded-xl bg-[#6F2738] text-white font-semibold hover:bg-[#4A1A26] disabled:opacity-60 flex items-center justify-center gap-2">
                 {savingEditSalario ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
                 Salvar
               </button>
@@ -838,7 +838,7 @@ export function Comissoes() {
             </div>
             <div className="grid grid-cols-3 gap-2 mb-4">
               {(['cash', 'venmo', 'zelle'] as const).map(m => (
-                <button key={m} onClick={() => setSalarioMetodo(m)} className={`py-3 rounded-xl border text-sm font-semibold transition-colors ${salarioMetodo === m ? 'bg-[#C9A227] text-white border-[#C9A227]' : 'bg-white text-gray-600 border-gray-200 hover:border-[#C9A227]'}`}>
+                <button key={m} onClick={() => setSalarioMetodo(m)} className={`py-3 rounded-xl border text-sm font-semibold transition-colors ${salarioMetodo === m ? 'bg-[#6F2738] text-white border-[#6F2738]' : 'bg-white text-gray-600 border-gray-200 hover:border-[#6F2738]'}`}>
                   {m === 'cash' ? 'Cash' : m === 'venmo' ? 'Venmo' : 'Zelle'}
                 </button>
               ))}
@@ -846,7 +846,7 @@ export function Comissoes() {
             {(salarioMetodo === 'venmo' || salarioMetodo === 'zelle') && (
               <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700 mb-2">Comprovante de pagamento</label>
-                <div onClick={() => salarioFileRef.current?.click()} className={`border-2 border-dashed rounded-xl p-4 text-center cursor-pointer ${salarioComprovante ? 'border-green-400 bg-green-50' : 'border-gray-300 hover:border-[#C9A227]'}`}>
+                <div onClick={() => salarioFileRef.current?.click()} className={`border-2 border-dashed rounded-xl p-4 text-center cursor-pointer ${salarioComprovante ? 'border-green-400 bg-green-50' : 'border-gray-300 hover:border-[#6F2738]'}`}>
                   {salarioComprovante ? <p className="text-sm text-green-700 font-medium">✓ {salarioComprovante.name}</p> : <p className="text-sm text-gray-400">Clique para anexar comprovante</p>}
                 </div>
                 <input ref={salarioFileRef} type="file" className="hidden" accept="image/*,application/pdf" onChange={e => setSalarioComprovante(e.target.files?.[0] || null)} />
@@ -854,7 +854,7 @@ export function Comissoes() {
             )}
             <div className="flex gap-3">
               <button onClick={() => setSalarioPayModal(null)} className="flex-1 py-3 rounded-xl border border-gray-200 text-gray-600 font-medium hover:bg-gray-50">Cancelar</button>
-              <button onClick={handlePagarSalario} disabled={savingSalario} className="flex-[2] py-3 rounded-xl bg-[#C9A227] text-white font-bold hover:bg-[#9A7B1A] disabled:opacity-60 flex items-center justify-center gap-2">
+              <button onClick={handlePagarSalario} disabled={savingSalario} className="flex-[2] py-3 rounded-xl bg-[#6F2738] text-white font-bold hover:bg-[#4A1A26] disabled:opacity-60 flex items-center justify-center gap-2">
                 {savingSalario ? <Loader2 className="w-4 h-4 animate-spin" /> : <DollarSign className="w-4 h-4" />}
                 {savingSalario ? 'Registrando...' : `Confirmar Pagamento ${fmt(salarioPayModal.salario_semanal)}`}
               </button>
@@ -884,7 +884,7 @@ export function Comissoes() {
                 <div className="flex justify-between"><span className="text-gray-500">Total Vendas</span><span>{fmt(payModal.total_vendas || 0)}</span></div>
                 <div className="flex justify-between text-base font-bold border-t border-gray-200 pt-2 mt-2">
                   <span>Comissão ({payModal.percentual}%)</span>
-                  <span className="text-[#C9A227]">{fmt(payModal.total_comissao)}</span>
+                  <span className="text-[#6F2738]">{fmt(payModal.total_comissao)}</span>
                 </div>
               </div>
 
@@ -913,7 +913,7 @@ export function Comissoes() {
                   </p>
                   <div
                     onClick={() => fileRef.current?.click()}
-                    className={`border-2 border-dashed rounded-xl p-4 text-center cursor-pointer transition-all ${comprovante ? 'border-green-400 bg-green-50' : 'border-gray-300 hover:border-[#C9A227] hover:bg-amber-50'}`}
+                    className={`border-2 border-dashed rounded-xl p-4 text-center cursor-pointer transition-all ${comprovante ? 'border-green-400 bg-green-50' : 'border-gray-300 hover:border-[#6F2738] hover:bg-amber-50'}`}
                   >
                     {comprovante ? (
                       <div className="flex items-center justify-center gap-2 text-green-700 text-sm">

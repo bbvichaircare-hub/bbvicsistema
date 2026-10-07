@@ -23,7 +23,7 @@ function Spark({ top, left, s, d, du }: typeof SPARKS[0]) {
   return (
     <div className="absolute pointer-events-none" style={{ top, left, animation: `spark ${du}s ease-in-out ${d}s infinite` }}>
       <svg width={s} height={s} viewBox="0 0 24 24">
-        <path d="M12 2L13.8 10.2L22 12L13.8 13.8L12 22L10.2 13.8L2 12L10.2 10.2Z" fill="#C9A227" opacity="0.65" />
+        <path d="M12 2L13.8 10.2L22 12L13.8 13.8L12 22L10.2 13.8L2 12L10.2 10.2Z" fill="#6F2738" opacity="0.55" />
       </svg>
     </div>
   );
@@ -92,15 +92,15 @@ export function Login() {
 
         {/* ── LEFT PANEL ── */}
         <div className="hidden lg:flex lg:w-1/2 relative flex-col items-center justify-center overflow-hidden p-14"
-          style={{ background: 'linear-gradient(145deg, #fffdf5 0%, #fff8e8 40%, #fffef8 100%)' }}>
+          style={{ background: 'linear-gradient(145deg, #F7F3EE 0%, #F0E6E0 40%, #F7F3EE 100%)' }}>
 
           {/* Soft radial blob */}
           <div className="absolute inset-0 pointer-events-none"
-            style={{ background: 'radial-gradient(ellipse 75% 55% at 50% 48%, rgba(201,162,39,0.10) 0%, transparent 70%)' }} />
+            style={{ background: 'radial-gradient(ellipse 75% 55% at 50% 48%, rgba(111,39,56,0.10) 0%, transparent 70%)' }} />
 
           {/* Animated grid lines */}
           <div className="absolute inset-0 pointer-events-none opacity-[0.04]"
-            style={{ backgroundImage:'linear-gradient(#C9A227 1px,transparent 1px),linear-gradient(90deg,#C9A227 1px,transparent 1px)', backgroundSize:'48px 48px' }} />
+            style={{ backgroundImage:'linear-gradient(#193654 1px,transparent 1px),linear-gradient(90deg,#193654 1px,transparent 1px)', backgroundSize:'48px 48px' }} />
 
           {/* Sparks */}
           {SPARKS.map((s,i) => <Spark key={i} {...s} />)}
@@ -110,24 +110,17 @@ export function Login() {
 
             {/* Brand name */}
             <div className="mb-6" style={{ animation:'floatY 4s ease-in-out infinite' }}>
-              <h1 className="text-8xl font-black tracking-tight"
-                style={{
-                  background:'linear-gradient(90deg,#9A7B1A,#C9A227,#F0D060,#C9A227,#9A7B1A)',
-                  backgroundSize:'200% auto',
-                  WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent',
-                  animation:'shimmerText 3.5s linear infinite',
-                  lineHeight:1.05,
-                }}>
+              <h1 className="text-8xl tracking-tight" style={{ fontFamily:'Georgia, "Times New Roman", serif', fontWeight: 500, color:'#6F2738', lineHeight:1.05 }}>
                 BBVIC
               </h1>
-              <p className="text-gray-400 text-sm font-semibold tracking-[0.28em] uppercase mt-2">Gestão Premium</p>
+              <p className="text-[#193654] text-sm font-semibold tracking-[0.28em] uppercase mt-2">Hair Cosmetics</p>
             </div>
 
             {/* Divider */}
             <div className="flex items-center gap-3 mb-6 justify-center">
-              <div className="h-px flex-1 max-w-[60px]" style={{ background:'linear-gradient(to right,transparent,#C9A227)' }} />
-              <span className="text-[#C9A227] text-xs">✦</span>
-              <div className="h-px flex-1 max-w-[60px]" style={{ background:'linear-gradient(to left,transparent,#C9A227)' }} />
+              <div className="h-px flex-1 max-w-[60px]" style={{ background:'linear-gradient(to right,transparent,#6F2738)' }} />
+              <span className="text-[#6F2738] text-xs">✦</span>
+              <div className="h-px flex-1 max-w-[60px]" style={{ background:'linear-gradient(to left,transparent,#6F2738)' }} />
             </div>
 
             {/* Tagline */}
@@ -141,7 +134,7 @@ export function Login() {
               {features.map((f,i) => (
                 <div key={f} className="flex items-center gap-3"
                   style={{ animation:`fadeSlideIn .5s ease ${0.3 + i*0.1}s both` }}>
-                  <CheckCircle2 className="w-4 h-4 flex-shrink-0" style={{ color:'#C9A227' }} />
+                  <CheckCircle2 className="w-4 h-4 flex-shrink-0" style={{ color:'#6F2738' }} />
                   <span className="text-gray-600 text-sm">{f}</span>
                 </div>
               ))}
@@ -151,7 +144,7 @@ export function Login() {
           {/* Bottom badge */}
           <div className="absolute bottom-7 left-0 right-0 flex justify-center">
             <div className="flex items-center gap-1.5 px-4 py-1.5 rounded-full border text-xs font-medium"
-              style={{ borderColor:'rgba(201,162,39,0.3)', color:'#B89120', background:'rgba(201,162,39,0.06)' }}>
+              style={{ borderColor:'rgba(25,54,84,0.3)', color:'#193654', background:'rgba(25,54,84,0.06)' }}>
               <span className="w-1.5 h-1.5 rounded-full bg-green-400 inline-block animate-pulse" />
               Sistema Online
             </div>
@@ -164,19 +157,18 @@ export function Login() {
 
           {/* Faint top-right decoration */}
           <div className="absolute top-0 right-0 w-80 h-80 pointer-events-none opacity-40"
-            style={{ background:'radial-gradient(circle at 100% 0%, rgba(201,162,39,0.08) 0%, transparent 65%)' }} />
+            style={{ background:'radial-gradient(circle at 100% 0%, rgba(111,39,56,0.08) 0%, transparent 65%)' }} />
           <div className="absolute bottom-0 left-0 w-64 h-64 pointer-events-none opacity-30"
-            style={{ background:'radial-gradient(circle at 0% 100%, rgba(201,162,39,0.07) 0%, transparent 65%)' }} />
+            style={{ background:'radial-gradient(circle at 0% 100%, rgba(25,54,84,0.07) 0%, transparent 65%)' }} />
 
           <div className="w-full max-w-sm relative z-10">
 
             {/* Mobile logo */}
             <div className="flex flex-col items-center mb-8 lg:hidden">
-              <h1 className="text-5xl font-black"
-                style={{ background:'linear-gradient(90deg,#9A7B1A,#C9A227,#E8C14A)', WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent', animation:'floatY 4s ease-in-out infinite' }}>
+              <h1 className="text-5xl tracking-tight" style={{ fontFamily:'Georgia, "Times New Roman", serif', fontWeight: 500, color:'#6F2738' }}>
                 BBVIC
               </h1>
-              <p className="text-gray-400 text-xs font-semibold tracking-[0.25em] uppercase mt-1">Gestão Premium</p>
+              <p className="text-[#193654] text-xs font-semibold tracking-[0.25em] uppercase mt-1">Hair Cosmetics</p>
             </div>
 
             {/* Heading */}
@@ -190,7 +182,7 @@ export function Login() {
               <div>
                 <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Email</label>
                 <input type="email" value={email} onChange={e=>setEmail(e.target.value)}
-                  className="w-full px-4 py-3.5 rounded-2xl border-2 border-gray-100 bg-gray-50 text-gray-900 text-sm placeholder-gray-300 outline-none transition-all duration-200 focus:bg-white focus:border-[#C9A227]"
+                  className="w-full px-4 py-3.5 rounded-2xl border-2 border-gray-100 bg-gray-50 text-gray-900 text-sm placeholder-gray-300 outline-none transition-all duration-200 focus:bg-white focus:border-[#6F2738]"
                   style={{ boxShadow:'inset 0 1px 3px rgba(0,0,0,0.04)' }}
                   placeholder="seu@email.com" autoComplete="email" />
               </div>
@@ -199,7 +191,7 @@ export function Login() {
                 <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Senha</label>
                 <div className="relative">
                   <input type={showPass?'text':'password'} value={password} onChange={e=>setPassword(e.target.value)}
-                    className="w-full px-4 py-3.5 pr-12 rounded-2xl border-2 border-gray-100 bg-gray-50 text-gray-900 text-sm placeholder-gray-300 outline-none transition-all duration-200 focus:bg-white focus:border-[#C9A227]"
+                    className="w-full px-4 py-3.5 pr-12 rounded-2xl border-2 border-gray-100 bg-gray-50 text-gray-900 text-sm placeholder-gray-300 outline-none transition-all duration-200 focus:bg-white focus:border-[#6F2738]"
                     style={{ boxShadow:'inset 0 1px 3px rgba(0,0,0,0.04)' }}
                     placeholder="••••••••" autoComplete="current-password" />
                   <button type="button" onClick={()=>setShowPass(p=>!p)}
@@ -213,9 +205,9 @@ export function Login() {
                 className="w-full py-4 rounded-2xl font-bold text-white text-sm transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-60 mt-1"
                 style={{
                   background: loading
-                    ? '#b8941f'
-                    : 'linear-gradient(135deg,#C9A227 0%,#E8C14A 45%,#9A7B1A 100%)',
-                  boxShadow: loading ? 'none' : '0 6px 28px rgba(201,162,39,0.45)',
+                    ? '#8a3a4d'
+                    : 'linear-gradient(135deg,#6F2738 0%,#8B3348 45%,#4A1A26 100%)',
+                  boxShadow: loading ? 'none' : '0 6px 28px rgba(111,39,56,0.45)',
                   transform: loading ? 'none' : undefined,
                 }}
                 onMouseEnter={e=>{if(!loading)(e.currentTarget as HTMLButtonElement).style.transform='translateY(-1px)'}}
