@@ -43,11 +43,21 @@ service cloud.firestore {
     }
 
     // Verifica se usuário está ativo
+    // SEGURANÇA: exige que exista o cadastro em /users. Antes, uma conta criada
+    // por qualquer pessoa no Firebase Auth (sem cadastro em /users) era tratada
+    // como "ativa". O login do sistema já exige esse cadastro, então nada muda
+    // para administradores e vendedores.
     function isUserActive() {
-      return isAuthenticated() && (
-        !exists(/databases/$(database)/documents/users/$(request.auth.uid)) ||
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.ativo == true
-      );
+      return isAuthenticated() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.ativo in [true, 'true'];
+    }
+
+    // Admin ou vendedor cadastrado (equipe interna)
+    function isEquipe() {
+      return isAuthenticated() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'vendedor'];
     }
 
     // Valida se campos críticos não foram alterados indevidamente
@@ -73,10 +83,13 @@ service cloud.firestore {
                       request.resource.data.keys().hasAll(['email', 'nome', 'role', 'ativo']) &&
                       request.resource.data.role in ['admin', 'vendedor'];
 
-      // Atualização: Admin pode atualizar qualquer um, usuário só o próprio (exceto role)
+      // Atualização: Admin pode atualizar qualquer um.
+      // SEGURANÇA: o próprio usuário só pode alterar dados de perfil. Antes ele
+      // podia mudar comissao_percentual, ver_todos_clientes, permissoes, salário etc.
       allow update: if isAdmin() ||
                       (isAuthenticated() && request.auth.uid == userId &&
-                       !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'ativo']));
+                       request.resource.data.diff(resource.data).affectedKeys()
+                         .hasOnly(['nome', 'telefone', 'foto_url', 'avatar_url', 'updated_at', 'last_login']));
 
       // Deleção: Apenas admin
       allow delete: if isAdmin();
@@ -111,10 +124,10 @@ service cloud.firestore {
     match /produtos/{produtoId} {
       // Leitura: Todos autenticados ativos podem ver produtos ativos
       // (ativo true ou não definido). Admin vê todos inclusive inativos.
-      allow get: if isAuthenticated() && isUserActive() &&
+      allow get: if isUserActive() && isEquipe() &&
                    (resource.data.ativo != false || isAdmin());
 
-      allow list: if isAuthenticated() && isUserActive();
+      allow list: if isUserActive() && isEquipe();
 
       // Criação, Atualização, Deleção: Apenas admin
       allow create, update, delete: if isAdmin();
@@ -264,9 +277,8 @@ service cloud.firestore {
     // COLEÇÃO: CONFIGURACOES
     // ============================================
     match /configuracoes/{configId} {
-      // Leitura: Qualquer usuário autenticado pode ler configurações públicas
-      // (mensagens, dados de pagamento, etc.)
-      allow read: if isAuthenticated();
+      // Leitura: equipe interna (o doc "pagamentos" é público, ver regra abaixo)
+      allow read: if isEquipe();
 
       // Escrita: Apenas admin
       allow create, update, delete: if isAdmin();
@@ -478,14 +490,6 @@ service cloud.firestore {
     }
 
     // ============================================
-    // COLEÇÃO: CAMPANHAS_CRM (HISTÓRICO DE CAMPANHAS)
-    // ============================================
-    match /campanhas_crm/{campanhaId} {
-      allow read, create: if isAdmin();
-      allow update, delete: if isAdmin();
-    }
-
-    // ============================================
     // COLEÇÃO: CONSIGNACOES (SALDO POR CLIENTE/PRODUTO)
     // Uso exclusivo do administrador
     // ============================================
@@ -505,8 +509,8 @@ service cloud.firestore {
     // COLEÇÃO: AGENDAMENTOS
     // ============================================
     match /agendamentos/{agendamentoId} {
-      // Leitura: Todos autenticados podem ver
-      allow read: if isAuthenticated();
+      // Leitura: equipe interna (admin e vendedores)
+      allow read: if isEquipe();
 
       // Criação: Qualquer usuário autenticado pode criar
       allow create: if isAuthenticated() && isUserActive();
@@ -525,7 +529,7 @@ service cloud.firestore {
     match /configuracoes/{configId} {
       // Leitura: Todos autenticados, e o doc "pagamentos" é público
       // (necessário para o cliente ver métodos de pagamento no link da fatura)
-      allow read: if isAuthenticated() || configId == 'pagamentos';
+      allow read: if isEquipe() || configId == 'pagamentos';
 
       // Escrita: Apenas admin
       allow write: if isAdmin();
@@ -597,12 +601,16 @@ service cloud.firestore {
 
       // Permite apenas atualizar os campos de rastreio/pagamento
       // (não permite marcar como "pago" nem alterar valores/itens)
+      // SEGURANÇA: o status só pode virar "aguardando_confirmacao" (o que a tela
+      // do cliente faz). Antes qualquer pessoa podia mudar para "cancelado" etc.
+      // Fatura já paga ou cancelada não muda mais pelo link.
       allow update: if resource.data.public_token != null &&
         request.resource.data.diff(resource.data).affectedKeys()
           .hasOnly(['visualizado', 'visualizado_count', 'visualizado_em',
                     'metodo_pagamento_escolhido', 'metodo_pagamento_em', 'status']) &&
         (!('status' in request.resource.data.diff(resource.data).affectedKeys()) ||
-          request.resource.data.status != 'pago');
+          (request.resource.data.status == 'aguardando_confirmacao' &&
+           !(resource.data.status in ['pago', 'cancelado'])));
     }
 
     match /estimates/{estimateId} {
@@ -622,11 +630,20 @@ service cloud.firestore {
     }
 
     // Permite gerar a fatura real quando o cliente aprova um orçamento público
+    // SEGURANÇA: a fatura precisa copiar total, itens, cliente e vendedor do
+    // orçamento, e o orçamento não pode já ter sido aprovado/convertido.
+    // Antes qualquer pessoa podia criar faturas com qualquer valor.
     match /invoices/{invoiceId} {
       allow create: if request.resource.data.estimate_origem is string &&
         request.resource.data.estimate_origem != '' &&
         exists(/databases/$(database)/documents/estimates/$(request.resource.data.estimate_origem)) &&
         get(/databases/$(database)/documents/estimates/$(request.resource.data.estimate_origem)).data.public_token != null &&
+        !(get(/databases/$(database)/documents/estimates/$(request.resource.data.estimate_origem)).data.get('status', '') in ['aprovado', 'recusado', 'convertido']) &&
+        get(/databases/$(database)/documents/estimates/$(request.resource.data.estimate_origem)).data.get('invoice_gerada_id', '') == '' &&
+        request.resource.data.total == get(/databases/$(database)/documents/estimates/$(request.resource.data.estimate_origem)).data.get('total', 0) &&
+        request.resource.data.items == get(/databases/$(database)/documents/estimates/$(request.resource.data.estimate_origem)).data.get('items', []) &&
+        request.resource.data.cliente_id == get(/databases/$(database)/documents/estimates/$(request.resource.data.estimate_origem)).data.get('cliente_id', '') &&
+        request.resource.data.vendedor_id == get(/databases/$(database)/documents/estimates/$(request.resource.data.estimate_origem)).data.get('vendedor_id', '') &&
         request.resource.data.keys().hasAll(['numero', 'cliente_id', 'items', 'total', 'status']) &&
         request.resource.data.status == 'enviado';
     }
