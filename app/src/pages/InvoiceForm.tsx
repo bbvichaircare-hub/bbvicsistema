@@ -13,6 +13,7 @@ import { Trash2, Search, X, Send, Save, ArrowLeft, Plus, Minus, FileDown, UserPl
 import { gerarPDFFatura } from '@/lib/pdfUtils';
 import type { Cliente, Produto, DocumentItem, Invoice } from '@/types';
 import { parseDataFlex, realinharDatasParcelas } from '@/lib/faturas';
+import { HistoricoPagamentos } from '@/components/HistoricoPagamentos';
 
 interface VendedorOpt { uid: string; nome: string; comissao_percentual?: number }
 
@@ -134,6 +135,7 @@ export function InvoiceForm() {
   const [items, setItems] = useState<(DocumentItem & { tempId: string })[]>([]);
   const [observacoes, setObservacoes] = useState('');
   const [dataVencimento, setDataVencimento] = useState('');
+  const [invoiceRaw, setInvoiceRaw] = useState<any>(null);
   const [descontoInput, setDescontoInput] = useState('0');
   const [taxaInput, setTaxaInput] = useState('6.25');
   const [paymentTerms, setPaymentTerms] = useState('Net 7 dias');
@@ -269,6 +271,7 @@ export function InvoiceForm() {
       const snap = await getDoc(doc(db, 'invoices', invoiceId));
       if (snap.exists()) {
         const data = snap.data() as Invoice;
+        setInvoiceRaw(data);
         setNumero(data.numero);
         setDataEmissao((data as any).data_emissao || (data as any).created_at || null);
         setObservacoes(data.observacoes || '');
@@ -1156,9 +1159,12 @@ export function InvoiceForm() {
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-red-600 font-medium">💰 Saldo restante</span>
-                    <span className="text-red-600 font-bold">{formatCurrency(Math.max(0, total - valorPago))}</span>
+                    <span className="text-red-600 font-bold">{formatCurrency(Math.max(0, total - depositAmt - valorPago))}</span>
                   </div>
                 </div>
+              )}
+              {isEditing && id && invoiceRaw && (
+                <HistoricoPagamentos invoiceId={id} invoice={invoiceRaw} />
               )}
               {vendedorNome && (
                 <div className="pt-2 border-t border-gray-100">

@@ -182,6 +182,8 @@ export function Invoices() {
             ano: agora.getFullYear(),
             data: dataPgto,
             origem: 'fatura',
+            forma_pagamento: baixaFormaPgto || '',
+            forma_pagamento_sub: baixaSubOpcao || '',
             vendedor_id: (inv as any).vendedor_id || '',
             created_at: Timestamp.now(),
           })
@@ -242,6 +244,7 @@ export function Invoices() {
           ano: agora.getFullYear(),
           data: dataPgtoTs,
           origem: 'correcao_pagamento',
+          forma_pagamento: corrigirForma || '',
           vendedor_id: (inv as any).vendedor_id || '',
           created_at: Timestamp.now(),
         })
