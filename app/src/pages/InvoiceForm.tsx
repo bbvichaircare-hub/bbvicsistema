@@ -12,6 +12,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { Trash2, Search, X, Send, Save, ArrowLeft, Plus, Minus, FileDown, UserPlus, Truck, PackageCheck } from 'lucide-react';
 import { gerarPDFFatura } from '@/lib/pdfUtils';
 import type { Cliente, Produto, DocumentItem, Invoice } from '@/types';
+import { parseDataFlex, realinharDatasParcelas } from '@/lib/faturas';
 
 interface VendedorOpt { uid: string; nome: string; comissao_percentual?: number }
 
@@ -255,7 +256,10 @@ export function InvoiceForm() {
     if (found && found.days >= 0) {
       const d = new Date();
       d.setDate(d.getDate() + found.days);
-      setDataVencimento(d.toISOString().split('T')[0]);
+      const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      setDataVencimento(iso);
+      // parcelas em aberto acompanham o novo vencimento
+      setParcelas(prev => realinharDatasParcelas(prev, iso));
     }
   };
 
@@ -274,8 +278,8 @@ export function InvoiceForm() {
           ? String((data as any).desconto || 0)
           : String((data as any).desconto_pct !== undefined ? (data as any).desconto_pct : 0));
         setTaxaInput((data as any).taxa_pct !== undefined ? String((data as any).taxa_pct) : '6.25');
-        const venc = (data.data_vencimento as any)?.toDate ? (data.data_vencimento as any).toDate() : new Date(data.data_vencimento as any);
-        setDataVencimento(venc.toISOString().split('T')[0]);
+        const venc = parseDataFlex(data.data_vencimento);
+        if (venc) setDataVencimento(`${venc.getFullYear()}-${String(venc.getMonth() + 1).padStart(2, '0')}-${String(venc.getDate()).padStart(2, '0')}`);
         setPaymentTerms((data as any).payment_terms || 'Net 30 dias');
         setDepositValue(String((data as any).deposit || '0'));
         setSquareLink((data as any).square_link || '');
@@ -405,7 +409,7 @@ export function InvoiceForm() {
       const valor = i === n - 1
         ? Math.round((saldo - valorParcela * (n - 1)) * 100) / 100
         : valorParcela;
-      return { numero: i + 1, valor, data: d.toISOString().split('T')[0], status: 'pendente' as const };
+      return { numero: i + 1, valor, data: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`, status: 'pendente' as const };
     });
     setParcelas(novas);
   };
@@ -440,7 +444,7 @@ export function InvoiceForm() {
     observacao_interna: observacaoInterna,
     taxa_envio: parseFloat(taxaEnvioInput) || 0,
     data_emissao: Timestamp.now(),
-    data_vencimento: Timestamp.fromDate(new Date(dataVencimento)),
+    data_vencimento: Timestamp.fromDate(new Date(dataVencimento + 'T12:00:00')),
     vendedor_id: vendedorId || user?.uid || '',
     vendedor_nome: vendedorNome || (user as any)?.nome || '',
     public_token: token || uuidv4(),
@@ -500,7 +504,7 @@ export function InvoiceForm() {
           observacoes,
           observacao_interna: observacaoInterna,
           taxa_envio: parseFloat(taxaEnvioInput) || 0,
-          data_vencimento: Timestamp.fromDate(new Date(dataVencimento)),
+          data_vencimento: Timestamp.fromDate(new Date(dataVencimento + 'T12:00:00')),
           vendedor_id: vendedorId || user?.uid || '',
           vendedor_nome: vendedorNome || (user as any)?.nome || '',
           parcelas_ativo: parcelasAtivo,
@@ -554,7 +558,7 @@ export function InvoiceForm() {
           observacoes,
           observacao_interna: observacaoInterna,
           taxa_envio: parseFloat(taxaEnvioInput) || 0,
-          data_vencimento: Timestamp.fromDate(new Date(dataVencimento)),
+          data_vencimento: Timestamp.fromDate(new Date(dataVencimento + 'T12:00:00')),
           vendedor_id: vendedorId || user?.uid || '',
           vendedor_nome: vendedorNome || (user as any)?.nome || '',
           public_token: token,
@@ -964,7 +968,7 @@ export function InvoiceForm() {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Data de Vencimento</label>
-              <input type="date" value={dataVencimento} onChange={e => { setDataVencimento(e.target.value); setPaymentTerms('Personalizado'); }} className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-gray-900 focus:outline-none focus:border-[#6F2738]" />
+              <input type="date" value={dataVencimento} onChange={e => { setDataVencimento(e.target.value); setPaymentTerms('Personalizado'); setParcelas(prev => realinharDatasParcelas(prev, e.target.value)); }} className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-gray-900 focus:outline-none focus:border-[#6F2738]" />
             </div>
 
             <div className="grid grid-cols-2 gap-3">
@@ -1163,7 +1167,7 @@ export function InvoiceForm() {
               )}
               <div className="pt-1">
                 <p className="text-xs text-gray-400">Condições: <span className="font-medium text-gray-600">{paymentTerms}</span></p>
-                {dataVencimento && <p className="text-xs text-gray-400 mt-0.5">Vencimento: <span className="font-medium text-gray-600">{new Date(dataVencimento).toLocaleDateString('pt-BR')}</span></p>}
+                {dataVencimento && <p className="text-xs text-gray-400 mt-0.5">Vencimento: <span className="font-medium text-gray-600">{new Date(dataVencimento + 'T12:00:00').toLocaleDateString('pt-BR')}</span></p>}
               </div>
             </div>
           </div>

@@ -8,7 +8,7 @@ import { formatCurrency } from '@/lib/utils'
 import { toast } from 'sonner'
 import { Plus, Search, FileText, Eye, CheckCircle, Loader2, Trash2, MessageCircle } from 'lucide-react'
 import type { Invoice } from '@/types'
-import { faturaEstaAtrasada, valorEmAtraso, ehParcelada, aplicarPagamentoEmParcela, saldoFatura, recebidoNoPeriodo } from '@/lib/faturas'
+import { faturaEstaAtrasada, valorEmAtraso, ehParcelada, aplicarPagamentoEmParcela, saldoFatura, recebidoNoPeriodo, totalDevido } from '@/lib/faturas'
 
 const statusCls: Record<string, string> = {
   pago: 'bg-green-100 text-green-700',
@@ -156,7 +156,7 @@ export function Invoices() {
           })
         : (inv as any).parcelas
       await updateDoc(doc(db, 'invoices', inv.id), {
-        status: 'pago', data_pagamento: dataPgto, valor_pago: inv.total, forma_pagamento_recebido: baixaFormaPgto, forma_pagamento_sub: baixaSubOpcao || null, observacao_pagamento: baixaObservacao || null, updated_at: Timestamp.now(),
+        status: 'pago', data_pagamento: dataPgto, valor_pago: totalDevido(inv), forma_pagamento_recebido: baixaFormaPgto, forma_pagamento_sub: baixaSubOpcao || null, observacao_pagamento: baixaObservacao || null, updated_at: Timestamp.now(),
         ...(parcelasBaixa ? { parcelas: parcelasBaixa } : {}),
       })
       // Atualiza contas_receber
@@ -170,7 +170,7 @@ export function Invoices() {
       try {
         const agora = baixaData ? new Date(baixaData + 'T12:00:00') : new Date()
         const jaRegistrado = (inv as any).valor_pago || 0
-        const valorRestante = inv.total - jaRegistrado
+        const valorRestante = totalDevido(inv) - jaRegistrado
         if (valorRestante > 0.01) {
           await addDoc(collection(db, 'receitas'), {
             descricao: `Fatura ${inv.numero} paga`,
@@ -195,7 +195,7 @@ export function Invoices() {
         invoice_id: inv.id, cliente_nome: inv.cliente_nome, valor: inv.total,
         usuario_id: (inv as any).vendedor_id || '', lida: false, created_at: Timestamp.now(),
       }).catch(() => {})
-      setInvoices(prev => prev.map(i => i.id === inv.id ? { ...i, status: 'pago', data_pagamento: dataPgto, valor_pago: inv.total, ...(parcelasBaixa ? { parcelas: parcelasBaixa } : {}) } as any : i))
+      setInvoices(prev => prev.map(i => i.id === inv.id ? { ...i, status: 'pago', data_pagamento: dataPgto, valor_pago: totalDevido(inv), ...(parcelasBaixa ? { parcelas: parcelasBaixa } : {}) } as any : i))
       setModalBaixa(null)
     } catch (e) { console.error(e); alert('Erro ao marcar como pago') }
     finally { setSalvandoBaixa(false) }
@@ -224,7 +224,7 @@ export function Invoices() {
       let novoStatus: string
       if (novoValor <= 0) {
         novoStatus = (inv as any).statusOriginal || 'enviado'
-      } else if (novoValor >= inv.total - 0.01) {
+      } else if (novoValor >= totalDevido(inv) - 0.01) {
         novoStatus = 'pago'
       } else {
         novoStatus = 'parcial'
@@ -329,7 +329,7 @@ export function Invoices() {
     if (!valor || valor <= 0) { alert('Informe um valor válido'); return }
     const totalPagoAntes = (modalParcial as any).valor_pago || 0
     const novoTotalPago = totalPagoAntes + valor
-    const restante = modalParcial.total - novoTotalPago
+    const restante = totalDevido(modalParcial) - novoTotalPago
     const novoStatus = restante <= 0.01 ? 'pago' : (parcelarSaldoAtivo ? 'parcial' : 'parcial')
     setSalvandoParcial(true)
     try {
@@ -355,7 +355,7 @@ export function Invoices() {
         // e as demais são reajustadas para o saldo real
         const idxProxima = novasParcelas.findIndex((p: any) => p.status !== 'pago')
         if (idxProxima >= 0) {
-          novasParcelas = aplicarPagamentoEmParcela(novasParcelas, idxProxima, valor, modalParcial.total, novoTotalPago, {
+          novasParcelas = aplicarPagamentoEmParcela(novasParcelas, idxProxima, valor, totalDevido(modalParcial), novoTotalPago, {
             data_pagamento: parcialData,
             forma_pagamento: parcialFormaPgto,
           })
@@ -514,11 +514,11 @@ export function Invoices() {
 
       const totalPagoAntes = (inv as any).valor_pago || 0
       const novoTotalPago = Math.round((totalPagoAntes + valor) * 100) / 100
-      const restante = inv.total - novoTotalPago
+      const restante = totalDevido(inv) - novoTotalPago
 
       // Registra o pagamento nesta parcela e reajusta as que faltam para somarem
       // exatamente o saldo real (pagou a menos: soma nas próximas; a mais: desconta)
-      const novasParcelas = aplicarPagamentoEmParcela(parcelas, pagandoParcelaIdx, valor, inv.total, novoTotalPago, {
+      const novasParcelas = aplicarPagamentoEmParcela(parcelas, pagandoParcelaIdx, valor, totalDevido(inv), novoTotalPago, {
         data_pagamento: parcelaDataPgto,
         forma_pagamento: parcelaForma,
       })
@@ -594,7 +594,7 @@ export function Invoices() {
       }).join('\n')
       totalMsgVar = `Total: ${formatCurrency(inv.total)}\n\n📋 *Parcelas:*\n${linhas}`
     } else if (valorPago > 0) {
-      const saldo = Math.max(0, inv.total - valorPago)
+      const saldo = saldoFatura(inv)
       totalMsgVar = `Total: ${formatCurrency(inv.total)}\n✅ Já pago: ${formatCurrency(valorPago)}${dpStr ? ` em ${dpStr}` : ''}${formaPgto ? ` via ${formaPgto}` : ''}\n💰 Saldo: ${formatCurrency(saldo)}\n📅 Vencimento: ${dataVenc}`
     } else {
       totalMsgVar = `Total: ${formatCurrency(inv.total)}\n📅 Vencimento: ${dataVenc}`
@@ -611,7 +611,7 @@ export function Invoices() {
       .replace(/{TOTAL}/g, formatCurrency(inv.total))
       .replace(/{TOTAL_MSG}/g, totalMsgVar)
       .replace(/{JA_PAGO}/g, valorPago > 0 ? formatCurrency(valorPago) : '')
-      .replace(/{SALDO}/g, valorPago > 0 ? formatCurrency(Math.max(0, inv.total - valorPago)) : formatCurrency(inv.total))
+      .replace(/{SALDO}/g, formatCurrency(saldoFatura(inv)))
       .replace(/{VENCIMENTO}/g, dataVenc)
       .replace(/{DATA_ENVIO}/g, dataEnvio)
       .replace(/{LINK}/g, invoiceUrl)
@@ -824,7 +824,7 @@ export function Invoices() {
                         <div className="text-xs mt-0.5 text-right">
                           <span className="text-green-600">Pago: {formatCurrency((inv as any).valor_pago)}</span>
                           <span className="text-gray-400 mx-1">·</span>
-                          <span className="text-red-500">Falta: {formatCurrency(inv.total - (inv as any).valor_pago)}</span>
+                          <span className="text-red-500">Falta: {formatCurrency(saldoFatura(inv))}</span>
                         </div>
                       )}
                       {faturaAtrasada(inv) && (
@@ -943,7 +943,7 @@ export function Invoices() {
                   {inv.status === 'parcial' && (inv as any).valor_pago > 0 && (
                     <div className="flex gap-3 text-xs">
                       <span className="text-green-600">Pago: {formatCurrency((inv as any).valor_pago)}</span>
-                      <span className="text-red-500">Falta: {formatCurrency(inv.total - (inv as any).valor_pago)}</span>
+                      <span className="text-red-500">Falta: {formatCurrency(saldoFatura(inv))}</span>
                     </div>
                   )}
                   {faturaAtrasada(inv) && (
@@ -1061,7 +1061,7 @@ export function Invoices() {
               const pagas = prcls.filter((p:any) => p.status === 'pago').length
               const parcialPagas = prcls.filter((p:any) => p.status === 'parcialmente_pago').length
               const totalPago = (modalParcelas as any).valor_pago || 0
-              const restante = modalParcelas.total - totalPago
+              const restante = totalDevido(modalParcelas) - totalPago
               return (
                 <div className="bg-gray-50 rounded-xl p-3 space-y-1 text-sm">
                   <div className="flex justify-between"><span className="text-gray-500">Parcelas pagas</span><span className="font-semibold">{pagas}/{prcls.length}</span></div>
@@ -1241,7 +1241,7 @@ export function Invoices() {
                   </div>
                   <div className="flex justify-between border-t border-gray-200 pt-1">
                     <span className="text-gray-500">Saldo restante</span>
-                    <span className="font-bold text-red-600">{formatCurrency(modalParcial.total - (modalParcial as any).valor_pago)}</span>
+                    <span className="font-bold text-red-600">{formatCurrency(saldoFatura(modalParcial))}</span>
                   </div>
                 </>
               )}
@@ -1254,7 +1254,7 @@ export function Invoices() {
                   type="number"
                   step="0.01"
                   min="0.01"
-                  max={modalParcial.total - ((modalParcial as any).valor_pago || 0)}
+                  max={saldoFatura(modalParcial)}
                   value={valorParcial}
                   onChange={e => setValorParcial(e.target.value)}
                   placeholder="0.00"
@@ -1285,7 +1285,7 @@ export function Invoices() {
             {(() => {
               const valorAtual = parseFloat(valorParcial) || 0
               const jaRecebido = (modalParcial as any).valor_pago || 0
-              const saldoAposEste = modalParcial.total - jaRecebido - valorAtual
+              const saldoAposEste = totalDevido(modalParcial) - jaRecebido - valorAtual
               return saldoAposEste > 0.01 ? (
                 <div className="border border-dashed border-[#6F2738] rounded-xl overflow-hidden">
                   <button

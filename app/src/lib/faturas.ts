@@ -3,12 +3,24 @@
 
 const arred = (v: number) => Math.round((v || 0) * 100) / 100
 
+// Datas escolhidas no calendário eram gravadas como meia-noite UTC
+// (ex.: 24/11 00:00 UTC = 23/11 20:00 nos EUA) e venciam um dia antes.
+// Se o horário é exatamente meia-noite UTC, usa o dia UTC (o dia escolhido).
+function corrigirDataSoDia(d: Date): Date {
+  if (d.getUTCHours() === 0 && d.getUTCMinutes() === 0 && d.getUTCSeconds() === 0 && d.getUTCMilliseconds() === 0) {
+    return new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 12, 0, 0)
+  }
+  return d
+}
+
 export function parseDataFlex(v: any): Date | null {
   if (!v) return null
   try {
-    if (typeof v?.toDate === 'function') return v.toDate()
-    if (typeof v === 'object' && typeof v.seconds === 'number') return new Date(v.seconds * 1000)
-    if (v instanceof Date) return isNaN(v.getTime()) ? null : v
+    let d0: Date | null = null
+    if (typeof v?.toDate === 'function') d0 = v.toDate()
+    else if (typeof v === 'object' && typeof v.seconds === 'number') d0 = new Date(v.seconds * 1000)
+    else if (v instanceof Date) d0 = isNaN(v.getTime()) ? null : v
+    if (d0) return corrigirDataSoDia(d0)
     const s = String(v).trim()
     const dm = s.match(/^(\d{2})\/(\d{2})\/(\d{4})/)
     if (dm) { const d = new Date(`${dm[3]}-${dm[2]}-${dm[1]}T12:00:00`); return isNaN(d.getTime()) ? null : d }
@@ -30,8 +42,31 @@ function inicioDeHoje(): Date {
   const h = new Date(); h.setHours(0, 0, 0, 0); return h
 }
 
+// Valor que o cliente precisa pagar pela fatura: total menos o adiantamento/depósito
+export function totalDevido(inv: any): number {
+  return Math.max(0, arred((inv.total || 0) - (inv.deposit || 0)))
+}
+
 export function saldoFatura(inv: any): number {
-  return Math.max(0, arred((inv.total || 0) - (inv.valor_pago || 0)))
+  return Math.max(0, arred(totalDevido(inv) - (inv.valor_pago || 0)))
+}
+
+/**
+ * Realinha as datas das parcelas em aberto para a nova data de vencimento:
+ * a primeira parcela em aberto vence na data escolhida e as seguintes mês a mês.
+ * Parcelas já pagas não mudam.
+ */
+export function realinharDatasParcelas(parcelas: any[], novaData: string): any[] {
+  if (!novaData || !Array.isArray(parcelas)) return parcelas
+  const base = new Date(novaData + 'T12:00:00')
+  if (isNaN(base.getTime())) return parcelas
+  let k = 0
+  return parcelas.map(p => {
+    if (p.status === 'pago') return p
+    const d = new Date(base); d.setMonth(d.getMonth() + k++)
+    const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    return { ...p, data: iso }
+  })
 }
 
 export function ehParcelada(inv: any): boolean {
