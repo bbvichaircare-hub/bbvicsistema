@@ -1,3 +1,4 @@
+import { v4 as uuidv4 } from 'uuid'
 // ============================================
 // BBVIC GESTÃO - CONSIGNAÇÃO
 // ============================================
@@ -222,7 +223,7 @@ export async function registrarVendaConsignacao(params: {
     observacoes: `Venda de produto em consignação (${consignacao.produto_nome})`,
     vendedor_id,
     vendedor_nome: vendedor_nome || '',
-    public_token: Math.random().toString(36).substring(2, 15),
+    public_token: uuidv4(),
     tipo_pagamento: 'avista',
     numero_parcelas: 1,
     valor_pago: 0,

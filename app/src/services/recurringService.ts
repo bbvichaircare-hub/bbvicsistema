@@ -1,3 +1,4 @@
+import { v4 as uuidv4 } from 'uuid'
 import { collection, query, where, getDocs, Timestamp, addDoc, doc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { Invoice, InvoiceItem } from '@/types';
@@ -137,7 +138,7 @@ export async function gerarFaturaRecorrente(
       observacoes: recorrente.observacoes || `Fatura recorrente gerada automaticamente`,
       vendedor_id: recorrente.vendedor_id || '',
       vendedor_nome: recorrente.vendedor_nome || '',
-      public_token: Math.random().toString(36).substring(2, 15),
+      public_token: uuidv4(),
       
       // Campos de recorrência
       recorrente_id: recorrente.id,
