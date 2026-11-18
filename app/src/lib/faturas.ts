@@ -162,3 +162,29 @@ export function reajustarParcelasPendentes(parcelas: any[], totalFatura: number,
   })
   return novas
 }
+
+/**
+ * Quanto a fatura RECEBEU dentro do período [inicio, fim].
+ * - Parcelas com data de pagamento: conta cada parcela paga no período.
+ * - Fatura paga sem parcelas: conta o total na data de pagamento
+ *   (menos o que já tinha entrado antes em pagamentos parciais, se houver registro).
+ * - Pagamento parcial sem parcelas: conta o valor pago pela data da última atualização
+ *   (o sistema não guarda a data de cada parcial nesse caso).
+ */
+export function recebidoNoPeriodo(inv: any, inicio: Date, fim: Date): number {
+  if (inv.status === 'cancelado') return 0
+  const dentro = (d: Date | null) => !!d && d >= inicio && d <= fim
+
+  if (Array.isArray(inv.parcelas) && inv.parcelas.some((p: any) => p.data_pagamento)) {
+    return arred(inv.parcelas
+      .filter((p: any) => (p.status === 'pago' || p.valor_pago > 0) && dentro(parseDataFlex(p.data_pagamento)))
+      .reduce((s: number, p: any) => s + (p.valor_pago || (p.status === 'pago' ? p.valor : 0) || 0), 0))
+  }
+  if (inv.status === 'pago') {
+    return dentro(parseDataFlex(inv.data_pagamento) ?? parseDataFlex(inv.updated_at)) ? arred(inv.total || 0) : 0
+  }
+  if ((inv.valor_pago || 0) > 0) {
+    return dentro(parseDataFlex(inv.data_pagamento) ?? parseDataFlex(inv.updated_at)) ? arred(inv.valor_pago) : 0
+  }
+  return 0
+}

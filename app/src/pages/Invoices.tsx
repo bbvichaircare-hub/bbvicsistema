@@ -8,7 +8,7 @@ import { formatCurrency } from '@/lib/utils'
 import { toast } from 'sonner'
 import { Plus, Search, FileText, Eye, CheckCircle, Loader2, Trash2, MessageCircle } from 'lucide-react'
 import type { Invoice } from '@/types'
-import { faturaEstaAtrasada, valorEmAtraso, ehParcelada, aplicarPagamentoEmParcela } from '@/lib/faturas'
+import { faturaEstaAtrasada, valorEmAtraso, ehParcelada, aplicarPagamentoEmParcela, saldoFatura, recebidoNoPeriodo } from '@/lib/faturas'
 
 const statusCls: Record<string, string> = {
   pago: 'bg-green-100 text-green-700',
@@ -149,8 +149,15 @@ export function Invoices() {
     setSalvandoBaixa(true)
     const dataPgto = baixaData ? Timestamp.fromDate(new Date(baixaData + 'T12:00:00')) : Timestamp.now()
     try {
+      // Parcelas em aberto passam a pagas nesta data (o restante entra nesta baixa)
+      const parcelasBaixa = Array.isArray((inv as any).parcelas)
+        ? (inv as any).parcelas.map((p: any) => p.status === 'pago' ? p : {
+            ...p, status: 'pago', valor_pago: p.valor || 0, data_pagamento: baixaData, forma_pagamento: baixaFormaPgto,
+          })
+        : (inv as any).parcelas
       await updateDoc(doc(db, 'invoices', inv.id), {
-        status: 'pago', data_pagamento: dataPgto, forma_pagamento_recebido: baixaFormaPgto, forma_pagamento_sub: baixaSubOpcao || null, observacao_pagamento: baixaObservacao || null, updated_at: Timestamp.now(),
+        status: 'pago', data_pagamento: dataPgto, valor_pago: inv.total, forma_pagamento_recebido: baixaFormaPgto, forma_pagamento_sub: baixaSubOpcao || null, observacao_pagamento: baixaObservacao || null, updated_at: Timestamp.now(),
+        ...(parcelasBaixa ? { parcelas: parcelasBaixa } : {}),
       })
       // Atualiza contas_receber
       const crSnap = await getDocs(query(collection(db, 'contas_receber'), where('invoice_id', '==', inv.id)))
@@ -161,7 +168,7 @@ export function Invoices() {
       await criarComissaoAuto(inv.id, inv)
       // Registrar receita do mês — apenas o valor ainda não registrado (evita duplicidade com parciais)
       try {
-        const agora = new Date()
+        const agora = baixaData ? new Date(baixaData + 'T12:00:00') : new Date()
         const jaRegistrado = (inv as any).valor_pago || 0
         const valorRestante = inv.total - jaRegistrado
         if (valorRestante > 0.01) {
@@ -173,7 +180,7 @@ export function Invoices() {
             valor: valorRestante,
             mes: agora.getMonth() + 1,
             ano: agora.getFullYear(),
-            data: Timestamp.now(),
+            data: dataPgto,
             origem: 'fatura',
             vendedor_id: (inv as any).vendedor_id || '',
             created_at: Timestamp.now(),
@@ -188,7 +195,7 @@ export function Invoices() {
         invoice_id: inv.id, cliente_nome: inv.cliente_nome, valor: inv.total,
         usuario_id: (inv as any).vendedor_id || '', lida: false, created_at: Timestamp.now(),
       }).catch(() => {})
-      setInvoices(prev => prev.map(i => i.id === inv.id ? { ...i, status: 'pago' } : i))
+      setInvoices(prev => prev.map(i => i.id === inv.id ? { ...i, status: 'pago', data_pagamento: dataPgto, valor_pago: inv.total, ...(parcelasBaixa ? { parcelas: parcelasBaixa } : {}) } as any : i))
       setModalBaixa(null)
     } catch (e) { console.error(e); alert('Erro ao marcar como pago') }
     finally { setSalvandoBaixa(false) }
@@ -358,7 +365,7 @@ export function Invoices() {
       await updateDoc(doc(db, 'invoices', modalParcial.id), {
         valor_pago: novoTotalPago,
         status: novoStatus,
-        data_pagamento: novoStatus === 'pago' ? dataParcial : null,
+        data_pagamento: dataParcial, // data do último pagamento recebido
         forma_pagamento_recebido: parcialFormaPgto || '',
         parcelas_ativo: parcelasAtivaNova,
         parcelas: novasParcelas,
@@ -396,7 +403,7 @@ export function Invoices() {
         invoice_id: modalParcial.id, cliente_nome: modalParcial.cliente_nome,
         valor, usuario_id: (modalParcial as any).vendedor_id || '', lida: false, created_at: Timestamp.now(),
       }).catch(() => {})
-      setInvoices(prev => prev.map(i => i.id === modalParcial.id ? { ...i, status: novoStatus, valor_pago: novoTotalPago, parcelas: novasParcelas, parcelas_ativo: parcelasAtivaNova } as any : i))
+      setInvoices(prev => prev.map(i => i.id === modalParcial.id ? { ...i, status: novoStatus, valor_pago: novoTotalPago, data_pagamento: dataParcial, parcelas: novasParcelas, parcelas_ativo: parcelasAtivaNova } as any : i))
       setModalParcial(null)
       setValorParcial('')
       setParcialFormaPgto('')
@@ -432,6 +439,11 @@ export function Invoices() {
 
   const MESES_PT = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']
 
+  // Período do card Receita: o filtro de datas, ou o mês atual quando não há filtro
+  const periodoInicioCard = filtroDataInicio ? new Date(filtroDataInicio + 'T00:00:00') : new Date(anoFiltro, mesFiltro - 1, 1, 0, 0, 0)
+  const periodoFimCard = filtroDataFim ? new Date(filtroDataFim + 'T23:59:59') : new Date(anoFiltro, mesFiltro, 0, 23, 59, 59)
+  const recebidoPeriodo = (i: any) => recebidoNoPeriodo(i, periodoInicioCard, periodoFimCard)
+
   const filtered = invoices.filter(inv => {
     const matchSearch = inv.numero.toLowerCase().includes(searchTerm.toLowerCase()) || inv.cliente_nome.toLowerCase().includes(searchTerm.toLowerCase())
 
@@ -447,8 +459,8 @@ export function Invoices() {
         ? (faturaAtrasada(inv))
         : inv.status === filterStatus
     let matchCard = true
-    if (activeCard === 'pago') matchCard = inv.status === 'pago'
-    else if (activeCard === 'pendente') matchCard = ['enviado','aguardando_confirmacao','visualizado'].includes(inv.status) && !faturaAtrasada(inv)
+    if (activeCard === 'pago') matchCard = recebidoPeriodo(inv) > 0
+    else if (activeCard === 'pendente') matchCard = !['pago','cancelado','rascunho'].includes(inv.status) && saldoFatura(inv) - valorEmAtraso(inv) > 0.01
     else if (activeCard === 'parcial') matchCard = inv.status === 'parcial'
     let matchDate = true
     if (filtroDataInicio || filtroDataFim) {
@@ -462,23 +474,27 @@ export function Invoices() {
         if (filtroDataFim) matchDate = matchDate && invDate <= new Date(filtroDataFim + 'T23:59:59')
       } catch { matchDate = true }
     }
-    return matchSearch && matchStatus && matchCard && matchDate
+    return matchSearch && matchStatus && matchCard && (activeCard === 'pago' || matchDate)
   })
 
   // Contagem/valor de TODAS as atrasadas (ignora filtro de data/status)
   const todasAtrasadas = invoices.filter(i => faturaAtrasada(i))
 
+  const naoRascunho = (i: any) => i.status !== 'rascunho'
+
   const totais = {
-    pago: filtered.filter(i => ['pago','parcial'].includes(i.status)).reduce((s, i) => {
-      if (i.status === 'pago') return s + (i.total - (i.desconto || 0))
-      return s + ((i as any).valor_pago || 0)
-    }, 0),
-    pagoGeral: filtered.filter(i => i.status === 'pago').reduce((s, i) => s + i.total, 0),
-    pendente: filtered.filter(i => ['enviado','aguardando_confirmacao','visualizado','rascunho','pendente'].includes(i.status) && !faturaAtrasada(i)).reduce((s, i) => s + i.total, 0),
+    // Dinheiro que entrou no período (não o total histórico)
+    pago: invoices.reduce((s, i) => s + recebidoPeriodo(i), 0),
+    // Faturas quitadas no período (valor total delas)
+    pagoGeral: invoices.filter(i => i.status === 'pago' && recebidoPeriodo(i) > 0).reduce((s, i) => s + (i.total || 0), 0),
+    // A vencer: saldo em aberto que ainda NÃO venceu (todas as datas)
+    pendente: invoices.filter(i => !['pago', 'cancelado'].includes(i.status) && naoRascunho(i))
+      .reduce((s, i) => s + Math.max(0, saldoFatura(i) - valorEmAtraso(i)), 0),
     atrasado: todasAtrasadas.reduce((s, i) => s + valorEmAtraso(i), 0),
-    parcial: filtered.filter(i => i.status === 'parcial').reduce((s, i) => s + (i.total - ((i as any).valor_pago || 0)), 0),
+    // Quanto ainda falta nas faturas com pagamento parcial
+    parcial: invoices.filter(i => i.status === 'parcial').reduce((s, i) => s + saldoFatura(i), 0),
     countAtrasado: todasAtrasadas.length,
-    countParcial: filtered.filter(i => i.status === 'parcial').length,
+    countParcial: invoices.filter(i => i.status === 'parcial').length,
     mesLabel: (filtroDataInicio || filtroDataFim) ? `${filtroDataInicio || ''}${filtroDataInicio && filtroDataFim ? ' – ' : ''}${filtroDataFim || ''}` : `${MESES_PT[mesFiltro - 1]} ${anoFiltro}`,
   }
 
@@ -511,7 +527,7 @@ export function Invoices() {
         parcelas: novasParcelas,
         valor_pago: novoTotalPago,
         status: novoStatus,
-        data_pagamento: novoStatus === 'pago' ? dataPgto : null,
+        data_pagamento: dataPgto, // data do último pagamento recebido
         ...(novoStatus === 'pago' ? { forma_pagamento_recebido: parcelaForma } : { forma_pagamento_recebido: deleteField() }),
         updated_at: Timestamp.now(),
       })
@@ -544,7 +560,7 @@ export function Invoices() {
         invoice_id: inv.id, cliente_nome: inv.cliente_nome, valor,
         usuario_id: (inv as any).vendedor_id || '', lida: false, created_at: Timestamp.now(),
       }).catch(() => {})
-      const updatedInv = { ...inv, parcelas: novasParcelas, valor_pago: novoTotalPago, status: novoStatus } as any
+      const updatedInv = { ...inv, parcelas: novasParcelas, valor_pago: novoTotalPago, status: novoStatus, data_pagamento: dataPgto } as any
       setInvoices(prev => prev.map(i => i.id === inv.id ? updatedInv : i))
       setModalParcelas(updatedInv)
       setPagandoParcelaIdx(null)
@@ -685,14 +701,14 @@ export function Invoices() {
         >
           <p className="text-xs text-green-700 font-medium mb-1">Receita — {totais.mesLabel}</p>
           <p className="text-xl font-bold text-green-700">{formatCurrency(totais.pago)}</p>
-          <p className="text-xs text-green-500 mt-0.5">Pagas completo: {formatCurrency(totais.pagoGeral)}</p>
+          <p className="text-xs text-green-500 mt-0.5">Faturas quitadas no período: {formatCurrency(totais.pagoGeral)}</p>
           {activeCard === 'pago' && <p className="text-xs text-green-600 mt-1">Clique para limpar filtro</p>}
         </button>
         <button
           onClick={() => setActiveCard(activeCard === 'pendente' ? null : 'pendente')}
           className={`text-left rounded-xl p-4 border transition-all ${activeCard === 'pendente' ? 'bg-orange-100 border-orange-400 ring-2 ring-orange-300' : 'bg-orange-50 border-orange-100 hover:border-orange-300'}`}
         >
-          <p className="text-xs text-orange-700 font-medium mb-1">A Receber</p>
+          <p className="text-xs text-orange-700 font-medium mb-1">A Receber (a vencer)</p>
           <p className="text-xl font-bold text-orange-700">{formatCurrency(totais.pendente)}</p>
           {activeCard === 'pendente' && <p className="text-xs text-orange-600 mt-1">Clique para limpar filtro</p>}
         </button>
@@ -709,7 +725,7 @@ export function Invoices() {
           onClick={() => setActiveCard(activeCard === 'parcial' ? null : 'parcial')}
           className={`text-left rounded-xl p-4 border transition-all ${activeCard === 'parcial' ? 'bg-yellow-100 border-yellow-400 ring-2 ring-yellow-300' : 'bg-yellow-50 border-yellow-100 hover:border-yellow-300'}`}
         >
-          <p className="text-xs text-yellow-700 font-medium mb-1">Pago Parcial</p>
+          <p className="text-xs text-yellow-700 font-medium mb-1">Pago Parcial — falta</p>
           <p className="text-xl font-bold text-yellow-700">{formatCurrency(totais.parcial)}</p>
           <p className="text-xs text-yellow-500 mt-0.5">{totais.countParcial} fatura{totais.countParcial !== 1 ? 's' : ''}</p>
           {activeCard === 'parcial' && <p className="text-xs text-yellow-600 mt-1">Clique para limpar filtro</p>}
