@@ -8,6 +8,7 @@ import { formatCurrency } from '@/lib/utils'
 import { toast } from 'sonner'
 import { Plus, Search, FileText, Eye, CheckCircle, Loader2, Trash2, MessageCircle } from 'lucide-react'
 import type { Invoice } from '@/types'
+import { faturaEstaAtrasada, valorEmAtraso, ehParcelada, aplicarPagamentoEmParcela } from '@/lib/faturas'
 
 const statusCls: Record<string, string> = {
   pago: 'bg-green-100 text-green-700',
@@ -342,6 +343,16 @@ export function Invoices() {
             : valorParcela
           return { numero: i + 1, valor: vp, data: d.toISOString().split('T')[0], status: 'pendente' }
         })
+      } else if (ehParcelada(modalParcial) && restante > -0.01) {
+        // Fatura já parcelada: o pagamento entra na próxima parcela em aberto
+        // e as demais são reajustadas para o saldo real
+        const idxProxima = novasParcelas.findIndex((p: any) => p.status !== 'pago')
+        if (idxProxima >= 0) {
+          novasParcelas = aplicarPagamentoEmParcela(novasParcelas, idxProxima, valor, modalParcial.total, novoTotalPago, {
+            data_pagamento: parcialData,
+            forma_pagamento: parcialFormaPgto,
+          })
+        }
       }
 
       await updateDoc(doc(db, 'invoices', modalParcial.id), {
@@ -385,7 +396,7 @@ export function Invoices() {
         invoice_id: modalParcial.id, cliente_nome: modalParcial.cliente_nome,
         valor, usuario_id: (modalParcial as any).vendedor_id || '', lida: false, created_at: Timestamp.now(),
       }).catch(() => {})
-      setInvoices(prev => prev.map(i => i.id === modalParcial.id ? { ...i, status: novoStatus, valor_pago: novoTotalPago } as any : i))
+      setInvoices(prev => prev.map(i => i.id === modalParcial.id ? { ...i, status: novoStatus, valor_pago: novoTotalPago, parcelas: novasParcelas, parcelas_ativo: parcelasAtivaNova } as any : i))
       setModalParcial(null)
       setValorParcial('')
       setParcialFormaPgto('')
@@ -404,7 +415,8 @@ export function Invoices() {
     const venc = (inv.data_vencimento as any)?.toDate
       ? (inv.data_vencimento as any).toDate().toLocaleDateString('pt-BR')
       : inv.data_vencimento ? new Date(inv.data_vencimento as any).toLocaleDateString('pt-BR') : ''
-    const msg = `Olá ${inv.cliente_nome}! 😊\n\nPassando para lembrar que sua fatura ${inv.numero} da BBVIC Hair Care no valor de ${formatCurrency(inv.total)} está em atraso desde ${venc}.\n\nPor favor, entre em contato para regularizar. Obrigada! 🙏`
+    const emAtraso = valorEmAtraso(inv)
+    const msg = `Olá ${inv.cliente_nome}! 😊\n\nPassando para lembrar que sua fatura ${inv.numero} da BBVIC Hair Care tem ${formatCurrency(emAtraso > 0 ? emAtraso : inv.total)} em atraso${ehParcelada(inv) ? '' : ` desde ${venc}`}.\n\nPor favor, entre em contato para regularizar. Obrigada! 🙏`
     if (via === 'whatsapp') {
       const url = `https://wa.me/1${phone}?text=${encodeURIComponent(msg)}`
       const a = document.createElement('a'); a.href = url; a.target = '_blank'; a.rel = 'noopener noreferrer'
@@ -415,58 +427,8 @@ export function Invoices() {
     }
   }
 
-  // Detecção agressiva de fatura atrasada — verifica todos os campos de data possíveis
-  const faturaAtrasada = (inv: any): boolean => {
-    if (inv.status === 'pago') return false
-    if (inv.status === 'cancelado') return false
-
-    const hoje = new Date(); hoje.setHours(0, 0, 0, 0)
-
-    const parseDate = (v: any): Date | null => {
-      if (!v) return null
-      try {
-        if (typeof v?.toDate === 'function') return v.toDate()
-        if (typeof v === 'object' && typeof v.seconds === 'number') return new Date(v.seconds * 1000)
-        if (v instanceof Date) return isNaN(v.getTime()) ? null : v
-        const s = String(v).trim()
-        const dm = s.match(/^(\d{2})\/(\d{2})\/(\d{4})/)
-        if (dm) { const d = new Date(`${dm[3]}-${dm[2]}-${dm[1]}T12:00:00`); return isNaN(d.getTime()) ? null : d }
-        const ym = s.match(/^(\d{4})-(\d{2})-(\d{2})/)
-        if (ym) { const d = new Date(`${ym[1]}-${ym[2]}-${ym[3]}T12:00:00`); return isNaN(d.getTime()) ? null : d }
-        const d = new Date(s)
-        return isNaN(d.getTime()) ? null : d
-      } catch { return null }
-    }
-
-    const vencida = (d: Date | null) => !!d && (() => { const v = new Date(d!); v.setHours(23,59,59,999); return v < hoje })()
-
-    // Para faturas PARCELADAS: verificar SOMENTE as datas das parcelas pendentes
-    if (Array.isArray(inv.parcelas) && inv.parcelas.length > 0) {
-      const pendentes = inv.parcelas.filter((p: any) => p.status !== 'pago')
-      if (pendentes.length === 0) return false // todas pagas
-      for (const p of pendentes) {
-        const d = parseDate(p.data_vencimento ?? p.data ?? p.vencimento ?? p.due_date)
-        if (d && vencida(d)) return true
-      }
-      return false // parcelas pendentes ainda não venceram
-    }
-
-    // Para faturas NÃO parceladas: verificar data geral de vencimento
-    if (inv.status === 'atrasado') return true
-    const camposVenc = ['data_vencimento','vencimento','due_date','dataVencimento','data_venc','dueDate','data']
-    for (const campo of camposVenc) {
-      const d = parseDate(inv[campo])
-      if (d) return vencida(d)
-    }
-    const camposCriacao = ['data_emissao','created_at','createdAt','data_criacao']
-    for (const campo of camposCriacao) {
-      const d = parseDate(inv[campo])
-      if (d) { const l = new Date(d); l.setDate(l.getDate() + 15); return l < hoje }
-    }
-
-    // 4. Sem nenhuma data: se status indica não pago, é atrasado
-    return ['enviado','parcial','visualizado','aguardando_confirmacao','pendente'].includes(inv.status)
-  }
+  // Fatura atrasada = tem parcela ou vencimento que JÁ PASSOU e ainda tem saldo (regra única em lib/faturas)
+  const faturaAtrasada = (inv: any): boolean => faturaEstaAtrasada(inv)
 
   const MESES_PT = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']
 
@@ -476,13 +438,13 @@ export function Invoices() {
     // Quando filtro "atrasado" está ativo: ignora filtro de data e status
     // Mostra TODAS as faturas atrasadas independente do mês
     if (activeCard === 'atrasado') {
-      return (faturaAtrasada(inv) || inv.status === 'atrasado') && matchSearch
+      return (faturaAtrasada(inv)) && matchSearch
     }
 
     const matchStatus = filterStatus === 'all'
       ? true
       : filterStatus === 'atrasado'
-        ? (faturaAtrasada(inv) || inv.status === 'atrasado')
+        ? (faturaAtrasada(inv))
         : inv.status === filterStatus
     let matchCard = true
     if (activeCard === 'pago') matchCard = inv.status === 'pago'
@@ -504,7 +466,7 @@ export function Invoices() {
   })
 
   // Contagem/valor de TODAS as atrasadas (ignora filtro de data/status)
-  const todasAtrasadas = invoices.filter(i => faturaAtrasada(i) || i.status === 'atrasado')
+  const todasAtrasadas = invoices.filter(i => faturaAtrasada(i))
 
   const totais = {
     pago: filtered.filter(i => ['pago','parcial'].includes(i.status)).reduce((s, i) => {
@@ -513,7 +475,7 @@ export function Invoices() {
     }, 0),
     pagoGeral: filtered.filter(i => i.status === 'pago').reduce((s, i) => s + i.total, 0),
     pendente: filtered.filter(i => ['enviado','aguardando_confirmacao','visualizado','rascunho','pendente'].includes(i.status) && !faturaAtrasada(i)).reduce((s, i) => s + i.total, 0),
-    atrasado: todasAtrasadas.reduce((s, i) => s + i.total, 0),
+    atrasado: todasAtrasadas.reduce((s, i) => s + valorEmAtraso(i), 0),
     parcial: filtered.filter(i => i.status === 'parcial').reduce((s, i) => s + (i.total - ((i as any).valor_pago || 0)), 0),
     countAtrasado: todasAtrasadas.length,
     countParcial: filtered.filter(i => i.status === 'parcial').length,
@@ -534,48 +496,16 @@ export function Invoices() {
     try {
       const dataPgto = parcelaDataPgto ? Timestamp.fromDate(new Date(parcelaDataPgto + 'T12:00:00')) : Timestamp.now()
 
-      // Verifica se o pagamento é parcial para ESTA parcela
-      const valorDaParcela = parcela.valor || 0
-      const pagoAntesDaParcela = parcela.valor_pago || 0
-      const novoTotalPagoDaParcela = pagoAntesDaParcela + valor
-      const faltaNaParcela = Math.round((valorDaParcela - novoTotalPagoDaParcela) * 100) / 100
-      const parcelaFoiPagaCompleta = faltaNaParcela <= 0.01
-
-      // Se pagou parcial desta parcela, redistribui o saldo faltante nas próximas pendentes
-      let novasParcelas = parcelas.map((p: any, idx: number) => {
-        if (idx !== pagandoParcelaIdx) return p
-        return {
-          ...p,
-          status: parcelaFoiPagaCompleta ? 'pago' : 'parcialmente_pago',
-          valor_pago: novoTotalPagoDaParcela,
-          data_pagamento: parcelaDataPgto,
-          forma_pagamento: parcelaForma,
-        }
-      })
-
-      // Se pagou menos que a parcela: redistribui o saldo faltante nas parcelas seguintes
-      if (!parcelaFoiPagaCompleta && faltaNaParcela > 0.01) {
-        const indicePendentes = novasParcelas
-          .map((p: any, i: number) => ({ p, i }))
-          .filter(({ p, i }) => i > pagandoParcelaIdx && p.status !== 'pago')
-        if (indicePendentes.length > 0) {
-          const adicionalPorParcela = Math.round((faltaNaParcela / indicePendentes.length) * 100) / 100
-          novasParcelas = novasParcelas.map((p: any, idx: number) => {
-            const eUltimaPendente = indicePendentes[indicePendentes.length - 1]?.i === idx
-            const ePendente = indicePendentes.some(({ i }) => i === idx)
-            if (!ePendente) return p
-            // Ajusta o valor da parcela pendente somando o saldo redistribuído
-            const novoValor = eUltimaPendente
-              ? Math.round((p.valor + faltaNaParcela - adicionalPorParcela * (indicePendentes.length - 1)) * 100) / 100
-              : Math.round((p.valor + adicionalPorParcela) * 100) / 100
-            return { ...p, valor: novoValor }
-          })
-        }
-      }
-
       const totalPagoAntes = (inv as any).valor_pago || 0
-      const novoTotalPago = totalPagoAntes + valor
+      const novoTotalPago = Math.round((totalPagoAntes + valor) * 100) / 100
       const restante = inv.total - novoTotalPago
+
+      // Registra o pagamento nesta parcela e reajusta as que faltam para somarem
+      // exatamente o saldo real (pagou a menos: soma nas próximas; a mais: desconta)
+      const novasParcelas = aplicarPagamentoEmParcela(parcelas, pagandoParcelaIdx, valor, inv.total, novoTotalPago, {
+        data_pagamento: parcelaDataPgto,
+        forma_pagamento: parcelaForma,
+      })
       const novoStatus = restante <= 0.01 ? 'pago' : 'parcial'
       await updateDoc(doc(db, 'invoices', inv.id!), {
         parcelas: novasParcelas,
@@ -787,11 +717,11 @@ export function Invoices() {
       </div>
 
       {/* Banner faturas em atraso */}
-      {invoices.filter(i => faturaAtrasada(i) || i.status === 'atrasado').length > 0 && (
+      {invoices.filter(i => faturaAtrasada(i)).length > 0 && (
         <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center gap-3">
           <div className="flex-1">
             <p className="text-sm font-semibold text-red-700">
-              ⚠️ {invoices.filter(i => faturaAtrasada(i) || i.status === 'atrasado').length} fatura(s) em atraso
+              ⚠️ {invoices.filter(i => faturaAtrasada(i)).length} fatura(s) em atraso
             </p>
             <p className="text-xs text-red-500 mt-0.5">Use os botões WA ou SMS em cada fatura para enviar lembrete ao cliente</p>
           </div>
@@ -881,6 +811,9 @@ export function Invoices() {
                           <span className="text-red-500">Falta: {formatCurrency(inv.total - (inv as any).valor_pago)}</span>
                         </div>
                       )}
+                      {faturaAtrasada(inv) && (
+                        <p className="text-xs mt-0.5 font-semibold text-red-600">Em atraso: {formatCurrency(valorEmAtraso(inv))}</p>
+                      )}
                     </td>
                     <td className="px-5 py-4 text-right">
                       <div className="flex items-center justify-end gap-2">
@@ -901,7 +834,7 @@ export function Invoices() {
                             </button>
                           </>
                         )}
-                        {(faturaAtrasada(inv) || inv.status === 'atrasado') && (
+                        {(faturaAtrasada(inv)) && (
                           <>
                             <button onClick={() => sendLembrete(inv, 'whatsapp')} title="Lembrete WhatsApp" className="px-2 py-1.5 rounded-lg bg-green-600 text-white text-xs font-medium hover:bg-green-700">WA</button>
                             <button onClick={() => sendLembrete(inv, 'sms')} title="Lembrete SMS" className="px-2 py-1.5 rounded-lg bg-purple-600 text-white text-xs font-medium hover:bg-purple-700">SMS</button>
@@ -977,7 +910,7 @@ export function Invoices() {
                       <button onClick={() => sendWAFatura(inv)} title="Enviar WhatsApp" className="p-1.5 rounded-lg bg-green-100 text-green-700 hover:bg-green-200">
                         <MessageCircle className="w-4 h-4" />
                       </button>
-                      {(faturaAtrasada(inv) || inv.status === 'atrasado') && (
+                      {(faturaAtrasada(inv)) && (
                         <>
                           <button onClick={() => sendLembrete(inv, 'whatsapp')} className="px-2 py-1.5 rounded-lg bg-green-600 text-white text-xs font-medium">WA</button>
                           <button onClick={() => sendLembrete(inv, 'sms')} className="px-2 py-1.5 rounded-lg bg-purple-600 text-white text-xs font-medium">SMS</button>
@@ -996,6 +929,9 @@ export function Invoices() {
                       <span className="text-green-600">Pago: {formatCurrency((inv as any).valor_pago)}</span>
                       <span className="text-red-500">Falta: {formatCurrency(inv.total - (inv as any).valor_pago)}</span>
                     </div>
+                  )}
+                  {faturaAtrasada(inv) && (
+                    <p className="text-xs mt-1 font-semibold text-red-600">Em atraso: {formatCurrency(valorEmAtraso(inv))}</p>
                   )}
                 </div>
               </div>
@@ -1022,6 +958,9 @@ export function Invoices() {
                     <div>
                       <p className="text-sm font-semibold text-gray-800">
                         {p.status === 'pago' ? '✅' : p.status === 'parcialmente_pago' ? '⚠️' : '⏳'} {p.numero}ª parcela — {formatCurrency(p.valor)}
+                        {p.valor_original != null && Math.abs(p.valor_original - p.valor) > 0.009 && (
+                          <span className="ml-1 text-xs font-normal text-gray-400">(era {formatCurrency(p.valor_original)})</span>
+                        )}
                       </p>
                       <p className="text-xs text-gray-500 mt-0.5">
                         Vencimento: {p.data ? new Date(p.data + 'T12:00:00').toLocaleDateString('pt-BR') : '—'}

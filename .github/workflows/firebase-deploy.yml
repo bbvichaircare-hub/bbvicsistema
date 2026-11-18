@@ -45,7 +45,7 @@ jobs:
       - name: Compilar o site
         if: inputs.alvo != 'regras'
         run: |
-          npm install --no-audit --no-fund
+          npm ci --no-audit --no-fund
           npx vite build
 
       - name: Publicar regras do Firestore
