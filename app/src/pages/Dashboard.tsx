@@ -5,6 +5,7 @@ import { collection, query, where, getDocs, doc, updateDoc } from "firebase/fire
 import { db } from "@/lib/firebase"
 import { calcularReceitaMes, calcularAReceber, calcularAReceberQtd } from '@/lib/kpiUtils'
 import { formatCurrency } from "@/lib/utils"
+import { faturaEstaAtrasada, valorEmAtraso, saldoFatura } from '@/lib/faturas'
 import {
   TrendingUp, TrendingDown, DollarSign, Users, Clock,
   Plus, FileText, AlertCircle, ArrowUpRight, ArrowDownRight,
@@ -78,57 +79,8 @@ export function Dashboard() {
   const toDate = (v: any) => { try { return v?.toDate ? v.toDate() : (typeof v === 'object' && typeof v?.seconds === 'number' ? new Date(v.seconds * 1000) : new Date(v)) } catch { return new Date(0) } }
 
   // Função local e agressiva de detecção de fatura atrasada
-  const ehAtrasada = (inv: any): boolean => {
-    if (inv.status === 'pago') return false
-    if (inv.status === 'cancelado') return false
-
-    const hoje = new Date(); hoje.setHours(0, 0, 0, 0)
-
-    const parseQ = (v: any): Date | null => {
-      if (!v) return null
-      try {
-        if (typeof v?.toDate === 'function') return v.toDate()
-        if (typeof v === 'object' && typeof v.seconds === 'number') return new Date(v.seconds * 1000)
-        if (v instanceof Date) return isNaN(v.getTime()) ? null : v
-        const s = String(v).trim()
-        const dm = s.match(/^(\d{2})\/(\d{2})\/(\d{4})/)
-        if (dm) return new Date(`${dm[3]}-${dm[2]}-${dm[1]}T12:00:00`)
-        const ym = s.match(/^(\d{4})-(\d{2})-(\d{2})/)
-        if (ym) return new Date(`${ym[1]}-${ym[2]}-${ym[3]}T12:00:00`)
-        const d = new Date(s); return isNaN(d.getTime()) ? null : d
-      } catch { return null }
-    }
-
-    const vencida = (d: Date | null) => !!d && (() => { const v = new Date(d); v.setHours(23,59,59,999); return v < hoje })()
-
-    // Para faturas PARCELADAS: verificar SOMENTE as datas das parcelas pendentes
-    if (Array.isArray(inv.parcelas) && inv.parcelas.length > 0) {
-      const pendentes = inv.parcelas.filter((p: any) => p.status !== 'pago')
-      if (pendentes.length === 0) return false // todas pagas
-      for (const p of pendentes) {
-        const d = parseQ(p.data_vencimento ?? p.data ?? p.vencimento ?? p.due_date)
-        if (d && vencida(d)) return true
-      }
-      return false // parcelas pendentes ainda não venceram
-    }
-
-    // Para faturas NÃO parceladas: verificar data geral de vencimento
-    if (inv.status === 'atrasado') return true
-    const campos = ['data_vencimento','vencimento','due_date','dataVencimento','data_venc','dueDate','data']
-    for (const c of campos) {
-      const d = parseQ(inv[c])
-      if (d) return vencida(d)
-    }
-
-    // Fallback: criação + 15 dias
-    for (const c of ['data_emissao','created_at','createdAt','data_criacao']) {
-      const d = parseQ(inv[c])
-      if (d) { const l = new Date(d); l.setDate(l.getDate() + 15); return l < hoje }
-    }
-
-    // 4. Sem nenhuma data: se status indica não pago, é atrasado
-    return ['enviado','parcial','visualizado','aguardando_confirmacao','pendente'].includes(inv.status)
-  }
+  // Regra única de atraso (mesma da página de Faturas)
+  const ehAtrasada = (inv: any): boolean => faturaEstaAtrasada(inv)
 
   const calcularKPIRange = (invoices: any[], expenses: any[], inicio: string, fim: string) => {
     const iniDate = new Date(inicio + 'T00:00:00')
@@ -242,10 +194,7 @@ export function Dashboard() {
       // A RECEBER e EM ATRASO: usa ehAtrasada local (mais agressiva) para tudo
       const atrasados = allInvoices.filter((i: any) => ehAtrasada(i))
       const qtdAtrasados = atrasados.length
-      const valorAtrasados = atrasados.reduce((s: number, i: any) => {
-        if (i.status === 'parcial') return s + Math.max(0, (i.total || 0) - ((i as any).valor_pago || 0))
-        return s + (i.total || 0)
-      }, 0)
+      const valorAtrasados = atrasados.reduce((s: number, i: any) => s + valorEmAtraso(i), 0)
 
       setKpi({
         receitas: rec,
@@ -345,26 +294,10 @@ export function Dashboard() {
     finally { setLoading(false) }
   }
 
-  // Calcula só o valor que o cliente REALMENTE DEVE (desconta pagamentos e parcelas pagas)
+  // Valor que o cliente REALMENTE deve em atraso (só parcelas vencidas, descontando pagamentos)
   const calcSaldoDevido = (inv: any): number => {
-    // Se parcelado: soma só as parcelas ATRASADAS e NÃO PAGAS
-    if (Array.isArray(inv.parcelas) && inv.parcelas.length > 0) {
-      const hoje = new Date(); hoje.setHours(0, 0, 0, 0)
-      const atrasadas = inv.parcelas.filter((p: any) => {
-        if (p.status === 'pago') return false
-        try {
-          const rawDate = (p as any).data_vencimento || (p as any).data
-          const venc = rawDate?.toDate ? rawDate.toDate() : new Date(rawDate)
-          return venc < hoje
-        } catch { return false }
-      })
-      if (atrasadas.length > 0) {
-        return atrasadas.reduce((s: number, p: any) => s + (p.valor || 0), 0)
-      }
-    }
-    // Fatura simples: total menos o que já foi pago
-    const pago = inv.valor_pago || 0
-    return Math.max(0, (inv.total || 0) - pago)
+    const atraso = valorEmAtraso(inv)
+    return atraso > 0 ? atraso : saldoFatura(inv)
   }
 
   const sendLembreteWA = async (inv: any) => {
